@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/09/18 14:12:43  mohor
+// Trace fixed. Some registers changed, trace simplified.
+//
 // Revision 1.1.1.1  2001/09/13 13:49:19  mohor
 // Initial official release.
 //
@@ -209,19 +212,19 @@ begin
 
 
 
-/* Anything starts trigger and qualifier
+// Anything starts trigger and qualifier
     #1000 WriteRegister(32'h00000000, `QSEL_ADR,   8'h50);    // Any qualifier
     #1000 WriteRegister(32'h00000000, `TSEL_ADR,   8'h06);    // Any trigger
     #1000 WriteRegister(32'h00000003, `RECSEL_ADR,   8'h0c);  // Two samples are selected for recording (RECPC and RECLSEA)
     #100  WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
     #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
-// End: Anything starts trigger and qualifier */
+// End: Anything starts trigger and qualifier //
 
 
-// Anything starts trigger, breakpoint starts qualifier
+/* Anything starts trigger, breakpoint starts qualifier
     #1000 WriteRegister(`QUALIFOP_OR | `BPQUALIFVALID | `BPQUALIF, `QSEL_ADR,   8'had);    // Any qualifier
     #1000 WriteRegister(32'h00000000, `TSEL_ADR,   8'h06);    // Any trigger
-    #1000 WriteRegister(32'hffffffff, `RECSEL_ADR,   8'h78);  // Two samples are selected for recording (RECSDATA and RECLDATA)
+    #1000 WriteRegister(32'h0000000c, `RECSEL_ADR,   8'h0f);  // Two samples are selected for recording (RECSDATA and RECLDATA)
     #1000 WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
     #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
     wait(dbg_tb.dbgTAP1.TraceEnable)
@@ -230,7 +233,7 @@ begin
     repeat(8) @(posedge Mclk);
     wait(dbg_tb.dbgTAP1.dbgTrace1.RiscStall)
       #1 Bp = 0;                                                 // Clear breakpoint
-// End: Anything starts trigger, breakpoint starts qualifier
+// End: Anything starts trigger, breakpoint starts qualifier */
 
 
 /* Anything starts qualifier, breakpoint starts trigger
