@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2003/07/31 12:19:49  simons
+// Multiple cpu support added.
+//
 // Revision 1.8  2002/10/10 02:42:55  mohor
 // WISHBONE Scan Chain is changed to reflect state of the WISHBONE access (WBInProgress bit added). Internal counter is used (counts 256 wb_clk cycles) and when counter exceeds that value, wb_cyc_o is negated.
 //
@@ -240,7 +243,7 @@ reg    [31:0] data_out;
   end
 
   dbg_register #(2, 0)  RISCOP  (.data_in(data_in[2:1]),   .data_out(RISCOPOut[2:1]),    .write(RISCOP_Wr),   .clk(clk), .reset(reset));
-  dbg_register #(`RISC_NUM, 0)  RISCSEL  (.data_in(data_in[`RISC_NUM-1:0]),   .data_out(RISCSELOut),    .write(RISCSEL_Wr),   .clk(clk), .reset(reset));
+  dbg_register #(`RISC_NUM, 1)  RISCSEL  (.data_in(data_in[`RISC_NUM-1:0]),   .data_out(RISCSELOut),    .write(RISCSEL_Wr),   .clk(clk), .reset(reset));
   dbg_register #(4, `MON_CNTL_DEF)  MONCNTL (.data_in(data_in[3:0]), .data_out(MONCNTLOut[3:0]), .write(MON_CNTL_Wr), .clk(clk), .reset(reset));
 
 
