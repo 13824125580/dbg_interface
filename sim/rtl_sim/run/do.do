@@ -7,6 +7,7 @@ vlog -reportprogress 30 -work work {C:/cvsroot/dbg_interface/rtl/verilog/dbg_tim
 vlog -reportprogress 30 -work work {C:/cvsroot/dbg_interface/rtl/verilog/dbg_top.v}
 vlog -reportprogress 30 -work work {C:/cvsroot/dbg_interface/rtl/verilog/dbg_trace.v}
 
+vlog -reportprogress 300 -work work {C:/cvsroot/dbg_interface/bench/verilog/dbg_tb_defines.v}
 vlog -reportprogress 300 -work work {C:/cvsroot/dbg_interface/bench/verilog/dbg_tb.v}
 
 

@@ -1,7 +1,5 @@
-  // Potrebno narediti STALL procesorja pri read-u in write-u
 
-  // Potrebno racunati crc kadar je izbran trace. Ko delamo read iz bufferja
-  // Dodati registre RISCOP
+// Potrebno racunati crc kadar je izbran trace. Ko delamo read iz bufferja
 
 
 //////////////////////////////////////////////////////////////////////
@@ -51,6 +49,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1.1.1  2001/09/13 13:49:19  mohor
+// Initial official release.
+//
 // Revision 1.3  2001/06/01 22:22:35  mohor
 // This is a backup. It is not a fully working version. Not for use, yet.
 //
@@ -67,7 +68,8 @@
 
 // Top module
 module dbg_top(P_TMS, P_TCK, P_TRST, P_TDI, P_TDO, P_PowerONReset, Mclk, RISC_ADDR, RISC_DATA_IN,
-               RISC_DATA_OUT, RISC_CS, RISC_RW, Wp, Bp, OpSelect, LsStatus, IStatus
+               RISC_DATA_OUT, RISC_CS, RISC_RW, Wp, Bp, OpSelect, LsStatus, IStatus,
+               RISC_STALL_O, RISC_RESET_O, BS_CHAIN_I
               );
 
 parameter Tp = 1;
@@ -81,6 +83,7 @@ input [10:0] Wp;
 input Bp;
 input [3:0] LsStatus;
 input [1:0] IStatus;
+input BS_CHAIN_I;
 
 output P_TDO;
 output [31:0] RISC_ADDR;
@@ -88,6 +91,8 @@ output [31:0] RISC_DATA_OUT;
 output [`OPSELECTWIDTH-1:0] OpSelect;
 output RISC_CS;              // CS for accessing RISC registers
 output RISC_RW;              // RW for accessing RISC registers
+output RISC_STALL_O;         // Stalls the RISC
+output RISC_RESET_O;         // Resets the RISC
 
 reg    [31:0] RISC_ADDR;
 reg    [31:0] ADDR;
@@ -157,7 +162,6 @@ reg  CrcMatch;                            // The crc that is shifted in and the 
   // Outputs from registers
   wire ContinMode;
   wire TraceEnable;
-  wire RecSelDepend;
   
   wire [10:0] WpTrigger;
   wire        BpTrigger;
@@ -192,29 +196,24 @@ reg  CrcMatch;                            // The crc that is shifted in and the 
   wire LSSStopValid;
   wire IStopValid;
   
-  wire [10:0] RecordPC_Wp;
-  wire [10:0] RecordLSEA_Wp;
-  wire [10:0] RecordLDATA_Wp;
-  wire [10:0] RecordSDATA_Wp;
-  wire [10:0] RecordReadSPR_Wp;
-  wire [10:0] RecordWriteSPR_Wp;
-  wire [10:0] RecordINSTR_Wp;
+  wire RecordPC;
+  wire RecordLSEA;
+  wire RecordLDATA;
+  wire RecordSDATA;
+  wire RecordReadSPR;
+  wire RecordWriteSPR;
+  wire RecordINSTR;
   
-  wire RecordPC_Bp;
-  wire RecordLSEA_Bp;
-  wire RecordLDATA_Bp;
-  wire RecordSDATA_Bp;
-  wire RecordReadSPR_Bp;
-  wire RecordWriteSPR_Bp;
-  wire RecordINSTR_Bp;
   // End: Outputs from registers
 
   wire TraceTestScanChain;    // Trace Test Scan chain selected
-
   wire [47:0] Trace_Data;
 
 `endif
 
+wire RiscStall_reg;
+wire RiscReset_reg;
+wire RiscStall_trace;
 
 
 wire RegisterScanChain;     // Register Scan chain selected
@@ -727,6 +726,15 @@ assign RISC_CS = RISCAccess & ~RISCAccess_q;
 assign RISC_RW = RW;
 
 
+`ifdef TRACE_ENABLED
+  assign RISC_STALL_O = RISC_CS | RiscStall_reg | RiscStall_trace ;
+`else
+  assign RISC_STALL_O = RISC_CS | RiscStall_reg;
+`endif
+
+assign RISC_RESET_O = RiscReset_reg;
+
+
 reg [31:0] RISC_DATA_IN_TEMP;
 // Latching data read from RISC
 always @ (posedge Mclk or posedge RESET)
@@ -807,26 +815,6 @@ end
 **********************************************************************************/
 
 
-/**********************************************************************************
-*																																									*
-*		Multiplexing TDO and Tristate control																					*
-*																																									*
-**********************************************************************************/
-wire TDOShifted;
-assign TDOShifted = (ShiftIR | Exit1IR)? TDOInstruction : TDOData;
-
-reg TDOMuxed;
-
-
-// Tristate control for P_TDO pin
-assign P_TDO = (ShiftIR | ShiftDR | Exit1IR | Exit1DR | UpdateDR)? TDOMuxed : 1'bz;
-
-
-/**********************************************************************************
-*																																									*
-*		End:	Multiplexing TDO and Tristate control																		*
-*																																									*
-**********************************************************************************/
 
 
 
@@ -1006,7 +994,23 @@ begin
 end
 
 
+/**********************************************************************************
+*																																									*
+*		Multiplexing TDO and Tristate control																					*
+*																																									*
+**********************************************************************************/
+wire TDOShifted;
+assign TDOShifted = (ShiftIR | Exit1IR)? TDOInstruction : TDOData;
+/**********************************************************************************
+*																																									*
+*		End:	Multiplexing TDO and Tristate control																		*
+*																																									*
+**********************************************************************************/
+
+
+
 // This multiplexing can be expanded with number of user registers
+reg TDOMuxed;
 always @ (JTAG_IR or TDOShifted or TDOBypassed)
 begin
   case(JTAG_IR)
@@ -1022,14 +1026,14 @@ begin
       begin
         TDOMuxed<=#Tp TDOShifted;
       end
-//		SAMPLE_PRELOAD:	// Sampling/Preloading
-//			begin
-//				TDOMuxed<=#Tp ExitFromBSCell[`BSLength-1];
-//			end
-//		EXTEST:	// External test
-//			begin
-//				TDOMuxed<=#Tp ExitFromBSCell[`BSLength-1];
-//			end
+		`SAMPLE_PRELOAD:	// Sampling/Preloading
+			begin
+				TDOMuxed<=#Tp BS_CHAIN_I;
+			end
+		`EXTEST:	// External test
+			begin
+				TDOMuxed<=#Tp BS_CHAIN_I;
+			end
     default:  // BYPASS instruction
       begin
         TDOMuxed<=#Tp TDOBypassed;
@@ -1037,6 +1041,8 @@ begin
   endcase
 end
 
+// Tristate control for P_TDO pin
+assign P_TDO = (ShiftIR | ShiftDR | Exit1IR | Exit1DR | UpdateDR)? TDOMuxed : 1'bz;
 
 /**********************************************************************************
 *                                                                                 *
@@ -1080,29 +1086,27 @@ end
 **********************************************************************************/
 dbg_registers dbgregs(.DataIn(DataOut[31:0]), .DataOut(RegDataIn[31:0]), 
                       .Address(ADDR[4:0]), .RW(RW), .Access(RegAccess & ~RegAccess_q), .Clk(Mclk), 
-                      .Reset(PowerONReset)
+                      .Reset(PowerONReset), 
                       `ifdef TRACE_ENABLED
-                      ,
-                      .ContinMode(ContinMode), .TraceEnable(TraceEnable), .RecSelDepend(RecSelDepend), 
+                      .ContinMode(ContinMode), .TraceEnable(TraceEnable), 
                       .WpTrigger(WpTrigger), .BpTrigger(BpTrigger), .LSSTrigger(LSSTrigger),
                       .ITrigger(ITrigger), .TriggerOper(TriggerOper), .WpQualif(WpQualif),
                       .BpQualif(BpQualif), .LSSQualif(LSSQualif), .IQualif(IQualif), 
-                      .QualifOper(QualifOper), .RecordPC_Wp(RecordPC_Wp), 
-                      .RecordLSEA_Wp(RecordLSEA_Wp), .RecordLDATA_Wp(RecordLDATA_Wp), 
-                      .RecordSDATA_Wp(RecordSDATA_Wp), .RecordReadSPR_Wp(RecordReadSPR_Wp), 
-                      .RecordWriteSPR_Wp(RecordWriteSPR_Wp), .RecordINSTR_Wp(RecordINSTR_Wp), 
-                      .RecordPC_Bp(RecordPC_Bp), .RecordLSEA_Bp(RecordLSEA_Bp),
-                      .RecordLDATA_Bp(RecordLDATA_Bp), .RecordSDATA_Bp(RecordSDATA_Bp), 
-                      .RecordReadSPR_Bp(RecordReadSPR_Bp), .RecordWriteSPR_Bp(RecordWriteSPR_Bp), 
-                      .RecordINSTR_Bp(RecordINSTR_Bp), .WpTriggerValid(WpTriggerValid), 
+                      .QualifOper(QualifOper), .RecordPC(RecordPC), 
+                      .RecordLSEA(RecordLSEA), .RecordLDATA(RecordLDATA), 
+                      .RecordSDATA(RecordSDATA), .RecordReadSPR(RecordReadSPR), 
+                      .RecordWriteSPR(RecordWriteSPR), .RecordINSTR(RecordINSTR), 
+                      .WpTriggerValid(WpTriggerValid), 
                       .BpTriggerValid(BpTriggerValid), .LSSTriggerValid(LSSTriggerValid), 
                       .ITriggerValid(ITriggerValid), .WpQualifValid(WpQualifValid), 
                       .BpQualifValid(BpQualifValid), .LSSQualifValid(LSSQualifValid), 
                       .IQualifValid(IQualifValid),
                       .WpStop(WpStop), .BpStop(BpStop), .LSSStop(LSSStop), .IStop(IStop), 
-                      .S  topOper(StopOper), .WpStopValid(WpStopValid), .BpStopValid(BpStopValid), 
-                      .LSSStopValid(LSSStopValid), .IStopValid(IStopValid) 
+                      .StopOper(StopOper), .WpStopValid(WpStopValid), .BpStopValid(BpStopValid), 
+                      .LSSStopValid(LSSStopValid), .IStopValid(IStopValid), 
                       `endif
+                      .RiscStall(RiscStall_reg), .RiscReset(RiscReset_reg)
+
                      );
 
 /**********************************************************************************
@@ -1186,21 +1190,18 @@ assign RiscDebugScanChain  = Chain == `RISC_DEBUG_CHAIN;
 *                                                                                 *
 **********************************************************************************/
 `ifdef TRACE_ENABLED
-  dbg_trace dbgTrace1(.Wp(Wp), .Bp(Bp), .DataIn(DataIn), .OpSelect(OpSelect), 
-                      .LsStatus(LsStatus), .IStatus(IStatus), .CpuStall(CpuStall), 
+  dbg_trace dbgTrace1(.Wp(Wp), .Bp(Bp), .DataIn(RISC_DATA_IN), .OpSelect(OpSelect), 
+                      .LsStatus(LsStatus), .IStatus(IStatus), .RiscStall(RiscStall_trace), 
                       .Mclk(Mclk), .Reset(RESET), .TraceChain(TraceChain), 
                       .ContinMode(ContinMode), .TraceEnable(TraceEnable), 
-                      .RecSelDepend(RecSelDepend), .WpTrigger(WpTrigger), 
+                      .WpTrigger(WpTrigger), 
                       .BpTrigger(BpTrigger), .LSSTrigger(LSSTrigger), .ITrigger(ITrigger), 
                       .TriggerOper(TriggerOper), .WpQualif(WpQualif), .BpQualif(BpQualif), 
                       .LSSQualif(LSSQualif), .IQualif(IQualif), .QualifOper(QualifOper), 
-                      .RecordPC_Wp(RecordPC_Wp), .RecordLSEA_Wp(RecordLSEA_Wp), 
-                      .RecordLDATA_Wp(RecordLDATA_Wp), .RecordSDATA_Wp(RecordSDATA_Wp), 
-                      .RecordReadSPR_Wp(RecordReadSPR_Wp), .RecordWriteSPR_Wp(RecordWriteSPR_Wp), 
-                      .RecordINSTR_Wp(RecordINSTR_Wp), .RecordPC_Bp(RecordPC_Bp), 
-                      .RecordLSEA_Bp(RecordLSEA_Bp), .RecordLDATA_Bp(RecordLDATA_Bp), 
-                      .RecordSDATA_Bp(RecordSDATA_Bp), .RecordReadSPR_Bp(RecordReadSPR_Bp), 
-                      .RecordWriteSPR_Bp(RecordWriteSPR_Bp), .RecordINSTR_Bp(RecordINSTR_Bp), 
+                      .RecordPC(RecordPC), .RecordLSEA(RecordLSEA), 
+                      .RecordLDATA(RecordLDATA), .RecordSDATA(RecordSDATA), 
+                      .RecordReadSPR(RecordReadSPR), .RecordWriteSPR(RecordWriteSPR), 
+                      .RecordINSTR(RecordINSTR), 
                       .WpTriggerValid(WpTriggerValid), .BpTriggerValid(BpTriggerValid), 
                       .LSSTriggerValid(LSSTriggerValid), .ITriggerValid(ITriggerValid), 
                       .WpQualifValid(WpQualifValid), .BpQualifValid(BpQualifValid), 

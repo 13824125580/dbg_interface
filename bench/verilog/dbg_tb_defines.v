@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1.1.1  2001/09/13 13:49:19  mohor
+// Initial official release.
+//
 // Revision 1.3  2001/06/01 22:23:40  mohor
 // This is a backup. It is not a fully working version. Not for use, yet.
 //
@@ -59,8 +62,8 @@
 // Following defines are used in the testbench only
 
   // MODER register
-  `define CONTIN          32'h00000001
-  `define ENABLE          32'h00000002
+  `define ENABLE          32'h00010000
+  `define CONTIN          32'h00020000
   
   // TSEL register
   `define WPTRIG_0        32'h00000001

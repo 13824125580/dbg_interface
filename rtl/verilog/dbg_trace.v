@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1.1.1  2001/09/13 13:49:19  mohor
+// Initial official release.
+//
 // Revision 1.3  2001/06/01 22:22:35  mohor
 // This is a backup. It is not a fully working version. Not for use, yet.
 //
@@ -61,13 +64,12 @@
 `include "dbg_defines.v"
 
 // module Trace
-module dbg_trace (Wp, Bp, DataIn, OpSelect, LsStatus, IStatus, CpuStall, 
-                  Mclk, Reset, TraceChain, ContinMode, TraceEnable, RecSelDepend,
+module dbg_trace (Wp, Bp, DataIn, OpSelect, LsStatus, IStatus, RiscStall, 
+                  Mclk, Reset, TraceChain, ContinMode, TraceEnable, 
                   WpTrigger, BpTrigger, LSSTrigger, ITrigger, TriggerOper, WpQualif, 
-                  BpQualif, LSSQualif, IQualif, QualifOper, RecordPC_Wp, RecordLSEA_Wp, 
-                  RecordLDATA_Wp, RecordSDATA_Wp, RecordReadSPR_Wp, RecordWriteSPR_Wp, 
-                  RecordINSTR_Wp, RecordPC_Bp, RecordLSEA_Bp, RecordLDATA_Bp, 
-                  RecordSDATA_Bp, RecordReadSPR_Bp, RecordWriteSPR_Bp, RecordINSTR_Bp, 
+                  BpQualif, LSSQualif, IQualif, QualifOper, RecordPC, RecordLSEA, 
+                  RecordLDATA, RecordSDATA, RecordReadSPR, RecordWriteSPR, 
+                  RecordINSTR, 
                   WpTriggerValid, BpTriggerValid, LSSTriggerValid, ITriggerValid, 
                   WpQualifValid, BpQualifValid, LSSQualifValid, IQualifValid, ReadBuffer,
                   WpStop, BpStop, LSSStop, IStop, StopOper, WpStopValid, BpStopValid, 
@@ -90,7 +92,6 @@ input        ReadBuffer;// Instruction for reading a sample from the Buffer
 // from registers
 input ContinMode;
 input TraceEnable;
-input RecSelDepend;
 
 input [10:0] WpTrigger;
 input        BpTrigger;
@@ -110,21 +111,13 @@ input [3:0]  LSSStop;
 input [1:0]  IStop;
 input [1:0]  StopOper;
 
-input [10:0] RecordPC_Wp;
-input [10:0] RecordLSEA_Wp;
-input [10:0] RecordLDATA_Wp;
-input [10:0] RecordSDATA_Wp;
-input [10:0] RecordReadSPR_Wp;
-input [10:0] RecordWriteSPR_Wp;
-input [10:0] RecordINSTR_Wp;
-
-input RecordPC_Bp;
-input RecordLSEA_Bp;
-input RecordLDATA_Bp;
-input RecordSDATA_Bp;
-input RecordReadSPR_Bp;
-input RecordWriteSPR_Bp;
-input RecordINSTR_Bp;
+input RecordPC;
+input RecordLSEA;
+input RecordLDATA;
+input RecordSDATA;
+input RecordReadSPR;
+input RecordWriteSPR;
+input RecordINSTR;
 
 input WpTriggerValid;
 input BpTriggerValid;
@@ -144,15 +137,15 @@ input IStopValid;
 
 
 output [`OPSELECTWIDTH-1:0]  OpSelect; // Operation select (what kind of information is avaliable on the DataIn)
-output        CpuStall;   // CPU stall (stalls the RISC)
+output        RiscStall;  // CPU stall (stalls the RISC)
 output [39:0] TraceChain; // Scan shain from the trace module
 
 
 reg [`TRACECOUNTERWIDTH:0] Counter;
 reg [`TRACECOUNTERWIDTH-1:0] WritePointer;
 reg [`TRACECOUNTERWIDTH-1:0] ReadPointer;
-reg CpuStall;
-reg CpuStall_q;
+reg RiscStall;
+reg RiscStall_q;
 reg [`OPSELECTWIDTH-1:0] StallCounter;
 
 reg [`TRACESAMPLEWIDTH-1:0] Buffer[0:`TRACEBUFFERLENGTH-1];
@@ -264,16 +257,16 @@ end
 
 /**********************************************************************************
 *                                                                                 *
-*   CpuStall, counter and pointers generation                                     *
+*   RiscStall, counter and pointers generation                                     *
 *                                                                                 *
 **********************************************************************************/
 reg BufferFullDetected;
-reg [`OPSELECTIONCOUNTER-1:0] RecEnable;
+wire [`OPSELECTIONCOUNTER-1:0] RecEnable;
 
 wire BufferFull = Counter[`TRACECOUNTERWIDTH:0]==`TRACEBUFFERLENGTH;
 wire BufferEmpty = Counter[`TRACECOUNTERWIDTH:0]==0;
-wire IncrementCounter = CpuStall_q & ~(BufferFull | BufferFullDetected) & Qualifier & RecEnable[StallCounter];
-wire IncrementPointer = CpuStall_q & (~BufferFull | ContinMode) & Qualifier & RecEnable[StallCounter];
+wire IncrementCounter = RiscStall_q & ~(BufferFull | BufferFullDetected) & Qualifier & RecEnable[StallCounter];
+wire IncrementPointer = RiscStall_q & (~BufferFull | ContinMode) & Qualifier & RecEnable[StallCounter];
 
 wire WriteSample = IncrementPointer;
 
@@ -292,7 +285,7 @@ begin
   Qualifier_mclk<=#Tp Qualifier;
   BufferFull_q<=#Tp BufferFull;
   BufferFull_2q<=#Tp BufferFull_q;
-  CpuStall_q <=#Tp CpuStall;
+  RiscStall_q <=#Tp RiscStall;
 end
 
 
@@ -360,13 +353,13 @@ end
 always @(posedge Mclk or posedge AsyncSetCpuStall)
 begin
   if(AsyncSetCpuStall)
-    CpuStall<=#Tp 1;
+    RiscStall<=#Tp 1;
   else
   if(SyncSetCpuStall)
-    CpuStall<=#Tp 1;
+    RiscStall<=#Tp 1;
   else
   if(ResetCpuStall)
-    CpuStall<=#Tp 0;
+    RiscStall<=#Tp 0;
 end
 
 
@@ -375,7 +368,7 @@ begin
   if(ResetStallCounter)
     StallCounter<=#Tp 0;
   else
-  if(CpuStall_q & (~BufferFull | ContinMode))
+  if(RiscStall_q & (~BufferFull | ContinMode))
     StallCounter<=#Tp StallCounter+1;
 end
 
@@ -419,27 +412,7 @@ assign OpSelect[`OPSELECTWIDTH-1:0] = StallCounter[`OPSELECTWIDTH-1:0];
 *   Selecting which parts are going to be recorded as part of the sample          *
 *                                                                                 *
 **********************************************************************************/
-always @(posedge Mclk or posedge Reset)
-begin
-  if(Reset)
-    RecEnable<=#Tp 0;
-  else
-  if(CpuStall)
-    begin
-      RecEnable<=#Tp {1'b0, RecordINSTR_Wp[0],  RecordWriteSPR_Wp[0],  RecordReadSPR_Wp[0],  RecordSDATA_Wp[0],  RecordLDATA_Wp[0],  RecordLSEA_Wp[0],  RecordPC_Wp[0]} & {`OPSELECTIONCOUNTER{Wp[0]}}   |
-                     {1'b0, RecordINSTR_Wp[1],  RecordWriteSPR_Wp[1],  RecordReadSPR_Wp[1],  RecordSDATA_Wp[1],  RecordLDATA_Wp[1],  RecordLSEA_Wp[1],  RecordPC_Wp[1]} & {`OPSELECTIONCOUNTER{Wp[1]}}   |
-                     {1'b0, RecordINSTR_Wp[2],  RecordWriteSPR_Wp[2],  RecordReadSPR_Wp[2],  RecordSDATA_Wp[2],  RecordLDATA_Wp[2],  RecordLSEA_Wp[2],  RecordPC_Wp[2]} & {`OPSELECTIONCOUNTER{Wp[2]}}   |
-                     {1'b0, RecordINSTR_Wp[3],  RecordWriteSPR_Wp[3],  RecordReadSPR_Wp[3],  RecordSDATA_Wp[3],  RecordLDATA_Wp[3],  RecordLSEA_Wp[3],  RecordPC_Wp[3]} & {`OPSELECTIONCOUNTER{Wp[3]}}   |
-                     {1'b0, RecordINSTR_Wp[4],  RecordWriteSPR_Wp[4],  RecordReadSPR_Wp[4],  RecordSDATA_Wp[4],  RecordLDATA_Wp[4],  RecordLSEA_Wp[4],  RecordPC_Wp[4]} & {`OPSELECTIONCOUNTER{Wp[4]}}   |
-                     {1'b0, RecordINSTR_Wp[5],  RecordWriteSPR_Wp[5],  RecordReadSPR_Wp[5],  RecordSDATA_Wp[5],  RecordLDATA_Wp[5],  RecordLSEA_Wp[5],  RecordPC_Wp[5]} & {`OPSELECTIONCOUNTER{Wp[5]}}   |
-                     {1'b0, RecordINSTR_Wp[6],  RecordWriteSPR_Wp[6],  RecordReadSPR_Wp[6],  RecordSDATA_Wp[6],  RecordLDATA_Wp[6],  RecordLSEA_Wp[6],  RecordPC_Wp[6]} & {`OPSELECTIONCOUNTER{Wp[6]}}   |
-                     {1'b0, RecordINSTR_Wp[7],  RecordWriteSPR_Wp[7],  RecordReadSPR_Wp[7],  RecordSDATA_Wp[7],  RecordLDATA_Wp[7],  RecordLSEA_Wp[7],  RecordPC_Wp[7]} & {`OPSELECTIONCOUNTER{Wp[7]}}   |
-                     {1'b0, RecordINSTR_Wp[8],  RecordWriteSPR_Wp[8],  RecordReadSPR_Wp[8],  RecordSDATA_Wp[8],  RecordLDATA_Wp[8],  RecordLSEA_Wp[8],  RecordPC_Wp[8]} & {`OPSELECTIONCOUNTER{Wp[8]}}   |
-                     {1'b0, RecordINSTR_Wp[9],  RecordWriteSPR_Wp[9],  RecordReadSPR_Wp[9],  RecordSDATA_Wp[9],  RecordLDATA_Wp[9],  RecordLSEA_Wp[9],  RecordPC_Wp[9]} & {`OPSELECTIONCOUNTER{Wp[9]}}   |
-                     {1'b0, RecordINSTR_Wp[10], RecordWriteSPR_Wp[10], RecordReadSPR_Wp[10], RecordSDATA_Wp[10], RecordLDATA_Wp[10], RecordLSEA_Wp[10], RecordPC_Wp[10]}& {`OPSELECTIONCOUNTER{Wp[10]}}  |
-                     {1'b0, RecordINSTR_Bp,     RecordWriteSPR_Bp,     RecordReadSPR_Bp,     RecordSDATA_Bp,     RecordLDATA_Bp,     RecordLSEA_Bp,     RecordPC_Bp}    & {`OPSELECTIONCOUNTER{Bp}};
-    end
-end
+assign RecEnable = {1'b0, RecordINSTR,  RecordWriteSPR,  RecordReadSPR,  RecordSDATA,  RecordLDATA,  RecordLSEA,  RecordPC};
 
 
 endmodule // Trace

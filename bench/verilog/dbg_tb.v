@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1.1.1  2001/09/13 13:49:19  mohor
+// Initial official release.
+//
 // Revision 1.3  2001/06/01 22:23:40  mohor
 // This is a backup. It is not a fully working version. Not for use, yet.
 //
@@ -77,12 +80,15 @@ reg [10:0] Wp;
 reg Bp;
 reg [3:0] LsStatus;
 reg [1:0] IStatus;
+reg BS_CHAIN_I;
 
 wire P_TDO;
 wire [31:0] ADDR_RISC;
 wire [31:0] DATAIN_RISC;     // DATAIN_RISC is connect to DATAOUT
 wire RISC_CS;
 wire RISC_RW;
+wire RISC_STALL_O;
+wire RISC_RESET_O;
 
 wire  [31:0] DATAOUT_RISC;   // DATAOUT_RISC is connect to DATAIN
 
@@ -93,7 +99,8 @@ dbg_top dbgTAP1(.P_TMS(P_TMS), .P_TCK(P_TCK), .P_TRST(P_TRST), .P_TDI(P_TDI),
                 .P_TDO(P_TDO), .P_PowerONReset(P_PowerONReset), .Mclk(Mclk), 
                 .RISC_ADDR(ADDR_RISC), .RISC_DATA_IN(DATAOUT_RISC), .RISC_DATA_OUT(DATAIN_RISC), 
                 .RISC_CS(RISC_CS), .RISC_RW(RISC_RW), .Wp(Wp), .Bp(Bp), 
-                .OpSelect(OpSelect), .LsStatus(LsStatus), .IStatus(IStatus)
+                .OpSelect(OpSelect), .LsStatus(LsStatus), .IStatus(IStatus), 
+                .RISC_STALL_O(RISC_STALL_O), .RISC_RESET_O(RISC_RESET_O), .BS_CHAIN_I(BS_CHAIN_I)
                 );
 
 
@@ -168,23 +175,14 @@ begin
   ChainSelect(`REGISTER_SCAN_CHAIN, 8'h0e);  // {chain, crc}
   SetInstruction(`DEBUG);
 
-//
+
+/*
+//  Testing internal registers
     ReadRegister(`MODER_ADR, 8'h00);           // {addr, crc}
     ReadRegister(`TSEL_ADR, 8'h64);            // {addr, crc}
     ReadRegister(`QSEL_ADR, 8'h32);            // {addr, crc}
     ReadRegister(`SSEL_ADR, 8'h56);            // {addr, crc}
-    ReadRegister(`RECWP0_ADR, 8'hc4);          // {addr, crc}
-    ReadRegister(`RECWP1_ADR, 8'ha0);          // {addr, crc}
-    ReadRegister(`RECWP2_ADR, 8'hf6);          // {addr, crc}
-    ReadRegister(`RECWP3_ADR, 8'h92);          // {addr, crc}
-    ReadRegister(`RECWP4_ADR, 8'hdd);          // {addr, crc}
-    ReadRegister(`RECWP5_ADR, 8'hb9);          // {addr, crc}
-    ReadRegister(`RECWP6_ADR, 8'hef);          // {addr, crc}
-    ReadRegister(`RECWP7_ADR, 8'h8b);          // {addr, crc}
-    ReadRegister(`RECWP8_ADR, 8'h4b);          // {addr, crc}
-    ReadRegister(`RECWP9_ADR, 8'h2f);          // {addr, crc}
-    ReadRegister(`RECWP10_ADR, 8'h79);         // {addr, crc}
-    ReadRegister(`RECBP0_ADR, 8'h1d);          // {addr, crc}
+    ReadRegister(`RECSEL_ADR, 8'hc4);          // {addr, crc}
     ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
     ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
 
@@ -192,100 +190,69 @@ begin
     WriteRegister(32'h00000020, `TSEL_ADR,    8'h5e); // {data, addr, crc}
     WriteRegister(32'h00000300, `QSEL_ADR,    8'hdd); // {data, addr, crc}
     WriteRegister(32'h00004000, `SSEL_ADR,    8'he2); // {data, addr, crc}
-    WriteRegister(32'h00050000, `RECWP0_ADR,  8'hbe); // {data, addr, crc}
-    WriteRegister(32'h00600000, `RECWP1_ADR,  8'hbc); // {data, addr, crc}
-    WriteRegister(32'h07000000, `RECWP2_ADR,  8'h3a); // {data, addr, crc}
-    WriteRegister(32'h80000000, `RECWP3_ADR,  8'hf7); // {data, addr, crc}
-    WriteRegister(32'h09000000, `RECWP4_ADR,  8'h46); // {data, addr, crc}
-    WriteRegister(32'h00a00000, `RECWP5_ADR,  8'h9a); // {data, addr, crc}
-    WriteRegister(32'h000b0000, `RECWP6_ADR,  8'h37); // {data, addr, crc}
-    WriteRegister(32'h0000c000, `RECWP7_ADR,  8'h54); // {data, addr, crc}
-    WriteRegister(32'h00000d00, `RECWP8_ADR,  8'hc3); // {data, addr, crc}
-    WriteRegister(32'h000000e0, `RECWP9_ADR,  8'h2f); // {data, addr, crc}
-    WriteRegister(32'h0000000f, `RECWP10_ADR, 8'h18); // {data, addr, crc}
-    WriteRegister(32'hdeadbeef, `RECBP0_ADR,  8'h80); // {data, addr, crc}
+    WriteRegister(32'h0000dead, `RECSEL_ADR,  8'hfb); // {data, addr, crc}
 
     ReadRegister(`MODER_ADR, 8'h00);           // {addr, crc}
     ReadRegister(`TSEL_ADR, 8'h64);            // {addr, crc}
     ReadRegister(`QSEL_ADR, 8'h32);            // {addr, crc}
     ReadRegister(`SSEL_ADR, 8'h56);            // {addr, crc}
-    ReadRegister(`RECWP0_ADR, 8'hc4);          // {addr, crc}
-    ReadRegister(`RECWP1_ADR, 8'ha0);          // {addr, crc}
-    ReadRegister(`RECWP2_ADR, 8'hf6);          // {addr, crc}
-    ReadRegister(`RECWP3_ADR, 8'h92);          // {addr, crc}
-    ReadRegister(`RECWP4_ADR, 8'hdd);          // {addr, crc}
-    ReadRegister(`RECWP5_ADR, 8'hb9);          // {addr, crc}
-    ReadRegister(`RECWP6_ADR, 8'hef);          // {addr, crc}
-    ReadRegister(`RECWP7_ADR, 8'h8b);          // {addr, crc}
-    ReadRegister(`RECWP8_ADR, 8'h4b);          // {addr, crc}
-    ReadRegister(`RECWP9_ADR, 8'h2f);          // {addr, crc}
-    ReadRegister(`RECWP10_ADR, 8'h79);         // {addr, crc}
-    ReadRegister(`RECBP0_ADR, 8'h1d);          // {addr, crc}
+    ReadRegister(`RECSEL_ADR, 8'hc4);          // {addr, crc}
     ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
     ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
-//
+*/
 
 
 // testing trigger and qualifier
 `ifdef TRACE_ENABLED
-    /* Watchpoint Wp[0] starts trigger, anything starts qualifier
-    #1000 WriteRegister(`WPTRIG_0 | `WPTRIGVALID | `TRIGOP_AND, `TSEL_ADR,   8'h9c); // Wp[0] starts trigger, anything starts qualifier
-    #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hf9); // {data, addr, crc}
-    #2000 Wp=11'h001;
-    */
-
-    /* Watchpoint Wp[10] & (IStatus[1:0] == IS_FETCH) start trigger, anything starts qualifier
-    #1000 WriteRegister(`WPTRIG_10 | `IS_FETCH | `WPTRIGVALID | `ISTRIGVALID | `TRIGOP_AND, `TSEL_ADR,    8'haf); // Wp[10] & IStatus = IS_FETCH start trigger, anything starts qualifier
-    #1000 WriteRegister(`ENABLE | `CONTIN, `MODER_ADR,    8'hc8); // {data, addr, crc}
-    #2000 Wp=11'h001;   // Wp[0] is active
-    #2000 IStatus=2'b01; // IStatus =  IS_FETCH
-    #1999 Wp=11'h400;   // Wp[10] is active
-    */
-
-    /* Watchpoint Wp[10] & IStatus[1:0] = IS_BRANCH start trigger, anything starts qualifier
-    #1000 WriteRegister(`WPTRIG_10 | `IS_BRANCH | `WPTRIGVALID | `ISTRIGVALID | `TRIGOP_AND, `TSEL_ADR,    8'hd1); // Wp[10] & IStatus = IS_BRANCH start trigger, anything starts qualifier
-    #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hf9); // {data, addr, crc}
-    #2000 Wp=11'h001;   // Wp[0] is active
-    #2000 IStatus=2'b10; // IStatus = IS_BRANCH
-    #1999 Wp=11'h400;   // Wp[10] is active
-    */
-
-    /* Watchpoint Wp[5] starts qualifier, anything starts trigger
-    #1000 WriteRegister(`WPQUALIF_5 | `WPQUALIFVALID | `QUALIFOP_AND, `QSEL_ADR,   8'ha3); // Wp[5] starts Qualifier, anything starts trigger
-    #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hf9); // {data, addr, crc}
-    #2000 Wp=11'h020;   // Wp[5] is active
-    */
-
-// igor !!! od tu naprej je test TRACE-A, ki sem ga zakomentiral, ker moram najprej urediti read/write registrov
-    // Breakpoint Bp & LsStatus[1] start qualifier, anything starts trigger
-    #1000 WriteRegister(32'h12345673, `RECBP0_ADR,   8'hfe); // Ta je brez veze in mora iti ven. tu je le zato, da bi se videlo ali se registri berejo ok
-    #1000 WriteRegister(32'h00000003, `RECBP0_ADR,   8'hd5); // Breakpoint Bp selects two samples for recording
-    #100  WriteRegister(32'h80000801, `SSEL_ADR,   8'ha0); // Watchpoint Wp0 stops recording
-//    #1000 WriteRegister(`BPQUALIF | `LSS_LOADBYTE_ZEROEXT | `BPQUALIFVALID | `LSSQUALIFVALID | `QUALIFOP_AND, `QSEL_ADR,   8'h50); // Breakpoint Bp & LsStatus[1] start qualifier, anything starts trigger
-    #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hf9); // {data, addr, crc}
-    #2000 Bp=1;                 // Bp is active
-//    #2000 LsStatus[3:0]=4'h2;   // LsStatus = LSS_LOADBYTE_ZEROEXT
-    #2000 LsStatus[3:0]=4'h2;   // LsStatus = LSS_LOADBYTE_ZEROEXT
-    #45 LsStatus[3:0]=4'h1;   // LsStatus != LSS_LOADBYTE_ZEROEXT ()
-    #90 LsStatus[3:0]=4'h2;   // LsStatus = LSS_LOADBYTE_ZEROEXT
-    WriteRegister(32'h0000000c, `RECWP5_ADR,   8'h72); // Watchpoint Wp5 selects two samples for recording
-    #45 LsStatus[3:0]=4'h1;   // LsStatus != LSS_LOADBYTE_ZEROEXT ()
-    #45 LsStatus[3:0]=4'h2;   // LsStatus = LSS_LOADBYTE_ZEROEXT
-    Bp=0;                 // Bp is active
-    Wp=11'h020;   // Wp[5] is active
-    #250 Wp=11'h021;   // Wp[0] and Wp[5] are active. Wp[0] will stop recording
-
-
-    #45 LsStatus[3:0]=4'h1;   // LsStatus != LSS_LOADBYTE_ZEROEXT ()
-    #45 LsStatus[3:0]=4'h2;   // LsStatus = LSS_LOADBYTE_ZEROEXT
-    #1000 LsStatus[3:0]=4'h1;   // LsStatus != LSS_LOADBYTE_ZEROEXT ()
 
 
 
 
-    //
 
-  #1000 WriteRegister(0, `MODER_ADR,    8'h62); // {data, addr, crc} Disable Trace
+/* Anything starts trigger and qualifier
+    #1000 WriteRegister(32'h00000000, `QSEL_ADR,   8'h50);    // Any qualifier
+    #1000 WriteRegister(32'h00000000, `TSEL_ADR,   8'h06);    // Any trigger
+    #1000 WriteRegister(32'h00000003, `RECSEL_ADR,   8'h0c);  // Two samples are selected for recording (RECPC and RECLSEA)
+    #100  WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
+    #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
+// End: Anything starts trigger and qualifier */
+
+
+// Anything starts trigger, breakpoint starts qualifier
+    #1000 WriteRegister(`QUALIFOP_OR | `BPQUALIFVALID | `BPQUALIF, `QSEL_ADR,   8'had);    // Any qualifier
+    #1000 WriteRegister(32'h00000000, `TSEL_ADR,   8'h06);    // Any trigger
+    #1000 WriteRegister(32'hffffffff, `RECSEL_ADR,   8'h78);  // Two samples are selected for recording (RECSDATA and RECLDATA)
+    #1000 WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
+    #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
+    wait(dbg_tb.dbgTAP1.TraceEnable)
+    @ (posedge Mclk);
+      #1 Bp = 1;                                                 // Set breakpoint
+    repeat(8) @(posedge Mclk);
+    wait(dbg_tb.dbgTAP1.dbgTrace1.RiscStall)
+      #1 Bp = 0;                                                 // Clear breakpoint
+// End: Anything starts trigger, breakpoint starts qualifier
+
+
+/* Anything starts qualifier, breakpoint starts trigger
+    #1000 WriteRegister(32'h00000000, `QSEL_ADR,   8'h50);    // Any qualifier
+    #1000 WriteRegister(`LSSTRIG_0 | `LSSTRIG_2 | `LSSTRIGVALID | `WPTRIG_4 | `WPTRIGVALID | `TRIGOP_AND, `TSEL_ADR,   8'had);    // Trigger is AND of Watchpoint4 and LSSTRIG[0] and LSSTRIG[2]
+    #1000 WriteRegister(32'h00000003, `RECSEL_ADR,   8'h0c);  // Two samples are selected for recording (RECPC and RECLSEA)
+    #1000 WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
+    #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
+    wait(dbg_tb.dbgTAP1.TraceEnable)
+    @ (posedge Mclk)
+      Wp[4] = 1;                                              // Set watchpoint[4]
+      LsStatus = 4'h5;                                        // LsStatus[0] and LsStatus[2] are active
+    @ (posedge Mclk)
+      Wp[4] = 0;                                              // Clear watchpoint[4]
+      LsStatus = 4'h0;                                        // LsStatus[0] and LsStatus[2] are cleared
+// End: Anything starts trigger and qualifier */
+
+
+
+
+
+
   SetInstruction(`CHAIN_SELECT);
   ChainSelect(`TRACE_TEST_CHAIN, 8'h24);  // {chain, crc}
   SetInstruction(`DEBUG);
@@ -305,14 +272,13 @@ begin
 //  for(i=0;i<1500;i=i+1)
 //    ReadTraceBuffer;
 
-// // igor !!! konec zakomentiranega trace-a
 `endif  // TRACE_ENABLED
 
 
 
   
   #5000 GenClk(1);            // One extra TCLK for debugging purposes
-  #100 $stop;
+  #1000 $stop;
 
 end
 
@@ -634,6 +600,9 @@ task WriteRegister;
 
     P_TMS<=#Tp 0;
     GenClk(1);       // we are in RunTestIdle
+
+    GenClk(5);       // Igor !!!! To mora iti ven. Tu je le zato, da se tisti write-i naredijo
+
   end
 endtask
 
@@ -650,7 +619,7 @@ endtask
 always @ (posedge Mclk)
 begin
   if(dbg_tb.dbgTAP1.dbgTrace1.WriteSample)
-    $write("\n\tWritten to Trace buffer: WritePointer=0x%x, Data=0x%x", dbg_tb.dbgTAP1.dbgTrace1.WritePointer, {dbg_tb.dbgTAP1.dbgTrace1.RISC_DATA_IN, 1'b0, dbg_tb.dbgTAP1.dbgTrace1.OpSelect[`OPSELECTWIDTH-1:0]});
+    $write("\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tWritten to Trace buffer: WritePointer=0x%x, Data=0x%x", dbg_tb.dbgTAP1.dbgTrace1.WritePointer, {dbg_tb.dbgTAP1.dbgTrace1.DataIn, 1'b0, dbg_tb.dbgTAP1.dbgTrace1.OpSelect[`OPSELECTWIDTH-1:0]});
 end
 `endif
 
@@ -746,7 +715,7 @@ begin
 
       if(CRCErrorReport)
         begin
-          $write("\n\t\t\t\tCrc Error when receiving data (read or write) !!!  Crc should be: 0x%h\n", dbg_tb.dbgTAP1.CalculatedCrcIn);
+          $write("\n\t\t\t\tCrc Error when receiving data (read or write) !!!  CrcIn should be: 0x%h\n", dbg_tb.dbgTAP1.CalculatedCrcIn);
           #1000 $stop;
         end
     end

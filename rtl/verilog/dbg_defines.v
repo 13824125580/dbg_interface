@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1.1.1  2001/09/13 13:49:19  mohor
+// Initial official release.
+//
 // Revision 1.3  2001/06/01 22:22:35  mohor
 // This is a backup. It is not a fully working version. Not for use, yet.
 //
@@ -59,14 +62,15 @@
 
 
 // Enable TRACE
-//`define TRACE_ENABLED   // Uncomment this define to activate the trace
+`define TRACE_ENABLED  // Uncomment this define to activate the trace
 
 
 // Define IDCODE Value
 `define IDCODE_VALUE  32'hdeadbeef
 
 // Define master clock (RISC clock)
-`define	RISC_CLOCK  50   // Half period = 50 ns => MCLK = 10 Mhz
+//`define	RISC_CLOCK  50   // Half period = 50 ns => MCLK = 10 Mhz
+`define	RISC_CLOCK  2.5   // Half period = 5 ns => MCLK = 200 Mhz
 
 // Length of the Instruction register
 `define	IR_LENGTH	4
@@ -81,8 +85,8 @@
 `define	CRC_LENGTH	8
 
 // Trace buffer size and counter and write/read pointer width
-`define TRACECOUNTERWIDTH        10
-`define TRACEBUFFERLENGTH        1024 //2^10
+`define TRACECOUNTERWIDTH        5 //10
+`define TRACEBUFFERLENGTH        32 // 2^5 1024 //2^10
 `define TRACESAMPLEWIDTH         36
 
 // OpSelect width
@@ -114,39 +118,17 @@
 `define TSEL_ADR            5'h01
 `define QSEL_ADR            5'h02
 `define SSEL_ADR            5'h03
-
-`define RECWP0_ADR          5'h10
-`define RECWP1_ADR          5'h11
-`define RECWP2_ADR          5'h12
-`define RECWP3_ADR          5'h13
-`define RECWP4_ADR          5'h14
-`define RECWP5_ADR          5'h15
-`define RECWP6_ADR          5'h16
-`define RECWP7_ADR          5'h17
-`define RECWP8_ADR          5'h18
-`define RECWP9_ADR          5'h19
-`define RECWP10_ADR         5'h1A
-`define RECBP0_ADR          5'h1B
+`define RISCOP_ADR          5'h04
+`define RECSEL_ADR          5'h10
 
 
 // Registers default values (after reset)
-`define MODER_DEF           32'h00000000
+`define MODER_DEF           2'h0
 `define TSEL_DEF            32'h00000000
 `define QSEL_DEF            32'h00000000
 `define SSEL_DEF            32'h00000000
-
-`define RECWP0_DEF          32'h00000000
-`define RECWP1_DEF          32'h00000000
-`define RECWP2_DEF          32'h00000000
-`define RECWP3_DEF          32'h00000000
-`define RECWP4_DEF          32'h00000000
-`define RECWP5_DEF          32'h00000000
-`define RECWP6_DEF          32'h00000000
-`define RECWP7_DEF          32'h00000000
-`define RECWP8_DEF          32'h00000000
-`define RECWP9_DEF          32'h00000000
-`define RECWP10_DEF         32'h00000000
-`define RECBP0_DEF          32'h00000000
+`define RISCOP_DEF          2'h0
+`define RECSEL_DEF          7'h00
 
 
 
