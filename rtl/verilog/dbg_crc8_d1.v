@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2001/11/26 10:47:09  mohor
+// Crc generation is different for read or write commands. Small synthesys fixes.
+//
 // Revision 1.3  2001/10/19 11:40:02  mohor
 // dbg_timescale.v changed to timescale.v This is done for the simulation of
 // few different cores in a single project.
@@ -108,20 +111,6 @@ input Clk;
 output [7:0] CrcOut;
 reg    [7:0] CrcOut;
 
-
-always @ (posedge Clk or posedge Reset)
-begin
-  if(Reset)
-    CrcOut[7:0] <= #Tp 0;
-  else
-  if(SyncResetCrc)
-    CrcOut[7:0] <= #Tp 0;
-  else
-  if(EnableCrc)
-    CrcOut[7:0] <= #Tp nextCRC8_D1(Data, CrcOut);
-end
-
-
 // polynomial: (0 1 2 8)
 // data width: 1
 function [7:0] nextCRC8_D1;
@@ -149,5 +138,20 @@ function [7:0] nextCRC8_D1;
     nextCRC8_D1 = NewCRC;
   end
 endfunction
+
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    CrcOut[7:0] <= #Tp 0;
+  else
+  if(SyncResetCrc)
+    CrcOut[7:0] <= #Tp 0;
+  else
+  if(EnableCrc)
+    CrcOut[7:0] <= #Tp nextCRC8_D1(Data, CrcOut);
+end
+
+
 
 endmodule
