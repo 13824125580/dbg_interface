@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2004/03/28 20:27:02  igorm
+// New release of the debug interface (3rd. release).
+//
 // Revision 1.3  2004/03/22 16:35:46  igorm
 // Temp version before changing dbg interface.
 //
@@ -82,7 +85,8 @@
 `define DBG_CPU_STATUS_CNT_WIDTH 3
 
 // Defining length of the data
-`define DBG_CPU_DATA_CNT_WIDTH   (`DBG_CPU_LEN_LEN + 3)
+`define DBG_CPU_DATA_CNT_WIDTH      (`DBG_CPU_LEN_LEN + 3)
+`define DBG_CPU_DATA_CNT_LIM_WIDTH   `DBG_CPU_LEN_LEN
 
 // Defining length of the control register
 `define DBG_CPU_CTRL_LEN         2

@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.20  2004/03/28 20:27:02  igorm
+// New release of the debug interface (3rd. release).
+//
 // Revision 1.19  2004/03/22 16:35:46  igorm
 // Temp version before changing dbg interface.
 //
@@ -191,7 +194,7 @@ wire          crc_cnt_end;
 reg           crc_cnt_end_q;
 reg           data_cnt_en;
 reg    [`DBG_WB_DATA_CNT_WIDTH:0] data_cnt;
-reg    [`DBG_WB_DATA_CNT_WIDTH:0] data_cnt_limit;
+reg    [`DBG_WB_DATA_CNT_LIM_WIDTH:0] data_cnt_limit;
 wire          data_cnt_end;
 reg           data_cnt_end_q;
 
@@ -475,9 +478,9 @@ end
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    data_cnt_limit <= #1 {`DBG_WB_DATA_CNT_WIDTH{1'b0}};
+    data_cnt_limit <= #1 {`DBG_WB_DATA_CNT_LIM_WIDTH{1'b0}};
   else if (update_dr_i)
-    data_cnt_limit <= #1 {len + 1'b1, 3'b000};
+    data_cnt_limit <= #1 len + 1'b1;
 end
 
 
@@ -514,7 +517,7 @@ assign cmd_cnt_end      = cmd_cnt      == `DBG_WB_CMD_LEN;
 assign addr_len_cnt_end = addr_len_cnt == `DBG_WB_DR_LEN;
 assign crc_cnt_end      = crc_cnt      == `DBG_WB_CRC_CNT_WIDTH'd32;
 assign crc_cnt_31       = crc_cnt      == `DBG_WB_CRC_CNT_WIDTH'd31;
-assign data_cnt_end     = (data_cnt    == data_cnt_limit);
+assign data_cnt_end     = (data_cnt    == {data_cnt_limit, 3'b000});
 
 always @ (posedge tck_i or posedge rst_i)
 begin
@@ -547,7 +550,7 @@ begin
 end
 
 
-always @ (enable or status_cnt_end or crc_cnt_end or curr_cmd_rd_comm or curr_cmd_wr_comm or curr_cmd_go or acc_type_write or data_cnt_end or addr_len_cnt_end)
+always @ (enable or status_cnt_end or crc_cnt_end or curr_cmd_rd_comm or curr_cmd_wr_comm or curr_cmd_go or acc_type_write or acc_type_read or data_cnt_end or addr_len_cnt_end)
 begin
   if (enable && (!status_cnt_end))
     begin
@@ -1090,7 +1093,10 @@ assign fifo_empty = fifo_cnt == 3'h0;
 reg [799:0] tdo_text;
 
 // TDO multiplexer
-always @ (pause_dr_i or busy_tck or crc_cnt_end or crc_cnt_end_q or curr_cmd_wr_comm or curr_cmd_go or acc_type_write or acc_type_read or crc_match_i or data_cnt_end or dr or data_cnt_end_q or crc_match_reg or status_cnt_en or status or addr_len_cnt_end or addr_len_cnt_end_q)
+always @ (pause_dr_i or busy_tck or crc_cnt_end or crc_cnt_end_q or curr_cmd_wr_comm or 
+          curr_cmd_rd_comm or curr_cmd_go or acc_type_write or acc_type_read or crc_match_i
+          or data_cnt_end or dr or data_cnt_end_q or crc_match_reg or status_cnt_en or status 
+          or addr_len_cnt_end or addr_len_cnt_end_q)
 begin
   if (pause_dr_i)
     begin

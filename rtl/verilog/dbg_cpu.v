@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2004/03/28 20:27:01  igorm
+// New release of the debug interface (3rd. release).
+//
 // Revision 1.7  2004/01/25 14:04:18  mohor
 // All flipflops are reset.
 //
@@ -152,7 +155,7 @@ wire          crc_cnt_end;
 reg           crc_cnt_end_q;
 reg           data_cnt_en;
 reg    [`DBG_CPU_DATA_CNT_WIDTH:0] data_cnt;
-reg    [`DBG_CPU_DATA_CNT_WIDTH:0] data_cnt_limit;
+reg    [`DBG_CPU_DATA_CNT_LIM_WIDTH:0] data_cnt_limit;
 wire          data_cnt_end;
 reg           data_cnt_end_q;
 reg           crc_match_reg;
@@ -386,9 +389,9 @@ end
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    data_cnt_limit <= #1 {`DBG_CPU_DATA_CNT_WIDTH{1'b0}};
+    data_cnt_limit <= #1 {`DBG_CPU_DATA_CNT_LIM_WIDTH{1'b0}};
   else if (update_dr_i)
-    data_cnt_limit <= #1 {len + 1'b1, 3'b000};
+    data_cnt_limit <= #1 len + 1'b1;
 end
 
 
@@ -425,7 +428,7 @@ assign cmd_cnt_end      = cmd_cnt      == `DBG_CPU_CMD_LEN;
 assign addr_len_cnt_end = addr_len_cnt == `DBG_CPU_DR_LEN;
 assign crc_cnt_end      = crc_cnt      == `DBG_CPU_CRC_CNT_WIDTH'd32;
 assign crc_cnt_31       = crc_cnt      == `DBG_CPU_CRC_CNT_WIDTH'd31;
-assign data_cnt_end     = (data_cnt    == data_cnt_limit);
+assign data_cnt_end     = (data_cnt    == {data_cnt_limit, 3'b000});
 
 always @ (posedge tck_i or posedge rst_i)
 begin
@@ -458,7 +461,9 @@ begin
 end
 
 
-always @ (enable or status_cnt_end or crc_cnt_end or curr_cmd_rd_comm or curr_cmd_rd_ctrl or curr_cmd_wr_comm or curr_cmd_wr_ctrl or curr_cmd_go or acc_type_write or data_cnt_end or addr_len_cnt_end)
+always @ (enable or status_cnt_end or crc_cnt_end or curr_cmd_rd_comm or curr_cmd_rd_ctrl or
+          curr_cmd_wr_comm or curr_cmd_wr_ctrl or curr_cmd_go or acc_type_write or 
+          acc_type_read or data_cnt_end or addr_len_cnt_end)
 begin
   if (enable && (!status_cnt_end))
     begin

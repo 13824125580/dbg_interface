@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2004/03/28 20:27:02  igorm
+// New release of the debug interface (3rd. release).
+//
 // Revision 1.5  2004/03/22 16:35:46  igorm
 // Temp version before changing dbg interface.
 //
@@ -86,7 +89,8 @@
 `define DBG_WB_STATUS_CNT_WIDTH 3
 
 // Defining length of the data
-`define DBG_WB_DATA_CNT_WIDTH   (`DBG_WB_LEN_LEN + 3)
+`define DBG_WB_DATA_CNT_WIDTH     (`DBG_WB_LEN_LEN + 3)
+`define DBG_WB_DATA_CNT_LIM_WIDTH `DBG_WB_LEN_LEN
 
 //Defining commands
 `define DBG_WB_GO               4'h0

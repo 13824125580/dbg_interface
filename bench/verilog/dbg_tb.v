@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.42  2004/03/30 23:10:39  igorm
+// CRC checking of incoming CRC added to all tasks.
+//
 // Revision 1.41  2004/03/28 20:27:40  igorm
 // New release of the debug interface (3rd. release).
 //
@@ -1344,9 +1347,9 @@ task debug_wishbone_go;
 
     if ((last_wb_cmd == `DBG_WB_READ8) | (last_wb_cmd == `DBG_WB_READ16) | (last_wb_cmd == `DBG_WB_READ32))  // When WB_READx was previously activated, data needs to be shifted.
       begin
-        $display("\t\tGenerating %0d clocks to read %0d data bytes.", dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_limit, dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_limit>>3);
+        $display("\t\tGenerating %0d clocks to read %0d data bytes.", dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_limit<<3, dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_limit);
         word_pointer = 0; // Reset pointer
-        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_limit); i=i+1)
+        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_limit<<3); i=i+1)
           begin
             gen_clk(1);
             if (i[4:0] == 31)   // Latching data
@@ -1832,9 +1835,9 @@ task debug_cpu_go;
 
     if (last_cpu_cmd == `DBG_CPU_READ)  // When DBG_CPU_READ was previously activated, data needs to be shifted.
       begin
-        $display("\t\tGenerating %0d clocks to read %0d data bytes.", dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt_limit, dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt_limit>>3);
+        $display("\t\tGenerating %0d clocks to read %0d data bytes.", dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt_limit<<3, dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt_limit);
         word_pointer = 0; // Reset pointer
-        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt_limit); i=i+1)
+        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt_limit<<3); i=i+1)
           begin
             gen_clk(1);
             if (i[4:0] == 31)   // Latching data
