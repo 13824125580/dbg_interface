@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2004/03/31 14:34:09  igorm
+// data_cnt_lim length changed to reduce number of warnings.
+//
 // Revision 1.4  2004/03/28 20:27:02  igorm
 // New release of the debug interface (3rd. release).
 //
@@ -95,8 +98,8 @@
 `define DBG_CPU_GO               4'h0
 `define DBG_CPU_RD_COMM          4'h1
 `define DBG_CPU_WR_COMM          4'h2
-`define DBG_CPU_WR_CTRL          4'h3
-`define DBG_CPU_RD_CTRL          4'h4
+`define DBG_CPU_RD_CTRL          4'h3
+`define DBG_CPU_WR_CTRL          4'h4
 
 // Defining access types for wishbone
 `define DBG_CPU_WRITE            4'h2
