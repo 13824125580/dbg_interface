@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2004/01/17 18:01:24  mohor
+// New version.
+//
 // Revision 1.2  2004/01/17 17:01:14  mohor
 // Almost finished.
 //
@@ -188,15 +191,16 @@ reg           cmd_write_cpu;
 reg           cycle_32_bit;
 reg           reg_access;
 
-reg [31:0] adr;
-reg set_addr;
-reg [199:0] latching_data_text;
-reg cpu_ack_sync;
-reg cpu_ack_tck;
-reg cpu_ack_tck_q;
-reg cpu_stb;
-reg cpu_stb_sync;
-reg cpu_stb_o;
+reg    [31:0] adr;
+reg           set_addr;
+reg   [199:0] latching_data_text;
+reg           cpu_ack_sync;
+reg           cpu_ack_tck;
+reg           cpu_ack_tck_q;
+reg           cpu_stb;
+reg           cpu_stb_sync;
+reg           cpu_stb_o;
+wire          cpu_stall_tmp;
 
 wire          go_prelim;
 wire          crc_cnt_31;
@@ -529,7 +533,7 @@ dbg_cpu_registers i_dbg_cpu_registers
       .bp_i             (cpu_bp_i),
       .rst_i            (rst_i),
       .cpu_clk_i        (cpu_clk_i),
-      .cpu_stall_o      (cpu_stall_o),
+      .cpu_stall_o      (cpu_stall_tmp),
       .cpu_stall_all_o  (cpu_stall_all_o),
       .cpu_sel_o        (cpu_sel_o),
       .cpu_rst_o        (cpu_rst_o)
@@ -539,7 +543,7 @@ dbg_cpu_registers i_dbg_cpu_registers
 
 assign cpu_we_o   = write_cycle_cpu;
 assign cpu_data_o = dr[31:0];
-
+assign cpu_stall_o = cpu_stb_o | cpu_stall_tmp;
 
 
 
