@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.29  2004/01/19 13:13:18  mohor
+// Define tap_defines.v added to test bench.
+//
 // Revision 1.28  2004/01/19 12:38:10  mohor
 // Waiting for "ready" improved.
 //
@@ -218,7 +221,8 @@ wire  mbist_tdi_i;
 reg   test_enabled;
 
 reg [31:0] result;
-
+reg [31:0] in_data_le, in_data_be;
+reg [31:0] id;
 reg  crc_out_en;
 reg  crc_out_shift;
 wire crc_out;
@@ -447,7 +451,10 @@ begin
   #10000;
   
   set_instruction(`IDCODE);
-  read_id_code;
+  read_id_code(id);
+
+  $display("\tRead ID     = 0x%0x", id);
+  $display("\tExpected ID = 0x%0x", `IDCODE_VALUE);
 
   set_instruction(`DEBUG);
   #10000;
@@ -691,6 +698,8 @@ endtask
 
 // Reads the ID code
 task read_id_code;
+  output [31:0] code;
+  reg    [31:0] code;
   begin
     $display("(%0t) Task read_id_code", $time);
     tms_pad_i<=#1 1;
@@ -703,6 +712,8 @@ task read_id_code;
 
     tms_pad_i<=#1 1;        // going out of shiftIR
     gen_clk(1);
+
+    code = in_data_le;
 
     tdi_pad_i<=#1 'hz; // tri-state
     gen_clk(1);
@@ -1399,11 +1410,14 @@ endtask       // debug_cpu_go
 
 
 
+always @ (posedge tck_pad_i)
+begin
+  in_data_be[31:1] <= #1 in_data_be[30:0];
+  in_data_be[0]    <= #1 tdo;
 
-
-
-
-
+  in_data_le[31]   <= #1 tdo;
+  in_data_le[30:0] <= #1 in_data_le[31:1];
+end
 
 
 
@@ -1432,27 +1446,6 @@ end
 
 
 
-// Print shifted IDCode
-reg [31:0] tmp_data;
-always @ (posedge tck_pad_i)
-begin
-  if(dbg_tb.i_tap_top.idcode_select)
-    begin
-      if(dbg_tb.i_tap_top.shift_dr)
-        tmp_data[31:0]<=#1 {dbg_tb.tdo, tmp_data[31:1]};
-      else
-      if(dbg_tb.i_tap_top.update_dr)
-        if (tmp_data[31:0] != `IDCODE_VALUE)
-          begin
-            $display("(%0t) ERROR: IDCODE not correct", $time);
-            $stop;
-          end
-        else
-          $display("\t\tIDCode = 0x%h", tmp_data[31:0]);
-    end
-end
-
-
 // We never use following states: exit2_ir,  exit2_dr,  pause_ir or pause_dr
 always @ (posedge tck_pad_i)
 begin
@@ -1464,52 +1457,6 @@ begin
     end
 end
 
-
-// sets the selected scan chain and goes to the RunTestIdle state
-task xxx;
-  input [3:0]  data;
-  input [31:0] crc;
-  integer i;
-  
-  begin
-    $display("(%0t) Task xxx", $time);
-    tms_pad_i<=#1 1;
-    gen_clk(1);
-    tms_pad_i<=#1 0;
-    gen_clk(2);  // we are in shiftDR
-
-    for(i=0; i<4; i=i+1)
-    begin
-      tdi_pad_i<=#1 data[i];
-      gen_clk(1);
-    end
-
-    for(i=0; i<`CRC_LEN; i=i+1)
-    begin
-      tdi_pad_i<=#1 crc[`CRC_LEN - 1 - i];
-      gen_clk(1);
-    end
-
-    gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
-
-
-    for(i=0; i<`CRC_LEN -1; i=i+1)
-    begin
-      tdi_pad_i<=#1 1'b0;
-      gen_clk(1);
-    end
-
-    tdi_pad_i<=#1 crc[i]; // last crc
-    tms_pad_i<=#1 1;
-    gen_clk(1);         // to exit1_dr
-
-    tdi_pad_i<=#1 'hz;  // tri-state
-    tms_pad_i<=#1 1;
-    gen_clk(1);         // to update_dr
-    tms_pad_i<=#1 0;
-    gen_clk(1);         // to run_test_idle
-  end
-endtask
 
 
 
