@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.28  2004/01/19 12:38:10  mohor
+// Waiting for "ready" improved.
+//
 // Revision 1.27  2004/01/17 18:01:31  mohor
 // New version.
 //
@@ -139,6 +142,7 @@
 
 
 `include "timescale.v"
+`include "tap_defines.v"
 `include "dbg_defines.v"
 `include "dbg_wb_defines.v"
 `include "dbg_cpu_defines.v"
@@ -441,6 +445,7 @@ begin
 
   // Testing read and write to internal registers
   #10000;
+  
   set_instruction(`IDCODE);
   read_id_code;
 
