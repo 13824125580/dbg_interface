@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.21  2004/01/10 07:50:41  mohor
+// temp version.
+//
 // Revision 1.20  2004/01/09 12:49:23  mohor
 // tmp version.
 //
@@ -387,7 +390,7 @@ begin
   debug_wishbone(`WB_READ16, 1'b1, 32'h12340102, 16'he, 32'hcedab37c, result, "read16 7"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
-  debug_wishbone(`WB_READ8, 1'b1, 32'h1234010e, 16'h6, 32'h308c30d3, result, "read8 8"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_READ8, 1'b1, 32'h12348804, 16'h6, 32'hbe993245, result, "read8 8"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
   debug_wishbone(`WB_GO, 1'b0, 32'h0, 16'h0, 32'hd4b43491, result, "go 2"); // {command, ready, addr, length, crc, result, text}
@@ -632,6 +635,8 @@ task debug_wishbone;
         begin
           $display("wb_go, crc=0x%0x (%0s))", crc, text);
           debug_wishbone_go(command, crc);
+//          $display("wb_go_tmp, crc=0x%0x (%0s))", crc, text);
+//          debug_wishbone_go_tmp(command, crc);
           last_wb_cmd = `WB_GO;  last_wb_cmd_text = "WB_GO";
         end
     endcase
@@ -851,6 +856,108 @@ task debug_wishbone_go;
     gen_clk(1);         // to run_test_idle
   end
 endtask       // debug_wishbone_go
+
+
+
+
+
+task debug_wishbone_go_tmp;
+  input [2:0]   command;
+  input [31:0]  crc;
+  integer i;
+  reg   [4:0]   pointer; 
+ 
+  begin
+    $display("(%0t) Task debug_wishbone_go_tmp (previous command was %0s): ", $time, last_wb_cmd_text);
+
+    tms_pad_i<=#1 1;
+    gen_clk(1);
+    tms_pad_i<=#1 0;
+    gen_clk(2);  // we are in shiftDR
+
+    tdi_pad_i<=#1 1'b0; // chain_select bit = 0
+    gen_clk(1);
+
+    for(i=2; i>=0; i=i-1)
+    begin
+      tdi_pad_i<=#1 command[i]; // command
+      gen_clk(1);
+    end
+
+
+    if ((last_wb_cmd == `WB_WRITE8) | (last_wb_cmd == `WB_WRITE16) | (last_wb_cmd == `WB_WRITE32))  // When WB_WRITEx was previously activated, data needs to be shifted.
+      begin
+        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_wb.len << 3); i=i+1)
+          begin
+            if (!(i%32))
+              begin
+                wb_data = wb_data + 32'h11111111;
+                $display("\t\twb_data = 0x%x", wb_data);
+              end
+            pointer = 31-i[4:0];
+            tdi_pad_i<=#1 wb_data[pointer];
+            gen_clk(1);
+
+          end
+      end
+
+
+    for(i=31; i>=0; i=i-1)      // crc
+    begin
+      tdi_pad_i<=#1 crc[i];
+      gen_clk(1);
+    end
+
+    tdi_pad_i<=#1 1'hz;
+
+
+
+    if ((last_wb_cmd == `WB_READ8) | (last_wb_cmd == `WB_READ16) | (last_wb_cmd == `WB_READ32))  // When WB_WRITEx was previously activated, data needs to be shifted.
+      begin
+        $display("\t\tGenerating %0d clocks to read %0d data bytes.", dbg_tb.i_dbg_top.i_dbg_wb.len << 3, dbg_tb.i_dbg_top.i_dbg_wb.len);
+        $display("\t\tFirst half");
+//        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_wb.len << 3); i=i+1)
+
+        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_wb.len << 3)/2; i=i+1)
+          begin
+          gen_clk(1);
+          end
+
+        tms_pad_i<=#1 1;
+        gen_clk(1);         // to exit1_dr
+        tms_pad_i<=#1 0;
+        gen_clk(1);         // to pause_dr
+        gen_clk(1000);      // wait in pause_dr
+        tms_pad_i<=#1 1;
+        gen_clk(1);         // to exit2_dr
+        tms_pad_i<=#1 0;    // to shift_dr
+        gen_clk(1);
+
+        $display("\t\tSecond half");
+        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_wb.len << 3)/2; i=i+1)
+          begin
+          gen_clk(1);
+          end
+
+      end
+
+
+    gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
+
+    for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
+    begin
+      gen_clk(1);
+    end
+
+    tms_pad_i<=#1 1;
+    gen_clk(1);         // to exit1_dr
+
+    tms_pad_i<=#1 1;
+    gen_clk(1);         // to update_dr
+    tms_pad_i<=#1 0;
+    gen_clk(1);         // to run_test_idle
+  end
+endtask       // debug_wishbone_go_tmp
 
 
 

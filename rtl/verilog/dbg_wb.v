@@ -1,7 +1,3 @@
-// igor !!! cmd_old_read poskusi dati ven
-
-
-
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
 ////  dbg_wb.v                                                    ////
@@ -47,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2004/01/10 07:50:24  mohor
+// temp version.
+//
 // Revision 1.8  2004/01/09 12:48:44  mohor
 // tmp version.
 //
@@ -212,7 +211,7 @@ reg wb_end;
 reg wb_end_rst;
 reg wb_end_rst_sync;
 reg wb_end_sync;
-reg wb_end_tck;
+reg wb_end_tck, wb_end_tck_q;
 reg busy_sync;
 reg [799:0] TDO_WISHBONE;
 reg [399:0] latching_data;
@@ -222,10 +221,14 @@ reg read_cycle;
 reg [2:0] read_type;
 wire [31:0] input_data;
 
+wire len_eq_0;
+wire crc_cnt_31;
+
 assign enable = wishbone_ce_i & shift_dr_i;
 assign crc_en_o = enable & crc_cnt_end & (~status_cnt_end);
 assign shift_crc_o = enable & status_cnt_end;  // Signals dbg module to shift out the CRC
 
+reg [1:0] ptr;
 
 //always @ (posedge tck_i)
 //begin
@@ -235,45 +238,68 @@ assign shift_crc_o = enable & status_cnt_end;  // Signals dbg module to shift ou
 
 always @ (posedge tck_i)
 begin
-//  if (cmd_old_read & cmd_go)
-  if (read_cycle & cmd_go)
+  if (update_dr_i)
+    ptr <= #1 2'h0;
+  else if (read_cycle & dr_go_latched & crc_cnt_31) // first latch
+    ptr <= #1 ptr + 1'b1;
+  else if (read_cycle & cmd_go & byte & (~byte_q))
+    ptr <= ptr + 1'd1;
+end
+
+
+
+always @ (posedge tck_i)
+begin
+  if (read_cycle & dr_go_latched & crc_cnt_31)
     begin
-//      case (cmd_old)  // synthesis parallel_case full_case
+      dr[31:0] <= #1 input_data[31:0];
+      latching_data = "First latch";
+    end
+  else if (read_cycle & crc_cnt_end)
+    begin
       case (read_type)  // synthesis parallel_case full_case
         `WB_READ8 : begin
                       if(byte & (~byte_q))
                         begin
-                        dr[31:24] <= #1 8'h08; // input_data[];
-                        latching_data = "8 bit latched";
+                          case (ptr)    // synthesis parallel_case
+                            2'b00 : dr[31:24] <= #1 input_data[31:24];
+                            2'b01 : dr[31:24] <= #1 input_data[23:16];
+                            2'b10 : dr[31:24] <= #1 input_data[15:8];
+                            2'b11 : dr[31:24] <= #1 input_data[7:0];
+                          endcase
+                          latching_data = "8 bit latched";
                         end
                       else
                         begin
-                        dr[31:0] <= #1 {dr[30:0], 1'b0};
-                        latching_data = "8 bit shifted";
+                          dr[31:24] <= #1 {dr[30:24], 1'b0};
+                          latching_data = "8 bit shifted";
                         end
                     end
         `WB_READ16: begin
                       if(half & (~half_q))
                         begin
-                        dr[31:16] <= #1 16'h1616;
-                        latching_data = "16 bit latched";
+                          if (ptr[1])
+                            dr[31:16] <= #1 input_data[31:16];
+                          else
+                            dr[31:16] <= #1 input_data[15:0];
+                          latching_data = "16 bit latched";
                         end
                       else
                         begin
-                        dr[31:0] <= #1 {dr[30:0], 1'b0};
-                        latching_data = "16 bit shifted";
+                          dr[31:16] <= #1 {dr[30:16], 1'b0};
+                          latching_data = "16 bit shifted";
                         end
                     end
         `WB_READ32: begin
                       if(long & (~long_q))
                         begin
-                        dr[31:0] <= #1 32'h32323232;
-                        latching_data = "32 bit latched";
+                          dr[31:0] <= #1 input_data[31:0];
+                          latching_data = "32 bit latched";
                         end
                       else
                         begin
-                        dr[31:0] <= #1 {dr[30:0], 1'b0};
-                        latching_data = "32 bit shifted";
+                          dr[31:0] <= #1 {dr[30:0], 1'b0};
+                          latching_data = "32 bit shifted";
                         end
                     end
       endcase
@@ -320,15 +346,17 @@ begin
     data_cnt <= #1 'h0;
   else if (update_dr_i)
     data_cnt <= #1 'h0;
+//  else if (crc_cnt_31 & dr_go_latched & cmd_read)
+//    data_cnt <= #1 'h1;
   else if (data_cnt_en)
     data_cnt <= #1 data_cnt + 1'b1;
 end
 
 
 
-assign byte = data_cnt[2:0] == 3'h0;
-assign half = data_cnt[3:0] == 4'h0;
-assign long = data_cnt[4:0] == 5'h0;
+assign byte = data_cnt[2:0] == 3'd7;
+assign half = data_cnt[3:0] == 4'd15;
+assign long = data_cnt[4:0] == 5'd31;
 
 
 always @ (posedge tck_i)
@@ -397,7 +425,7 @@ begin
   if (update_dr_i)
     data_cnt_limit = 19'h0;
   else if (((cmd_cnt == 2'h2) & dr[1] & (~dr[0]) & (~tdi_i) & cmd_write) | // current command is WB_GO and previous command is WB_WRITEx)
-           ((crc_cnt == 6'd31) & dr_go_latched & cmd_read)                 // current command is WB_GO and previous command is WB_READx)  
+           (crc_cnt_31 & dr_go_latched & cmd_read)                         // current command is WB_GO and previous command is WB_READx)  
           )
     data_cnt_limit = {len, 3'b000};
 end
@@ -419,6 +447,7 @@ end
 assign cmd_cnt_end  = cmd_cnt  == 2'h3;
 assign addr_len_cnt_end = addr_len_cnt == addr_len_cnt_limit;
 assign crc_cnt_end  = crc_cnt  == 6'd32;
+assign crc_cnt_31 = crc_cnt  == 6'd31;
 assign data_cnt_end = (data_cnt == data_cnt_limit);
 
 always @ (posedge tck_i)
@@ -501,7 +530,9 @@ end
 
 
 
-always @ (crc_cnt_end or crc_cnt_end_q or crc_match_i or status or pause_dr_i or busy_tck or cmd_read or data_cnt_end or data_cnt_end_q or crc_match_reg or dr_read_latched)
+always @ (pause_dr_i or busy_tck or crc_cnt_end or crc_cnt_end_q or dr_go_latched or cmd_read or 
+          crc_match_i or data_cnt_end or data_cnt_end_q or read_cycle or crc_match_reg or status or 
+          dr or cmd_go)
 begin
   if (pause_dr_i)
     begin
@@ -513,13 +544,16 @@ begin
       tdo_o = crc_match_i;
       TDO_WISHBONE = "crc_match_i";
     end
-//  else if (data_cnt_end & (~data_cnt_end_q) & dr_go_latched & cmd_old_read)     // cmd is already updated
+  else if (read_cycle & crc_cnt_end & (~data_cnt_end))
+    begin
+    tdo_o = dr[31];
+    TDO_WISHBONE = "read data";
+    end
   else if (data_cnt_end & (~data_cnt_end_q) & read_cycle)     // cmd is already updated
     begin
       tdo_o = crc_match_reg;
       TDO_WISHBONE = "crc_match_reg";
     end
-//  else if (crc_cnt_end & (~read_cycle) | data_cnt_end & read_cycle)  // cmd is already updated
   else if (crc_cnt_end & data_cnt_end)  // cmd is already updated
     begin
       tdo_o = status[0];
@@ -590,7 +624,6 @@ begin
       if (dr_write_latched | dr_read_latched)
         begin
           adr <= #1 dr[47:16];
-          len <= #1 dr[15:0];
           set_addr <= #1 1'b1;
         end
     end
@@ -598,14 +631,34 @@ begin
     set_addr <= #1 1'b0;
 end
 
+
+always @ (posedge tck_i)
+begin
+  if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i & (dr_write_latched | dr_read_latched))
+    len <= #1 dr[15:0];
+  else if (wb_end_tck & (~wb_end_tck_q))
+    begin
+      case (read_type)  // synthesis parallel_case full_case
+        `WB_READ8 : len <= #1 len - 1'd1; 
+        `WB_READ16: len <= #1 len - 2'd2; 
+        `WB_READ32: len <= #1 len - 3'd4; 
+      endcase
+    end
+end
+
+
+assign len_eq_0 = len == 16'h0;
+
+
+
 // Start wishbone read cycle
 always @ (posedge tck_i)
 begin
-//  if (set_addr & dr_read_latched)
-  if (cmd_cnt_end & (~cmd_cnt_end_q) & cmd_read & dr_go)
+  if (cmd_cnt_end & (~cmd_cnt_end_q) & cmd_read & dr_go)                  // First read after cmd is entered        igor !!! Add something to block too many accesses.
     start_rd_tck <= #1 1'b1;
-//  else if (cmd_old_read & cmd_go & crc_cnt_end_q & (~data_cnt_end))
-  else if (read_cycle)
+  else if (read_cycle & dr_go_latched & crc_cnt_end & (~crc_cnt_end_q) & (~len_eq_0))   // Second read after first data is latched  igor !!! Add something to block too many accesses.
+    start_rd_tck <= #1 1'b1;
+  else if (read_cycle & (~len_eq_0))
     begin
       case (read_type)  // synthesis parallel_case full_case
         `WB_READ8 : begin
@@ -795,12 +848,14 @@ begin
   if (trst_i)
     begin
       wb_end_sync <= #1 1'b0; 
-      wb_end_tck  <= #1 1'b0; 
+      wb_end_tck  <= #1 1'b0;
+      wb_end_tck_q<= #1 1'b0; 
     end
   else
     begin
       wb_end_sync <= #1 wb_end;
       wb_end_tck  <= #1 wb_end_sync;
+      wb_end_tck_q<= #1 wb_end_tck;
     end
 end
 
@@ -939,7 +994,7 @@ begin
         4'b1000  :  mem[mem_ptr[1:0]] <= #1 wb_dat_i[31:24];            // byte 
         4'b0100  :  mem[mem_ptr[1:0]] <= #1 wb_dat_i[23:16];            // byte
         4'b0010  :  mem[mem_ptr[1:0]] <= #1 wb_dat_i[15:08];            // byte
-        4'b0001  :  mem[mem_ptr[1:0]] <= #1 wb_dat_i[07:01];            // byte
+        4'b0001  :  mem[mem_ptr[1:0]] <= #1 wb_dat_i[07:00];            // byte
 
         4'b1100  :                                                      // half
                     begin
@@ -949,21 +1004,20 @@ begin
         4'b0011  :                                                      // half
                     begin
                       mem[mem_ptr[1:0]]      <= #1 wb_dat_i[15:08];
-                      mem[mem_ptr[1:0]+1'b1] <= #1 wb_dat_i[07:01];
+                      mem[mem_ptr[1:0]+1'b1] <= #1 wb_dat_i[07:00];
                     end
         4'b1111  :                                                      // long
                     begin
                       mem[0] <= #1 wb_dat_i[31:24];
                       mem[1] <= #1 wb_dat_i[23:16];
                       mem[2] <= #1 wb_dat_i[15:08];
-                      mem[3] <= #1 wb_dat_i[07:01];
+                      mem[3] <= #1 wb_dat_i[07:00];
                     end
       endcase
     end
 end
 
 assign input_data = {mem[0], mem[1], mem[2], mem[3]};
-
 
 
 
