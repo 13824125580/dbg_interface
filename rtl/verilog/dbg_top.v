@@ -45,6 +45,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2001/10/19 11:40:01  mohor
+// dbg_timescale.v changed to timescale.v This is done for the simulation of
+// few different cores in a single project.
+//
 // Revision 1.8  2001/10/17 10:39:03  mohor
 // bs_chain_o added.
 //
@@ -219,7 +223,7 @@ reg         WBErrorLatch;                 // Error latched during WISHBONE read
 wire TCK = tck_pad_i;
 wire TMS = tms_pad_i;
 wire TDI = tdi_pad_i;
-wire RESET = ~trst_pad_i | wb_rst_i;      // trst_pad_i is active low
+wire trst = ~trst_pad_i;                  // trst_pad_i is active low
 
 wire [31:0]             RegDataIn;        // Data from registers (read data)
 wire [`CRC_LENGTH-1:0]  CalculatedCrcOut; // CRC calculated in this module. This CRC is apended at the end of the TDO.
@@ -317,9 +321,9 @@ assign bs_chain_o         = tdi_pad_i;
 **********************************************************************************/
 
 // TestLogicReset state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     TestLogicReset<=#Tp 1;
   else
     begin
@@ -331,9 +335,9 @@ begin
 end
 
 // RunTestIdle state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     RunTestIdle<=#Tp 0;
   else
     begin
@@ -345,9 +349,9 @@ begin
 end
 
 // SelectDRScan state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     SelectDRScan<=#Tp 0;
   else
     begin
@@ -359,9 +363,9 @@ begin
 end
 
 // CaptureDR state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     CaptureDR<=#Tp 0;
   else
     begin
@@ -373,9 +377,9 @@ begin
 end
 
 // ShiftDR state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     ShiftDR<=#Tp 0;
   else
     begin
@@ -387,9 +391,9 @@ begin
 end
 
 // Exit1DR state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     Exit1DR<=#Tp 0;
   else
     begin
@@ -401,9 +405,9 @@ begin
 end
 
 // PauseDR state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     PauseDR<=#Tp 0;
   else
     begin
@@ -415,9 +419,9 @@ begin
 end
 
 // Exit2DR state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     Exit2DR<=#Tp 0;
   else
     begin
@@ -429,9 +433,9 @@ begin
 end
 
 // UpdateDR state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     UpdateDR<=#Tp 0;
   else
     begin
@@ -451,9 +455,9 @@ end
 
 
 // SelectIRScan state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     SelectIRScan<=#Tp 0;
   else
     begin
@@ -465,9 +469,9 @@ begin
 end
 
 // CaptureIR state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     CaptureIR<=#Tp 0;
   else
     begin
@@ -479,9 +483,9 @@ begin
 end
 
 // ShiftIR state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     ShiftIR<=#Tp 0;
   else
     begin
@@ -493,9 +497,9 @@ begin
 end
 
 // Exit1IR state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     Exit1IR<=#Tp 0;
   else
     begin
@@ -507,9 +511,9 @@ begin
 end
 
 // PauseIR state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     PauseIR<=#Tp 0;
   else
     begin
@@ -521,9 +525,9 @@ begin
 end
 
 // Exit2IR state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     Exit2IR<=#Tp 0;
   else
     begin
@@ -535,9 +539,9 @@ begin
 end
 
 // UpdateIR state
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     UpdateIR<=#Tp 0;
   else
     begin
@@ -568,9 +572,9 @@ reg [`IR_LENGTH-1:0]LatchedJTAG_IR;
 
 reg TDOInstruction;
 
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     JTAG_IR[`IR_LENGTH-1:0] <= #Tp 0;
   else
     begin
@@ -615,9 +619,9 @@ reg [`DR_LENGTH-1:0]JTAG_DR_IN;    // Data register
 reg TDOData;
 
 
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     JTAG_DR_IN[`DR_LENGTH-1:0]<=#Tp 0;
   else
   if(ShiftDR)
@@ -639,9 +643,9 @@ assign WISHBONE_Data  = {CalculatedCrcOut, WBReadLatch, 32'h0, WBErrorLatch};
 `endif
 
 //TDO is changing on the falling edge of TCK
-always @ (negedge TCK or posedge RESET)
+always @ (negedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     begin
       TDOData <= #Tp 0;
       `ifdef TRACE_ENABLED
@@ -707,9 +711,9 @@ end
 *   CHAIN_SELECT logic                                                            *
 *                                                                                 *
 **********************************************************************************/
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     Chain[`CHAIN_ID_LENGTH-1:0]<=#Tp `GLOBAL_BS_CHAIN;  // Global BS chain is selected after reset
   else
   if(UpdateDR & CHAIN_SELECTSelected & CrcMatch)
@@ -724,9 +728,9 @@ end
 *   RISC registers read/write logic                                               *
 *                                                                                 *
 **********************************************************************************/
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     begin
       ADDR[31:0]        <=#Tp 32'h0;
       DataOut[31:0]     <=#Tp 32'h0;
@@ -778,18 +782,18 @@ assign wb_cab_o = 1'b0;
 
 
 // Synchronizing the RegAccess signal to risc_clk_i clock
-dbg_sync_clk1_clk2 syn1 (.clk1(risc_clk_i),   .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
+dbg_sync_clk1_clk2 syn1 (.clk1(risc_clk_i),   .clk2(TCK),           .reset1(wb_rst_i),  .reset2(trst), 
                          .set2(RegAccessTck), .sync_out(RegAccess)
                         );
 
 // Synchronizing the RISCAccess signal to risc_clk_i clock
-dbg_sync_clk1_clk2 syn2 (.clk1(risc_clk_i),    .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
+dbg_sync_clk1_clk2 syn2 (.clk1(risc_clk_i),    .clk2(TCK),           .reset1(wb_rst_i),  .reset2(trst), 
                          .set2(RISCAccessTck), .sync_out(RISCAccess)
                         );
 
 
 // Synchronizing the wb_Access signal to wishbone clock
-dbg_sync_clk1_clk2 syn3 (.clk1(wb_clk_i),      .clk2(TCK),          .reset1(RESET),  .reset2(RESET), 
+dbg_sync_clk1_clk2 syn3 (.clk1(wb_clk_i),      .clk2(TCK),          .reset1(wb_rst_i),  .reset2(trst), 
                          .set2(wb_AccessTck), .sync_out(wb_Access_wbClk)
                         );
 
@@ -798,9 +802,9 @@ dbg_sync_clk1_clk2 syn3 (.clk1(wb_clk_i),      .clk2(TCK),          .reset1(RESE
 
 
 // Delayed signals used for accessing registers and RISC
-always @ (posedge risc_clk_i or posedge RESET)
+always @ (posedge risc_clk_i or posedge wb_rst_i)
 begin
-  if(RESET)
+  if(wb_rst_i)
     begin
       RegAccess_q   <=#Tp 1'b0;
       RegAccess_q2  <=#Tp 1'b0;
@@ -818,9 +822,9 @@ end
 
 
 // Latching data read from registers
-always @ (posedge risc_clk_i or posedge RESET)
+always @ (posedge risc_clk_i or posedge wb_rst_i)
 begin
-  if(RESET)
+  if(wb_rst_i)
     RegisterReadLatch[31:0]<=#Tp 0;
   else
   if(RegAccess_q & ~RegAccess_q2)
@@ -836,17 +840,17 @@ assign RiscStall_access = RiscStall_write_access | RiscStall_read_access;
 
 reg wb_Access_wbClk_q;
 // Delayed signals used for accessing WISHBONE
-always @ (posedge wb_clk_i or posedge RESET)
+always @ (posedge wb_clk_i or posedge wb_rst_i)
 begin
-  if(RESET)
+  if(wb_rst_i)
     wb_Access_wbClk_q <=#Tp 1'b0;
   else
     wb_Access_wbClk_q <=#Tp wb_Access_wbClk;
 end
 
-always @ (posedge wb_clk_i or posedge RESET)
+always @ (posedge wb_clk_i or posedge wb_rst_i)
 begin
-  if(RESET)
+  if(wb_rst_i)
     wb_cyc_o <=#Tp 1'b0;
   else
   if(wb_Access_wbClk & ~wb_Access_wbClk_q & ~(wb_ack_i | wb_err_i))
@@ -860,9 +864,9 @@ assign wb_stb_o = wb_cyc_o;
 
 
 // Latching data read from registers
-always @ (posedge risc_clk_i or posedge RESET)
+always @ (posedge risc_clk_i or posedge wb_rst_i)
 begin
-  if(RESET)
+  if(wb_rst_i)
     WBReadLatch[31:0]<=#Tp 32'h0;
   else
   if(wb_ack_i)
@@ -870,9 +874,9 @@ begin
 end
 
 // Latching WISHBONE error cycle
-always @ (posedge wb_clk_i or posedge RESET)
+always @ (posedge wb_clk_i or posedge wb_rst_i)
 begin
-  if(RESET)
+  if(wb_rst_i)
     WBErrorLatch<=#Tp 1'b0;
   else
   if(wb_err_i)
@@ -914,9 +918,9 @@ end
 
 
 // Latching data read from RISC
-always @ (posedge risc_clk_i or posedge RESET)
+always @ (posedge risc_clk_i or posedge wb_rst_i)
 begin
-  if(RESET)
+  if(wb_rst_i)
     RISC_DATAINLatch[31:0]<=#Tp 0;
   else
   if(RISCAccess_q & ~RISCAccess_q2)
@@ -937,15 +941,15 @@ assign risc_data_o = DataOut;
   
 
 // Synchronizing the trace read buffer signal to risc_clk_i clock
-dbg_sync_clk1_clk2 syn4 (.clk1(risc_clk_i),     .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
+dbg_sync_clk1_clk2 syn4 (.clk1(risc_clk_i),     .clk2(TCK),           .reset1(wb_rst_i),  .reset2(trst), 
                          .set2(ReadBuffer_Tck), .sync_out(ReadTraceBuffer)
                         );
 
 
 
-  always @(posedge risc_clk_i or posedge RESET)
+  always @(posedge risc_clk_i or posedge wb_rst_i)
   begin
-    if(RESET)
+    if(wb_rst_i)
       ReadTraceBuffer_q <=#Tp 0;
     else
       ReadTraceBuffer_q <=#Tp ReadTraceBuffer;
@@ -997,9 +1001,9 @@ end
 **********************************************************************************/
 
 // Updating JTAG_IR (Instruction Register)
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     LatchedJTAG_IR <=#Tp `IDCODE;   // IDCODE selected after reset
   else
   if(UpdateIR)
@@ -1101,9 +1105,9 @@ assign tdo_pad_o = (ShiftIR | ShiftDR | Exit1IR | Exit1DR | UpdateDR)? TDOMuxed 
 **********************************************************************************/
 
 
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     BitCounter[7:0]<=#Tp 0;
   else
   if(ShiftDR)
@@ -1165,7 +1169,7 @@ dbg_registers dbgregs(.DataIn(DataOut[31:0]), .DataOut(RegDataIn[31:0]),
 *   Connecting CRC module                                                         *
 *                                                                                 *
 **********************************************************************************/
-wire AsyncResetCrc = RESET;
+wire AsyncResetCrc = trst;
 wire SyncResetCrc = UpdateDR_q;
 wire [7:0] CalculatedCrcIn;     // crc calculated from the input data (shifted in)
 
@@ -1197,9 +1201,9 @@ dbg_crc8_d1 crc2 (.Data(TDOData), .EnableCrc(EnableCrcOut), .Reset(AsyncResetCrc
 
 
 // Generating CrcMatch signal
-always @ (posedge TCK or posedge RESET)
+always @ (posedge TCK or posedge trst)
 begin
-  if(RESET)
+  if(trst)
     CrcMatch <=#Tp 1'b0;
   else
   if(Exit1DR)
@@ -1242,7 +1246,7 @@ assign WishboneScanChain   = Chain == `WISHBONE_SCAN_CHAIN;
 `ifdef TRACE_ENABLED
   dbg_trace dbgTrace1(.Wp(wp_i), .Bp(bp_i), .DataIn(risc_data_i), .OpSelect(opselect_trace), 
                       .LsStatus(lsstatus_i), .IStatus(istatus_i), .RiscStall_O(RiscStall_trace), 
-                      .Mclk(risc_clk_i), .Reset(RESET), .TraceChain(TraceChain), 
+                      .Mclk(risc_clk_i), .Reset(wb_rst_i), .TraceChain(TraceChain), 
                       .ContinMode(ContinMode), .TraceEnable_reg(TraceEnable), 
                       .WpTrigger(WpTrigger), 
                       .BpTrigger(BpTrigger), .LSSTrigger(LSSTrigger), .ITrigger(ITrigger), 
