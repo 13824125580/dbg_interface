@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.18  2002/02/05 12:41:01  mohor
+// trst synchronization is not needed and was removed.
+//
 // Revision 1.17  2002/01/25 07:58:35  mohor
 // IDCODE bug fixed, chains reused to decreas size of core. Data is shifted-in
 // not filled-in. Tested in hw.
@@ -351,7 +354,7 @@ assign bs_chain_o         = tdi_pad_i;
 *   Synchronizing TRST to clock signal                                            *
 *                                                                                 *
 **********************************************************************************/
-assign trst <=#Tp ~trst_pad_i;            // trst_pad_i is active low
+assign trst = ~trst_pad_i;                // trst_pad_i is active low
 
 
 /**********************************************************************************
