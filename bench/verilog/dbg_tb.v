@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.36  2004/01/22 13:58:51  mohor
+// Port signals are all set to zero after reset.
+//
 // Revision 1.35  2004/01/22 11:07:28  mohor
 // test stall_test added.
 //
@@ -413,12 +416,14 @@ end
 
 always @ (posedge test_enabled)
 begin
-
   $display("//////////////////////////////////////////////////////////////////");
   $display("//                                                              //");
   $display("//  (%0t) dbg_tb starting                                     //", $time);
   $display("//                                                              //");
   $display("//////////////////////////////////////////////////////////////////");
+
+  $display("TEST: DBG_TEST");
+
 
   initialize_memory(32'h12340000, 32'h00100000);  // Initialize 0x100000 bytes starting from address 0x12340000
 
@@ -575,6 +580,7 @@ begin
 
 
   #5000 gen_clk(1);            // One extra TCLK for debugging purposes
+  $display("STATUS: passed");
   $display("\n\nSimulation end.");
   #1000 $stop;
 
