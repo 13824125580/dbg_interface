@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2001/09/20 10:11:25  mohor
+// Working version. Few bugs fixed, comments added.
+//
 // Revision 1.2  2001/09/18 14:13:47  mohor
 // Trace fixed. Some registers changed, trace simplified.
 //
@@ -96,6 +99,16 @@
 // OpSelect width
 `define OPSELECTWIDTH            3
 `define OPSELECTIONCOUNTER       8    //2^3
+
+// OpSelect (dbg_op_i) signal meaning
+`define DEBUG_READ_PC            0
+`define DEBUG_READ_LSEA          1
+`define DEBUG_READ_LDATA         2
+`define DEBUG_READ_SDATA         3
+`define DEBUG_READ_SPR           4
+`define DEBUG_WRITE_SPR          5
+`define DEBUG_READ_INSTR         6
+//`define Reserved                 7
 
 // Supported Instructions
 `define EXTEST          5'b00000

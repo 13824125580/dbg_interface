@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/09/20 10:10:30  mohor
+// Working version. Few bugs fixed, comments added.
+//
 // Revision 1.1.1.1  2001/09/13 13:49:19  mohor
 // Initial official release.
 //
@@ -140,10 +143,10 @@ wire [31:0] DataIn = RandNumb;
 
 // Connecting dbgTAP module
 dbg_top dbg1  (.tms_pad_i(P_TMS), .tck_pad_i(P_TCK), .trst_pad_i(P_TRST), .tdi_pad_i(P_TDI), .tdo_pad_o(P_TDO), 
-               .wb_rst_i(wb_rst_i), .mclk(Mclk), .risc_addr_o(), .risc_data_i(DataIn),
-               .risc_data_o(), .risc_cs_o(), .risc_rw_o(), .wp_i(11'h0), .bp_i(1'b0), 
+               .wb_rst_i(wb_rst_i), .risc_clk_i(Mclk), .risc_addr_o(), .risc_data_i(DataIn),
+               .risc_data_o(), .wp_i(11'h0), .bp_i(1'b0), 
                .opselect_o(), .lsstatus_i(4'h0), .istatus_i(2'h0), 
-               . risc_stall_o(), . risc_reset_o() 
+               .risc_stall_o(), .reset_o() 
               );
 
 

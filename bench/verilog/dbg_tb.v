@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2001/09/20 10:10:29  mohor
+// Working version. Few bugs fixed, comments added.
+//
 // Revision 1.3  2001/09/19 11:54:03  mohor
 // Minor changes for simulation.
 //
@@ -91,8 +94,6 @@ reg BS_CHAIN_I;
 wire P_TDO;
 wire [31:0] ADDR_RISC;
 wire [31:0] DATAIN_RISC;     // DATAIN_RISC is connect to DATAOUT
-wire RISC_CS;
-wire RISC_RW;
 
 wire  [31:0] DATAOUT_RISC;   // DATAOUT_RISC is connect to DATAIN
 
@@ -100,11 +101,11 @@ wire   [`OPSELECTWIDTH-1:0] OpSelect;
 
 // Connecting TAP module
 dbg_top dbgTAP1(.tms_pad_i(P_TMS), .tck_pad_i(P_TCK), .trst_pad_i(P_TRST), .tdi_pad_i(P_TDI), 
-                .tdo_pad_o(P_TDO), .wb_rst_i(wb_rst_i), .mclk(Mclk), 
+                .tdo_pad_o(P_TDO), .wb_rst_i(wb_rst_i), .risc_clk_i(Mclk), 
                 .risc_addr_o(ADDR_RISC), .risc_data_i(DATAOUT_RISC), .risc_data_o(DATAIN_RISC), 
-                .risc_cs_o(RISC_CS), .risc_rw_o(RISC_RW), .wp_i(Wp), .bp_i(Bp), 
+                .wp_i(Wp), .bp_i(Bp), 
                 .opselect_o(OpSelect), .lsstatus_i(LsStatus), .istatus_i(IStatus), 
-                . risc_stall_o(), . risc_reset_o() 
+                .risc_stall_o(), .reset_o() 
                 );
 
 
@@ -674,15 +675,11 @@ end
 // print RISC registers read/write
 always @ (posedge Mclk)
 begin
-  if(dbg_tb.dbgTAP1.risc_cs_o)
-    if(dbg_tb.dbgTAP1.risc_rw_o)
-      begin
-        $write("\n\t\tWrite to RISC Register (addr=0x%h, data=0x%h)", dbg_tb.dbgTAP1.ADDR[31:0], dbg_tb.dbgTAP1.DataOut[31:0]);
-      end
-    else
-      begin
-        $write("\n\t\tRead from RISC Register (addr=0x%h, data=0x%h)", dbg_tb.dbgTAP1.ADDR[31:0], dbg_tb.dbgTAP1.risc_data_i[31:0]);
-      end
+  if(dbg_tb.dbgTAP1.RISCAccess & ~dbg_tb.dbgTAP1.RISCAccess_q & dbg_tb.dbgTAP1.RW)
+    $write("\n\t\tWrite to RISC Register (addr=0x%h, data=0x%h)", dbg_tb.dbgTAP1.ADDR[31:0], dbg_tb.dbgTAP1.DataOut[31:0]);
+  else
+  if(dbg_tb.dbgTAP1.RISCAccess_q & ~dbg_tb.dbgTAP1.RISCAccess_q2 & ~dbg_tb.dbgTAP1.RW)
+    $write("\n\t\tRead from RISC Register (addr=0x%h, data=0x%h)", dbg_tb.dbgTAP1.ADDR[31:0], dbg_tb.dbgTAP1.risc_data_i[31:0]);
 end
 
 

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2001/09/20 10:11:25  mohor
+// Working version. Few bugs fixed, comments added.
+//
 // Revision 1.3  2001/09/19 11:55:13  mohor
 // Asynchronous set/reset not used in trace any more.
 //
@@ -74,8 +77,8 @@ module dbg_top(
                 tms_pad_i, tck_pad_i, trst_pad_i, tdi_pad_i, tdo_pad_o, 
                 
                 // RISC signals
-                mclk, risc_addr_o, risc_data_i, risc_data_o, risc_cs_o, risc_rw_o, wp_i, 
-                bp_i, opselect_o, lsstatus_i, istatus_i, risc_stall_o, risc_reset_o, 
+                risc_clk_i, risc_addr_o, risc_data_i, risc_data_o, wp_i, 
+                bp_i, opselect_o, lsstatus_i, istatus_i, risc_stall_o, reset_o, 
                 
                 // WISHBONE signals
                 wb_rst_i
@@ -92,7 +95,7 @@ output        tdo_pad_o;                  // JTAG test data output pad
 
 
 // RISC signals
-input         mclk;                       // Master clock (RISC clock)
+input         risc_clk_i;                 // Master clock (RISC clock)
 input  [31:0] risc_data_i;                // RISC data inputs (data that is written to the RISC registers)
 input  [10:0] wp_i;                       // Watchpoint inputs
 input         bp_i;                       // Breakpoint input
@@ -101,10 +104,8 @@ input  [1:0]  istatus_i;                  // Instruction status inputs
 output [31:0] risc_addr_o;                // RISC address output (for adressing registers within RISC)
 output [31:0] risc_data_o;                // RISC data output (data read from risc registers)
 output [`OPSELECTWIDTH-1:0] opselect_o;   // Operation selection (selecting what kind of data is set to the risc_data_i)
-output                      risc_cs_o;    // Chip select for accessing RISC registers
-output                      risc_rw_o;    // Read/write for accessing RISC registers
 output                      risc_stall_o; // Stalls the RISC
-output                      risc_reset_o; // Resets the RISC
+output                      reset_o;      // Resets the RISC
 
 
 // WISHBONE signals
@@ -148,8 +149,10 @@ reg [31:0]  ADDR;
 reg [31:0]  risc_data_o;
 reg [31:0]  DataOut;
 
+reg [`OPSELECTWIDTH-1:0] opselect_o;      // Operation selection (selecting what kind of data is set to the risc_data_i)
+
 reg [`CHAIN_ID_LENGTH-1:0] Chain;         // Selected chain
-reg [31:0]  RISC_DATAINLatch;             // Data from DataIn is latched one mclk clock cycle after RISC register is
+reg [31:0]  RISC_DATAINLatch;             // Data from DataIn is latched one risc_clk_i clock cycle after RISC register is
                                           // accessed for reading
 reg [31:0]  RegisterReadLatch;            // Data when reading register is latched one TCK clock after the register is read.
 reg         RegAccessTck;                 // Indicates access to the registers (read or write)
@@ -181,7 +184,11 @@ wire RiscStall_trace;                     // RISC is stalled by trace module
        
 wire RegisterScanChain;                   // Register Scan chain selected
 wire RiscDebugScanChain;                  // Risc Debug Scan chain selected
-          
+
+wire RiscStall_read_access;               // Stalling RISC because of the read access (SPR read)
+wire RiscStall_write_access;              // Stalling RISC because of the write access (SPR write)
+wire RiscStall_access;                    // Stalling RISC because of the read or write access
+
 integer ii, jj, kk;                       // Counters for relocating bits bacuse of the RISC big endian mode of operation
            
             
@@ -242,6 +249,9 @@ integer ii, jj, kk;                       // Counters for relocating bits bacuse
 
   wire TraceTestScanChain;                // Trace Test Scan chain selected
   wire [47:0] Trace_Data;                 // Trace data
+
+  wire [`OPSELECTWIDTH-1:0]opselect_trace;// Operation selection (trace selecting what kind of
+                                          // data is set to the risc_data_i)
 
 `endif
 
@@ -715,19 +725,19 @@ begin
 end
 
 
-// Synchronizing the RegAccess signal to mclk clock
-dbg_sync_clk1_clk2 syn1 (.clk1(mclk),         .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
+// Synchronizing the RegAccess signal to risc_clk_i clock
+dbg_sync_clk1_clk2 syn1 (.clk1(risc_clk_i),   .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
                          .set2(RegAccessTck), .sync_out(RegAccess)
                         );
 
-// Synchronizing the RISCAccess signal to mclk clock
-dbg_sync_clk1_clk2 syn2 (.clk1(mclk),         .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
+// Synchronizing the RISCAccess signal to risc_clk_i clock
+dbg_sync_clk1_clk2 syn2 (.clk1(risc_clk_i),    .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
                          .set2(RISCAccessTck), .sync_out(RISCAccess)
                         );
 
 
 // Delayed signals used for accessing registers and RISC
-always @ (posedge mclk or posedge RESET)
+always @ (posedge risc_clk_i or posedge RESET)
 begin
   if(RESET)
     begin
@@ -747,7 +757,7 @@ end
 
 
 // Latching data read from registers
-always @ (posedge mclk or posedge RESET)
+always @ (posedge risc_clk_i or posedge RESET)
 begin
   if(RESET)
     RegisterReadLatch[31:0]<=#Tp 0;
@@ -758,23 +768,37 @@ end
 
 
 // Chip select and read/write signals for accessing RISC
-assign risc_cs_o = RISCAccess & ~RISCAccess_q;
-assign risc_rw_o = RW;
+assign RiscStall_write_access = RISCAccess & ~RISCAccess_q  &  RW;
+assign RiscStall_read_access  = RISCAccess & ~RISCAccess_q2 & ~RW;
+assign RiscStall_access = RiscStall_write_access | RiscStall_read_access;
+//assign risc_rw_o = RW;
 
 
 // Whan enabled, TRACE stalls RISC while saving data to the trace buffer.
 `ifdef TRACE_ENABLED
-  assign  risc_stall_o = risc_cs_o | RiscStall_reg | RiscStall_trace ;
+  assign  risc_stall_o = RiscStall_access | RiscStall_reg | RiscStall_trace ;
 `else
-  assign  risc_stall_o = risc_cs_o | RiscStall_reg;
+  assign  risc_stall_o = RiscStall_access | RiscStall_read_access | RiscStall_reg;
 `endif
 
-assign  risc_reset_o = RiscReset_reg;
+assign  reset_o = RiscReset_reg;
+
+
+always @ (RiscStall_write_access or RiscStall_read_access or opselect_trace)
+begin
+  if(RiscStall_write_access)
+    opselect_o = `DEBUG_WRITE_SPR;  // Write spr
+  else
+  if(RiscStall_read_access)
+    opselect_o = `DEBUG_READ_SPR;   // Read spr
+  else
+    opselect_o = opselect_trace;
+end
 
 
 
 // Latching data read from RISC
-always @ (posedge mclk or posedge RESET)
+always @ (posedge risc_clk_i or posedge RESET)
 begin
   if(RESET)
     RISC_DATAINLatch[31:0]<=#Tp 0;
@@ -795,14 +819,14 @@ end
 `ifdef TRACE_ENABLED
   
 
-// Synchronizing the trace read buffer signal to mclk clock
-dbg_sync_clk1_clk2 syn3 (.clk1(mclk),         .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
+// Synchronizing the trace read buffer signal to risc_clk_i clock
+dbg_sync_clk1_clk2 syn3 (.clk1(risc_clk_i),     .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
                          .set2(ReadBuffer_Tck), .sync_out(ReadTraceBuffer)
                         );
 
 
 
-  always @(posedge mclk or posedge RESET)
+  always @(posedge risc_clk_i or posedge RESET)
   begin
     if(RESET)
       ReadTraceBuffer_q <=#Tp 0;
@@ -988,7 +1012,7 @@ end
 *                                                                                 *
 **********************************************************************************/
 dbg_registers dbgregs(.DataIn(DataOut[31:0]), .DataOut(RegDataIn[31:0]), 
-                      .Address(ADDR[4:0]), .RW(RW), .Access(RegAccess & ~RegAccess_q), .Clk(mclk), 
+                      .Address(ADDR[4:0]), .RW(RW), .Access(RegAccess & ~RegAccess_q), .Clk(risc_clk_i), 
                       .Reset(wb_rst_i), 
                       `ifdef TRACE_ENABLED
                       .ContinMode(ContinMode), .TraceEnable(TraceEnable), 
@@ -1093,9 +1117,9 @@ assign RiscDebugScanChain  = Chain == `RISC_DEBUG_CHAIN;
 *                                                                                 *
 **********************************************************************************/
 `ifdef TRACE_ENABLED
-  dbg_trace dbgTrace1(.Wp(wp_i), .Bp(bp_i), .DataIn(risc_data_i), .OpSelect(opselect_o), 
+  dbg_trace dbgTrace1(.Wp(wp_i), .Bp(bp_i), .DataIn(risc_data_i), .OpSelect(opselect_trace), 
                       .LsStatus(lsstatus_i), .IStatus(istatus_i), .RiscStall_O(RiscStall_trace), 
-                      .Mclk(mclk), .Reset(RESET), .TraceChain(TraceChain), 
+                      .Mclk(risc_clk_i), .Reset(RESET), .TraceChain(TraceChain), 
                       .ContinMode(ContinMode), .TraceEnable_reg(TraceEnable), 
                       .WpTrigger(WpTrigger), 
                       .BpTrigger(BpTrigger), .LSSTrigger(LSSTrigger), .ITrigger(ITrigger), 
