@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.19  2004/03/28 20:27:02  igorm
+// New release of the debug interface (3rd. release).
+//
 // Revision 1.18  2004/03/22 16:35:46  igorm
 // Temp version before changing dbg interface.
 //
@@ -129,14 +132,18 @@
 `define DBG_TOP_CRC_CNT           6
 
 // Chains
-`define DBG_TOP_CPU_DEBUG_MODULE      4'b0000
-`define DBG_TOP_WISHBONE_DEBUG_MODULE 4'b0001
+`define DBG_TOP_WISHBONE_DEBUG_MODULE 4'h0
+`define DBG_TOP_CPU0_DEBUG_MODULE     4'h1
+`define DBG_TOP_CPU1_DEBUG_MODULE     4'h2
 
-// If WISHBONE debugging is supported uncomment the folowing line
+// If WISHBONE sub-module is supported uncomment the folowing line
 `define DBG_WISHBONE_SUPPORTED
 
-// If CPU_DEBUG is supported uncomment the folowing line
-`define DBG_CPU_SUPPORTED
+// If CPU_0 sub-module is supported uncomment the folowing line
+`define DBG_CPU0_SUPPORTED
+
+// If CPU_1 sub-module is supported uncomment the folowing line
+`define DBG_CPU1_SUPPORTED
 
 // If more debug info is needed, uncomment the follofing line
 //`define DBG_MORE_INFO

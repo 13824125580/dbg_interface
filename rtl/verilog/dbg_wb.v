@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.21  2004/03/31 14:34:09  igorm
+// data_cnt_lim length changed to reduce number of warnings.
+//
 // Revision 1.20  2004/03/28 20:27:02  igorm
 // New release of the debug interface (3rd. release).
 //
@@ -249,7 +252,8 @@ reg     [1:0] ptr;
 reg     [2:0] fifo_cnt;
 wire          fifo_full;
 wire          fifo_empty;
-reg     [7:0] mem [0:3];
+//reg     [7:0] mem [0:3];
+reg     [7:0] mem0, mem1, mem2, mem3;
 reg     [2:0] mem_ptr_dsff;
 reg           wishbone_ce_csff;
 reg           mem_ptr_init;
@@ -295,7 +299,6 @@ begin
 end
                                                                                            
 
-reg [799:0] dr_text;
 // Shift register for shifting in and out the data
 always @ (posedge tck_i or posedge rst_i)
 begin
@@ -303,18 +306,15 @@ begin
     begin
       latch_data <= #1 1'b0;
       dr <= #1 {`DBG_WB_DR_LEN{1'b0}};
-      dr_text = "reset";
     end
   else if (curr_cmd_rd_comm && crc_cnt_31)  // Latching data (from iternal regs)
     begin
       dr[`DBG_WB_ACC_TYPE_LEN + `DBG_WB_ADR_LEN + `DBG_WB_LEN_LEN -1:0] <= #1 {acc_type, adr, len};
-      dr_text = "latch reg data";
     end
   else if (acc_type_read && curr_cmd_go && crc_cnt_31)  // Latchind first data (from WB)
     begin
       dr[31:0] <= #1 input_data[31:0];
       latch_data <= #1 1'b1;
-      dr_text = "latch first data";
     end
   else if (acc_type_read && curr_cmd_go && crc_cnt_end) // Latching data (from WB)
     begin
@@ -329,13 +329,11 @@ begin
                             2'b11 : dr[31:24] <= #1 input_data[7:0];
                           endcase
                           latch_data <= #1 1'b1;
-                          dr_text = "latch_data byte";
                         end
                       else
                         begin
                           dr[31:24] <= #1 {dr[30:24], 1'b0};
                           latch_data <= #1 1'b0;
-                          dr_text = "shift byte";
                         end
                     end
         `DBG_WB_READ16: begin
@@ -346,13 +344,11 @@ begin
                           else
                             dr[31:16] <= #1 input_data[31:16];
                           latch_data <= #1 1'b1;
-                          dr_text = "latch_data_half";
                         end
                       else
                         begin
                           dr[31:16] <= #1 {dr[30:16], 1'b0};
                           latch_data <= #1 1'b0;
-                          dr_text = "shift half";
                         end
                     end
         `DBG_WB_READ32: begin
@@ -360,13 +356,11 @@ begin
                         begin
                           dr[31:0] <= #1 input_data[31:0];
                           latch_data <= #1 1'b1;
-                          dr_text = "latch_data word";
                         end
                       else
                         begin
                           dr[31:0] <= #1 {dr[30:0], 1'b0};
                           latch_data <= #1 1'b0;
-                          dr_text = "shift word";
                         end
                     end
       endcase
@@ -374,7 +368,6 @@ begin
   else if (enable && (!addr_len_cnt_end))
     begin
       dr <= #1 {dr[`DBG_WB_DR_LEN -2:0], tdi_i};
-      dr_text = "shift dr";
     end
 end
 
@@ -1025,7 +1018,7 @@ begin
 end
 
 
-// Logic for latching data that is read from wishbone
+/* Logic for latching data that is read from wishbone
 always @ (posedge wb_clk_i)
 begin
   if (wb_ack_i)
@@ -1056,9 +1049,91 @@ begin
       endcase
     end
 end
+*/
+
+// Logic for latching data that is read from wishbone
+always @ (posedge wb_clk_i)
+begin
+  if (wb_ack_i)
+    begin
+      case (wb_sel_dsff)    // synthesis parallel_case full_case
+        4'b1000  :  begin
+                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
+                        2'b00:  mem0 <= #1 wb_dat_i[31:24];
+                        2'b01:  mem1 <= #1 wb_dat_i[31:24];
+                        2'b10:  mem2 <= #1 wb_dat_i[31:24];
+                        2'b11:  mem3 <= #1 wb_dat_i[31:24];
+                      endcase
+                    end
+        4'b0100  :  begin
+                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
+                        2'b00:  mem0 <= #1 wb_dat_i[23:16];
+                        2'b01:  mem1 <= #1 wb_dat_i[23:16];
+                        2'b10:  mem2 <= #1 wb_dat_i[23:16];
+                        2'b11:  mem3 <= #1 wb_dat_i[23:16];
+                      endcase
+                    end
+        4'b0010  :  begin
+                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
+                        2'b00:  mem0 <= #1 wb_dat_i[15:08];
+                        2'b01:  mem1 <= #1 wb_dat_i[15:08];
+                        2'b10:  mem2 <= #1 wb_dat_i[15:08];
+                        2'b11:  mem3 <= #1 wb_dat_i[15:08];
+                      endcase
+                    end
+        4'b0001  :  begin
+                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
+                        2'b00:  mem0 <= #1 wb_dat_i[07:00];
+                        2'b01:  mem1 <= #1 wb_dat_i[07:00];
+                        2'b10:  mem2 <= #1 wb_dat_i[07:00];
+                        2'b11:  mem3 <= #1 wb_dat_i[07:00];
+                      endcase
+                    end
+                                                                                               
+        4'b1100  :                                                      // half
+                    begin
+                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
+                        2'b00:  mem0 <= #1 wb_dat_i[31:24];
+                        2'b01:  mem1 <= #1 wb_dat_i[31:24];
+                        2'b10:  mem2 <= #1 wb_dat_i[31:24];
+                        2'b11:  mem3 <= #1 wb_dat_i[31:24];
+                      endcase
+                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
+                        2'b00:  mem1 <= #1 wb_dat_i[23:16];
+                        2'b01:  mem2 <= #1 wb_dat_i[23:16];
+                        2'b10:  mem3 <= #1 wb_dat_i[23:16];
+                        2'b11:  mem0 <= #1 wb_dat_i[23:16];
+                      endcase
+                    end
+        4'b0011  :                                                      // half
+                    begin
+                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
+                        2'b00:  mem0 <= #1 wb_dat_i[15:08];
+                        2'b01:  mem1 <= #1 wb_dat_i[15:08];
+                        2'b10:  mem2 <= #1 wb_dat_i[15:08];
+                        2'b11:  mem3 <= #1 wb_dat_i[15:08];
+                      endcase
+                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
+                        2'b00:  mem1 <= #1 wb_dat_i[07:00];
+                        2'b01:  mem2 <= #1 wb_dat_i[07:00];
+                        2'b10:  mem3 <= #1 wb_dat_i[07:00];
+                        2'b11:  mem0 <= #1 wb_dat_i[07:00];
+                      endcase
+                    end
+        4'b1111  :                                                      // long
+                    begin
+                      mem0 <= #1 wb_dat_i[31:24];
+                      mem1 <= #1 wb_dat_i[23:16];
+                      mem2 <= #1 wb_dat_i[15:08];
+                      mem3 <= #1 wb_dat_i[07:00];
+                    end
+      endcase
+    end
+end
 
 
-assign input_data = {mem[0], mem[1], mem[2], mem[3]};
+//assign input_data = {mem[0], mem[1], mem[2], mem[3]};
+assign input_data = {mem0, mem1, mem2, mem3};
 
 
 // Fifo counter and empty/full detection
@@ -1090,7 +1165,6 @@ end
 assign fifo_full  = fifo_cnt == 3'h4;
 assign fifo_empty = fifo_cnt == 3'h0;
 
-reg [799:0] tdo_text;
 
 // TDO multiplexer
 always @ (pause_dr_i or busy_tck or crc_cnt_end or crc_cnt_end_q or curr_cmd_wr_comm or 
@@ -1101,73 +1175,59 @@ begin
   if (pause_dr_i)
     begin
     tdo_o = busy_tck;
-    tdo_text = "busy_tck";
     end
   else if (crc_cnt_end && (!crc_cnt_end_q) && (curr_cmd_wr_comm || curr_cmd_go && acc_type_write ))
     begin
       tdo_o = ~crc_match_i;
-      tdo_text = "crc_match_i";
     end
   else if (curr_cmd_go && acc_type_read && crc_cnt_end && (!data_cnt_end))
     begin
       tdo_o = dr[31];
-      tdo_text = "dr[31]";
     end
   else if (curr_cmd_go && acc_type_read && data_cnt_end && (!data_cnt_end_q))
     begin
       tdo_o = ~crc_match_reg;
-      tdo_text = "crc_match_reg";
     end
   else if (curr_cmd_rd_comm && addr_len_cnt_end && (!addr_len_cnt_end_q))
     begin
       tdo_o = ~crc_match_reg;
-      tdo_text = "crc_match_reg_rd_comm";
     end
   else if (curr_cmd_rd_comm && crc_cnt_end && (!addr_len_cnt_end))
     begin
       tdo_o = dr[`DBG_WB_ACC_TYPE_LEN + `DBG_WB_ADR_LEN + `DBG_WB_LEN_LEN -1];
-      tdo_text = "rd_comm data";
     end
   else if (status_cnt_en)
     begin
       tdo_o = status[3];
-      tdo_text = "status";
     end
   else
     begin
       tdo_o = 1'b0;
-      tdo_text = "zero";
     end
 end
 
-reg [799:0] status_text;
 // Status register
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
     begin
     status <= #1 {`DBG_WB_STATUS_LEN{1'b0}};
-    status_text = "reset";
     end
   else if(crc_cnt_end && (!crc_cnt_end_q) && (!(curr_cmd_go && acc_type_read)))
     begin
     status <= #1 {1'b0, wb_error_tck, wb_overrun_tck, crc_match_i};
-    status_text = "latch ni read";
     end
   else if (data_cnt_end && (!data_cnt_end_q) && curr_cmd_go && acc_type_read)
     begin
     status <= #1 {1'b0, wb_error_tck, underrun_tck, crc_match_reg};
-    status_text = "latch read";
     end
   else if (addr_len_cnt_end && (!addr_len_cnt_end) && curr_cmd_rd_comm)
     begin
     status <= #1 {1'b0, 1'b0, 1'b0, crc_match_reg};
-    status_text = "rd_comm";
     end
   else if (shift_dr_i && (!status_cnt_end))
     begin
     status <= #1 {status[`DBG_WB_STATUS_LEN -2:0], status[`DBG_WB_STATUS_LEN -1]};
-    status_text = "shifting";
     end
 end
 // Following status is shifted out (MSB first):
