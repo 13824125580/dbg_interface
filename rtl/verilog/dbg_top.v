@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.37  2004/01/17 17:01:14  mohor
+// Almost finished.
+//
 // Revision 1.36  2004/01/16 14:51:33  mohor
 // cpu registers added.
 //
@@ -499,7 +502,7 @@ end
 
 assign shift_crc = shift_crc_wb | shift_crc_cpu;
 
-always @ (shift_crc or crc_out or wishbone_ce or tdo_wb  or tdo_cpu or tdo_chain_select)
+always @ (shift_crc or crc_out or wishbone_ce or tdo_wb  or tdo_cpu or tdo_chain_select or cpu_ce)
 begin
   if (shift_crc)          // shifting crc
     tdo_tmp = crc_out;
