@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.22  2004/04/01 11:56:59  igorm
+// Port names and defines for the supported CPUs changed.
+//
 // Revision 1.21  2004/03/31 14:34:09  igorm
 // data_cnt_lim length changed to reduce number of warnings.
 //
@@ -252,8 +255,7 @@ reg     [1:0] ptr;
 reg     [2:0] fifo_cnt;
 wire          fifo_full;
 wire          fifo_empty;
-//reg     [7:0] mem [0:3];
-reg     [7:0] mem0, mem1, mem2, mem3;
+reg     [7:0] mem [0:3];
 reg     [2:0] mem_ptr_dsff;
 reg           wishbone_ce_csff;
 reg           mem_ptr_init;
@@ -318,52 +320,53 @@ begin
     end
   else if (acc_type_read && curr_cmd_go && crc_cnt_end) // Latching data (from WB)
     begin
-      case (acc_type)  // synthesis parallel_case full_case
-        `DBG_WB_READ8 : begin
-                      if(byte & (~byte_q))
-                        begin
-                          case (ptr)    // synthesis parallel_case
-                            2'b00 : dr[31:24] <= #1 input_data[31:24];
-                            2'b01 : dr[31:24] <= #1 input_data[23:16];
-                            2'b10 : dr[31:24] <= #1 input_data[15:8];
-                            2'b11 : dr[31:24] <= #1 input_data[7:0];
-                          endcase
-                          latch_data <= #1 1'b1;
-                        end
-                      else
-                        begin
-                          dr[31:24] <= #1 {dr[30:24], 1'b0};
-                          latch_data <= #1 1'b0;
-                        end
-                    end
-        `DBG_WB_READ16: begin
-                      if(half & (~half_q))
-                        begin
-                          if (ptr[1])
-                            dr[31:16] <= #1 input_data[15:0];
-                          else
-                            dr[31:16] <= #1 input_data[31:16];
-                          latch_data <= #1 1'b1;
-                        end
-                      else
-                        begin
-                          dr[31:16] <= #1 {dr[30:16], 1'b0};
-                          latch_data <= #1 1'b0;
-                        end
-                    end
-        `DBG_WB_READ32: begin
-                      if(long & (~long_q))
-                        begin
-                          dr[31:0] <= #1 input_data[31:0];
-                          latch_data <= #1 1'b1;
-                        end
-                      else
-                        begin
-                          dr[31:0] <= #1 {dr[30:0], 1'b0};
-                          latch_data <= #1 1'b0;
-                        end
-                    end
-      endcase
+      if (acc_type == `DBG_WB_READ8)
+        begin
+          if(byte & (~byte_q))
+            begin
+              case (ptr)    // synthesis parallel_case
+                2'b00 : dr[31:24] <= #1 input_data[31:24];
+                2'b01 : dr[31:24] <= #1 input_data[23:16];
+                2'b10 : dr[31:24] <= #1 input_data[15:8];
+                2'b11 : dr[31:24] <= #1 input_data[7:0];
+              endcase
+              latch_data <= #1 1'b1;
+            end
+          else
+            begin
+              dr[31:24] <= #1 {dr[30:24], 1'b0};
+              latch_data <= #1 1'b0;
+            end
+        end
+      else if (acc_type == `DBG_WB_READ16)
+        begin
+          if(half & (~half_q))
+            begin
+              if (ptr[1])
+                dr[31:16] <= #1 input_data[15:0];
+              else
+                dr[31:16] <= #1 input_data[31:16];
+              latch_data <= #1 1'b1;
+            end
+          else
+            begin
+              dr[31:16] <= #1 {dr[30:16], 1'b0};
+              latch_data <= #1 1'b0;
+            end
+        end
+      else if (acc_type == `DBG_WB_READ32)
+        begin
+          if(long & (~long_q))
+            begin
+              dr[31:0] <= #1 input_data[31:0];
+              latch_data <= #1 1'b1;
+            end
+          else
+            begin
+              dr[31:0] <= #1 {dr[30:0], 1'b0};
+              latch_data <= #1 1'b0;
+            end
+        end
     end
   else if (enable && (!addr_len_cnt_end))
     begin
@@ -610,7 +613,7 @@ begin
     len_var <= #1 len + 1'b1;
   else if (start_rd_tck)
     begin
-      case (acc_type)  // synthesis parallel_case full_case
+      case (acc_type)  // synthesis parallel_case
         `DBG_WB_READ8 : 
                     if (len_var > 'd1)
                       len_var <= #1 len_var - 1'd1;
@@ -626,6 +629,7 @@ begin
                       len_var <= #1 len_var - 3'd4; 
                     else
                       len_var <= #1 {1'b0, {`DBG_WB_LEN_LEN{1'b0}}};
+        default:      len_var <= #1 {1'bx, {`DBG_WB_LEN_LEN{1'bx}}};
       endcase
     end
 end
@@ -822,7 +826,7 @@ begin
     wb_sel_dsff[3:0] <= #1 4'h0;
   else
     begin
-      case ({wb_adr_dsff[1:0], acc_type_8bit, acc_type_16bit, acc_type_32bit}) // synthesis parallel_case full_case
+      case ({wb_adr_dsff[1:0], acc_type_8bit, acc_type_16bit, acc_type_32bit}) // synthesis parallel_case
         {2'd0, 3'b100} : wb_sel_dsff[3:0] <= #1 4'h8;
         {2'd0, 3'b010} : wb_sel_dsff[3:0] <= #1 4'hC;
         {2'd0, 3'b001} : wb_sel_dsff[3:0] <= #1 4'hF;
@@ -830,6 +834,7 @@ begin
         {2'd2, 3'b100} : wb_sel_dsff[3:0] <= #1 4'h2;
         {2'd2, 3'b010} : wb_sel_dsff[3:0] <= #1 4'h3;
         {2'd3, 3'b100} : wb_sel_dsff[3:0] <= #1 4'h1;
+        default:         wb_sel_dsff[3:0] <= #1 4'hx;
       endcase
     end
 end
@@ -1018,12 +1023,12 @@ begin
 end
 
 
-/* Logic for latching data that is read from wishbone
+// Logic for latching data that is read from wishbone
 always @ (posedge wb_clk_i)
 begin
   if (wb_ack_i)
     begin
-      case (wb_sel_dsff)    // synthesis parallel_case full_case
+      case (wb_sel_dsff)    // synthesis parallel_case
         4'b1000  :  mem[mem_ptr_dsff[1:0]] <= #1 wb_dat_i[31:24];            // byte
         4'b0100  :  mem[mem_ptr_dsff[1:0]] <= #1 wb_dat_i[23:16];            // byte
         4'b0010  :  mem[mem_ptr_dsff[1:0]] <= #1 wb_dat_i[15:08];            // byte
@@ -1046,94 +1051,20 @@ begin
                       mem[2] <= #1 wb_dat_i[15:08];
                       mem[3] <= #1 wb_dat_i[07:00];
                     end
-      endcase
-    end
-end
-*/
-
-// Logic for latching data that is read from wishbone
-always @ (posedge wb_clk_i)
-begin
-  if (wb_ack_i)
-    begin
-      case (wb_sel_dsff)    // synthesis parallel_case full_case
-        4'b1000  :  begin
-                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
-                        2'b00:  mem0 <= #1 wb_dat_i[31:24];
-                        2'b01:  mem1 <= #1 wb_dat_i[31:24];
-                        2'b10:  mem2 <= #1 wb_dat_i[31:24];
-                        2'b11:  mem3 <= #1 wb_dat_i[31:24];
-                      endcase
-                    end
-        4'b0100  :  begin
-                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
-                        2'b00:  mem0 <= #1 wb_dat_i[23:16];
-                        2'b01:  mem1 <= #1 wb_dat_i[23:16];
-                        2'b10:  mem2 <= #1 wb_dat_i[23:16];
-                        2'b11:  mem3 <= #1 wb_dat_i[23:16];
-                      endcase
-                    end
-        4'b0010  :  begin
-                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
-                        2'b00:  mem0 <= #1 wb_dat_i[15:08];
-                        2'b01:  mem1 <= #1 wb_dat_i[15:08];
-                        2'b10:  mem2 <= #1 wb_dat_i[15:08];
-                        2'b11:  mem3 <= #1 wb_dat_i[15:08];
-                      endcase
-                    end
-        4'b0001  :  begin
-                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
-                        2'b00:  mem0 <= #1 wb_dat_i[07:00];
-                        2'b01:  mem1 <= #1 wb_dat_i[07:00];
-                        2'b10:  mem2 <= #1 wb_dat_i[07:00];
-                        2'b11:  mem3 <= #1 wb_dat_i[07:00];
-                      endcase
-                    end
-                                                                                               
-        4'b1100  :                                                      // half
+        default  :                                                      // long
                     begin
-                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
-                        2'b00:  mem0 <= #1 wb_dat_i[31:24];
-                        2'b01:  mem1 <= #1 wb_dat_i[31:24];
-                        2'b10:  mem2 <= #1 wb_dat_i[31:24];
-                        2'b11:  mem3 <= #1 wb_dat_i[31:24];
-                      endcase
-                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
-                        2'b00:  mem1 <= #1 wb_dat_i[23:16];
-                        2'b01:  mem2 <= #1 wb_dat_i[23:16];
-                        2'b10:  mem3 <= #1 wb_dat_i[23:16];
-                        2'b11:  mem0 <= #1 wb_dat_i[23:16];
-                      endcase
-                    end
-        4'b0011  :                                                      // half
-                    begin
-                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
-                        2'b00:  mem0 <= #1 wb_dat_i[15:08];
-                        2'b01:  mem1 <= #1 wb_dat_i[15:08];
-                        2'b10:  mem2 <= #1 wb_dat_i[15:08];
-                        2'b11:  mem3 <= #1 wb_dat_i[15:08];
-                      endcase
-                      case (mem_ptr_dsff[1:0])  // synthesis parallel_case full_case
-                        2'b00:  mem1 <= #1 wb_dat_i[07:00];
-                        2'b01:  mem2 <= #1 wb_dat_i[07:00];
-                        2'b10:  mem3 <= #1 wb_dat_i[07:00];
-                        2'b11:  mem0 <= #1 wb_dat_i[07:00];
-                      endcase
-                    end
-        4'b1111  :                                                      // long
-                    begin
-                      mem0 <= #1 wb_dat_i[31:24];
-                      mem1 <= #1 wb_dat_i[23:16];
-                      mem2 <= #1 wb_dat_i[15:08];
-                      mem3 <= #1 wb_dat_i[07:00];
+                      mem[0] <= #1 8'hxx;
+                      mem[1] <= #1 8'hxx;
+                      mem[2] <= #1 8'hxx;
+                      mem[3] <= #1 8'hxx;
                     end
       endcase
     end
 end
 
 
-//assign input_data = {mem[0], mem[1], mem[2], mem[3]};
-assign input_data = {mem0, mem1, mem2, mem3};
+
+assign input_data = {mem[0], mem[1], mem[2], mem[3]};
 
 
 // Fifo counter and empty/full detection
@@ -1145,18 +1076,20 @@ begin
     fifo_cnt <= #1 3'h0;
   else if (wb_end_tck && (!wb_end_tck_q) && (!latch_data) && (!fifo_full))  // incrementing
     begin
-      case (acc_type)  // synthesis parallel_case full_case
+      case (acc_type)  // synthesis parallel_case
         `DBG_WB_READ8 : fifo_cnt <= #1 fifo_cnt + 1'd1;
         `DBG_WB_READ16: fifo_cnt <= #1 fifo_cnt + 2'd2;
         `DBG_WB_READ32: fifo_cnt <= #1 fifo_cnt + 3'd4;
+        default:        fifo_cnt <= #1 3'bxxx;
       endcase
     end
   else if (!(wb_end_tck && (!wb_end_tck_q)) && latch_data && (!fifo_empty))  // decrementing
     begin
-      case (acc_type)  // synthesis parallel_case full_case
+      case (acc_type)  // synthesis parallel_case
         `DBG_WB_READ8 : fifo_cnt <= #1 fifo_cnt - 1'd1;
         `DBG_WB_READ16: fifo_cnt <= #1 fifo_cnt - 2'd2;
         `DBG_WB_READ32: fifo_cnt <= #1 fifo_cnt - 3'd4;
+        default:        fifo_cnt <= #1 3'bxxx;
       endcase
     end
 end
