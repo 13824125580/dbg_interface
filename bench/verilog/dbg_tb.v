@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.27  2004/01/17 18:01:31  mohor
+// New version.
+//
 // Revision 1.26  2004/01/17 17:01:25  mohor
 // Almost finished.
 //
@@ -216,6 +219,9 @@ reg  crc_out_en;
 reg  crc_out_shift;
 wire crc_out;
 
+reg  crc_in_en;
+wire crc_match_in;
+
 
 
 wire tdo;
@@ -323,6 +329,22 @@ dbg_crc32_d1 crc32_bench_out
 
 
 
+// Connecting CRC module that calculates CRC that is shifted from debug to bench
+dbg_crc32_d1 crc32_bench_in
+                   (
+                    .data             (tdo),
+                    .enable           (crc_in_en),
+                    .shift            (1'b0),
+                    .rst              (wb_rst_i),
+                    .sync_rst         (update_dr_o),
+                    .crc_out          (),
+                    .clk              (tck_pad_i),
+                    .crc_match        (crc_match_in)
+                   );
+
+
+
+
 wb_slave_behavioral wb_slave
                    (
                     .CLK_I            (wb_clk_i),
@@ -369,6 +391,7 @@ begin
   test_enabled = 1'b0;
   crc_out_en = 1'b0;
   crc_out_shift = 1'b0;
+  crc_in_en = 1'b0;
   wb_data = 32'h01234567;
   trst_pad_i = 1'b1;
   tms_pad_i = 1'hz;
@@ -547,6 +570,18 @@ begin
   #10000;
   debug_cpu(`CPU_GO, 32'h0, 32'hdeadbeef, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
 
+
+
+
+
+
+
+
+
+
+
+
+
 /*
   // Testing read and write to CPU0 registers
   #10000;
@@ -718,7 +753,9 @@ task chain_select;
 
     tdi_pad_i<=#1 'hz;  // tri-state
 
-    gen_clk(`STATUS_LEN);   // Generating 5 clocks to read out status.
+    crc_in_en = 1;      // Enable CRC calculation on incoming data
+
+    gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
 
 
     for(i=0; i<`CRC_LEN -1; i=i+1)
@@ -726,6 +763,13 @@ task chain_select;
 
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
+
+    crc_in_en = 0;      // Disable CRC calculation on incoming data
+    if (~crc_match_in)
+      begin
+        $display("(%0t) Incoming CRC failed !!!", $time);
+        $stop;
+      end
 
     tdi_pad_i<=#1 'hz;  // tri-state
     tms_pad_i<=#1 1;
@@ -765,44 +809,44 @@ task debug_wishbone;
         end 
       `WB_READ8    :  
         begin
-          $display("wb_read8 (ready=%0d, adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", ready, addr, length, gen_crc_err, text);
-          debug_wishbone_set_addr(command, ready, addr, length, gen_crc_err);
+          $display("wb_read8 (adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", addr, length, gen_crc_err, text);
+          debug_wishbone_set_addr(command, addr, length, gen_crc_err);
           last_wb_cmd = `WB_READ8;  last_wb_cmd_text = "WB_READ8";
         end
       `WB_READ16   :  
         begin
-          $display("wb_read16 (ready=%0d, adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", ready, addr, length, gen_crc_err, text);
-          debug_wishbone_set_addr(command, ready, addr, length, gen_crc_err);
+          $display("wb_read16 (adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", addr, length, gen_crc_err, text);
+          debug_wishbone_set_addr(command, addr, length, gen_crc_err);
           last_wb_cmd = `WB_READ16;  last_wb_cmd_text = "WB_READ16";
         end
       `WB_READ32   :  
         begin
-          $display("wb_read32 (ready=%0d, adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", ready, addr, length, gen_crc_err, text);
-          debug_wishbone_set_addr(command, ready, addr, length, gen_crc_err);
+          $display("wb_read32 (adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", addr, length, gen_crc_err, text);
+          debug_wishbone_set_addr(command, addr, length, gen_crc_err);
           last_wb_cmd = `WB_READ32;  last_wb_cmd_text = "WB_READ32";
         end
       `WB_WRITE8   :  
         begin
           $display("wb_write8 (adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", addr, length, gen_crc_err, text);
-          debug_wishbone_set_addr(command, ready, addr, length, gen_crc_err);
+          debug_wishbone_set_addr(command, addr, length, gen_crc_err);
           last_wb_cmd = `WB_WRITE8;  last_wb_cmd_text = "WB_WRITE8";
         end
       `WB_WRITE16  :  
         begin
           $display("wb_write16 (adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", addr, length, gen_crc_err, text);
-          debug_wishbone_set_addr(command, ready, addr, length, gen_crc_err);
+          debug_wishbone_set_addr(command, addr, length, gen_crc_err);
           last_wb_cmd = `WB_WRITE16;  last_wb_cmd_text = "WB_WRITE16";
         end
       `WB_WRITE32  :  
         begin
           $display("wb_write32 (adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", addr, length, gen_crc_err, text);
-          debug_wishbone_set_addr(command, ready, addr, length, gen_crc_err);
+          debug_wishbone_set_addr(command, addr, length, gen_crc_err);
           last_wb_cmd = `WB_WRITE32;  last_wb_cmd_text = "WB_WRITE32";
         end
       `WB_GO       :  
         begin
-          $display("wb_go, gen_crc_err=%0d (%0s))", gen_crc_err, text);
-          debug_wishbone_go(command, gen_crc_err);
+          $display("wb_go, ready=%0d, gen_crc_err=%0d (%0s))", ready, gen_crc_err, text);
+          debug_wishbone_go(command, ready, gen_crc_err);
 //          $display("wb_go_tmp, gen_crc_err=0x%0x (%0s))", gen_crc_err, text);
 //          debug_wishbone_go_tmp(command, crc);
           last_wb_cmd = `WB_GO;  last_wb_cmd_text = "WB_GO";
@@ -818,7 +862,6 @@ endtask       // debug_wishbone
 
 task debug_wishbone_set_addr;
   input [2:0]   command;
-  input         wait_for_wb_ready;    // igor !!! Change this since access only occurs in the "go" stage. Add condition "fifo_empty".
   input [31:0]  addr;
   input [15:0]  length;
   input         gen_crc_err;
@@ -871,26 +914,9 @@ task debug_wishbone_set_addr;
     crc_out_shift = 0;  // Disable CRC shifting
 
     tdi_pad_i<=#1 'hz;
-    if (wait_for_wb_ready)
-      begin
-        gen_clk(`STATUS_LEN -1);   // Generating 4 clocks to read out status. Going to pause_dr at the end
-        tms_pad_i<=#1 1;
-        gen_clk(1);       // to exit1_dr
-        tms_pad_i<=#1 0;
-        gen_clk(1);       // to pause_dr
-  
-        while (dbg_tb.tdo_pad_o)     // waiting for wb to send "ready" 
-        begin
-          gen_clk(1);       // staying in pause_dr
-        end
-        
-        tms_pad_i<=#1 1;
-        gen_clk(1);       // to exit2_dr
-        tms_pad_i<=#1 0;
-        gen_clk(1);       // to shift_dr
-      end
-    else
-      gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
+
+    crc_in_en = 1;      // Enable CRC calculation on incoming data
+    gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
 
     for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
     begin
@@ -899,6 +925,13 @@ task debug_wishbone_set_addr;
 
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
+
+    crc_in_en = 0;      // Disable CRC calculation on incoming data
+    if (~crc_match_in)
+      begin
+        $display("(%0t) Incoming CRC failed !!!", $time);
+        $stop;
+      end
 
     tms_pad_i<=#1 1;
     gen_clk(1);         // to update_dr
@@ -951,6 +984,9 @@ task debug_wishbone_status;
     crc_out_shift = 0;  // Disable CRC shifting
 
     tdi_pad_i<=#1 1'hz;
+
+    crc_in_en = 1;      // Enable CRC calculation on incoming data
+
     gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
 
     for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
@@ -960,6 +996,13 @@ task debug_wishbone_status;
 
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
+
+    crc_in_en = 0;      // Disable CRC calculation on incoming data
+    if (~crc_match_in)
+      begin
+        $display("(%0t) Incoming CRC failed !!!", $time);
+        $stop;
+      end
 
     tms_pad_i<=#1 1;
     gen_clk(1);         // to update_dr
@@ -973,6 +1016,7 @@ endtask       // debug_wishbone_status
 
 task debug_wishbone_go;
   input [2:0]   command;
+  input         wait_for_wb_ready;
   input         gen_crc_err;
   integer i;
   reg   [4:0]   pointer; 
@@ -1016,21 +1060,45 @@ task debug_wishbone_go;
     crc_out_en = 0;     // Disable CRC calculation
     crc_out_shift = 1;  // Enable CRC shifting
 
-    for(i=31; i>=0; i=i-1)
+    for(i=31; i>=1; i=i-1)
     begin
-      if (gen_crc_err & (i==0))  // Generate crc error at last crc bit
-        tdi_pad_i<=#1 ~crc_out;   // error crc
-      else
-        tdi_pad_i<=#1 crc_out;    // ok crc
-
+      tdi_pad_i<=#1 crc_out;    // ok crc
       gen_clk(1);
     end
 
+    if (gen_crc_err)  // Generate crc error at last crc bit
+      tdi_pad_i<=#1 ~crc_out;   // error crc
+    else
+      tdi_pad_i<=#1 crc_out;    // ok crc
+
+    if (wait_for_wb_ready)
+      begin
+        tms_pad_i<=#1 1;
+        gen_clk(1);       // to exit1_dr. Last CRC is shifted on this clk
+        crc_out_shift = 0;  // Disable CRC shifting
+        tms_pad_i<=#1 0;
+        gen_clk(1);       // to pause_dr
+
+        #2;             // wait a bit for tdo to activate
+        while (tdo)     // waiting for wb to send "ready"
+        begin
+          gen_clk(1);       // staying in pause_dr
+        end
+ 
+        tms_pad_i<=#1 1;
+        gen_clk(1);       // to exit2_dr
+        tms_pad_i<=#1 0;
+        gen_clk(1);       // to shift_dr
+      end
+    else
+      begin
+        gen_clk(1);       // Last CRC is shifted on this clk
+      end
+
+
     crc_out_shift = 0;  // Disable CRC shifting
-
     tdi_pad_i<=#1 1'hz;
-
-
+    crc_in_en = 1;      // Enable CRC calculation on incoming data
 
     if ((last_wb_cmd == `WB_READ8) | (last_wb_cmd == `WB_READ16) | (last_wb_cmd == `WB_READ32))  // When WB_WRITEx was previously activated, data needs to be shifted.
       begin
@@ -1049,6 +1117,13 @@ task debug_wishbone_go;
 
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
+
+    crc_in_en = 0;      // Disable CRC calculation on incoming data
+    if (~crc_match_in)
+      begin
+        $display("(%0t) Incoming CRC failed !!!", $time);
+        $stop;
+      end
 
     tms_pad_i<=#1 1;
     gen_clk(1);         // to update_dr
@@ -1181,6 +1256,8 @@ task debug_cpu_set_addr;
     crc_out_shift = 0;  // Disable CRC shifting
 
     tdi_pad_i<=#1 'hz;
+
+    crc_in_en = 1;      // Enable CRC calculation on incoming data
     gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
 
     for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
@@ -1190,6 +1267,13 @@ task debug_cpu_set_addr;
 
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
+
+    crc_in_en = 0;      // Disable CRC calculation on incoming data
+    if (~crc_match_in)
+      begin
+        $display("(%0t) Incoming CRC failed !!!", $time);
+        $stop;
+      end
 
     tms_pad_i<=#1 1;
     gen_clk(1);         // to update_dr
@@ -1267,6 +1351,7 @@ task debug_cpu_go;
 
     tdi_pad_i<=#1 1'hz;
 
+    crc_in_en = 1;      // Enable CRC calculation on incoming data
 
     if (last_wb_cmd == `CPU_READ32)
       len = 32;
@@ -1292,6 +1377,13 @@ task debug_cpu_go;
 
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
+
+    crc_in_en = 0;      // Disable CRC calculation on incoming data
+    if (~crc_match_in)
+      begin
+        $display("(%0t) Incoming CRC failed !!!", $time);
+        $stop;
+      end
 
     tms_pad_i<=#1 1;
     gen_clk(1);         // to update_dr
@@ -1393,7 +1485,7 @@ task xxx;
       gen_clk(1);
     end
 
-    gen_clk(`STATUS_LEN);   // Generating 5 clocks to read out status.
+    gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
 
 
     for(i=0; i<`CRC_LEN -1; i=i+1)
