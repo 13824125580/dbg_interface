@@ -1,15 +1,13 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  dbgTB_defines.v                                             ////
+////  dbg_tb_defines.v                                            ////
 ////                                                              ////
 ////                                                              ////
 ////  This file is part of the SoC/OpenRISC Development Interface ////
-////  http://www.opencores.org/cores/DebugInterface/              ////
-////                                                              ////
+////  http://www.opencores.org/projects/DebugInterface/           ////
 ////                                                              ////
 ////  Author(s):                                                  ////
-////       Igor Mohor                                             ////
-////       igorm@opencores.org                                    ////
+////       Igor Mohor (igorm@opencores.org)                       ////
 ////                                                              ////
 ////                                                              ////
 ////  All additional information is avaliable in the README.txt   ////
@@ -17,7 +15,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2000,2001 Authors                              ////
+//// Copyright (C) 2000 - 2003 Authors                            ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -45,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/09/18 14:12:43  mohor
+// Trace fixed. Some registers changed, trace simplified.
+//
 // Revision 1.1.1.1  2001/09/13 13:49:19  mohor
 // Initial official release.
 //
