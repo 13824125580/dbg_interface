@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2002/05/07 14:43:59  mohor
+// mon_cntl_o signals that controls monitor mux added.
+//
 // Revision 1.6  2002/04/22 12:54:11  mohor
 // Signal names changed to lower case.
 //
@@ -227,16 +230,16 @@ reg    [31:0] data_out;
       RiscStallBp <= data_in[0];
   end
 
-  dbg_register #(1)  RISCOP  (.data_in(data_in[1]),   .data_out(RISCOPOut[1]),    .write(RISCOP_Wr),   .clk(clk), .reset(reset), .defaulty(1'b0));
-  dbg_register #(4)  MONCNTL (.data_in(data_in[3:0]), .data_out(MONCNTLOut[3:0]), .write(MON_CNTL_Wr), .clk(clk), .reset(reset), .defaulty(`MON_CNTL_DEF));
+  dbg_register #(1, 0)  RISCOP  (.data_in(data_in[1]),   .data_out(RISCOPOut[1]),    .write(RISCOP_Wr),   .clk(clk), .reset(reset));
+  dbg_register #(4, `MON_CNTL_DEF)  MONCNTL (.data_in(data_in[3:0]), .data_out(MONCNTLOut[3:0]), .write(MON_CNTL_Wr), .clk(clk), .reset(reset));
 
 
 `ifdef TRACE_ENABLED
-  dbg_register #(2)  MODER  (.data_in(data_in[17:16]), .data_out(MODEROut[17:16]), .write(MODER_Wr),   .clk(clk), .reset(reset), .defaulty(`MODER_DEF));
-  dbg_register #(32) TSEL   (.data_in(data_in),      .data_out(TSELOut),    .write(TSEL_Wr),    .clk(clk), .reset(reset), .defaulty(`TSEL_DEF));
-  dbg_register #(32) QSEL   (.data_in(data_in),      .data_out(QSELOut),    .write(QSEL_Wr),    .clk(clk), .reset(reset), .defaulty(`QSEL_DEF));
-  dbg_register #(32) SSEL   (.data_in(data_in),      .data_out(SSELOut),    .write(SSEL_Wr),    .clk(clk), .reset(reset), .defaulty(`SSEL_DEF));
-  dbg_register #(7) RECSEL  (.data_in(data_in[6:0]), .data_out(RECSELOut),  .write(RECSEL_Wr),  .clk(clk), .reset(reset), .defaulty(`RECSEL_DEF));
+  dbg_register #(2, `MODER_DEF)  MODER  (.data_in(data_in[17:16]), .data_out(MODEROut[17:16]), .write(MODER_Wr),   .clk(clk), .reset(reset));
+  dbg_register #(32, `TSEL_DEF) TSEL   (.data_in(data_in),      .data_out(TSELOut),    .write(TSEL_Wr),    .clk(clk), .reset(reset));
+  dbg_register #(32, `QSEL_DEF) QSEL   (.data_in(data_in),      .data_out(QSELOut),    .write(QSEL_Wr),    .clk(clk), .reset(reset));
+  dbg_register #(32, `SSEL_DEF) SSEL   (.data_in(data_in),      .data_out(SSELOut),    .write(SSEL_Wr),    .clk(clk), .reset(reset));
+  dbg_register #(7, `RECSEL_DEF) RECSEL  (.data_in(data_in[6:0]), .data_out(RECSELOut),  .write(RECSEL_Wr),  .clk(clk), .reset(reset));
 `endif
 
 

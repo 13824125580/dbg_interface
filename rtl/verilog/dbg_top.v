@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.26  2002/05/07 14:43:59  mohor
+// mon_cntl_o signals that controls monitor mux added.
+//
 // Revision 1.25  2002/04/22 12:54:11  mohor
 // Signal names changed to lower case.
 //
@@ -248,6 +251,11 @@ reg           RISCAccess_q2;                // Delayed signals used for accessin
 reg           wb_AccessTck;                 // Indicates access to the WISHBONE
 reg [31:0]    WBReadLatch;                  // Data latched during WISHBONE read
 reg           WBErrorLatch;                 // Error latched during WISHBONE read
+reg           WBInProgress;                 // WISHBONE access is in progress
+reg [7:0]     WBAccessCounter;              // Counting access cycles. WBInProgress is cleared to 0 after counter exceeds 0xff
+wire          WBAccessCounterExceed;        // Marks when the WBAccessCounter exceeds max value (oxff)
+reg           WBInProgress_sync1;           // Synchronizing WBInProgress
+reg           WBInProgress_tck;             // Synchronizing WBInProgress to tck clock signal
 
 wire trst;
 
@@ -411,7 +419,7 @@ assign send_crc = select_crc_out? {9{BypassRegister}}    :    // Calculated CRC 
 
 assign RISC_Data      = {send_crc, DataReadLatch, 33'h0};
 assign Register_Data  = {send_crc, DataReadLatch, 6'h0};
-assign WISHBONE_Data  = {send_crc, WBReadLatch, 32'h0, WBErrorLatch};
+assign WISHBONE_Data  = {send_crc, WBReadLatch, 31'h0, WBInProgress, WBErrorLatch};
 assign chain_sel_data = {send_crc, 4'h0};
                                                   
                                                   
@@ -583,7 +591,7 @@ begin
           RISCAccessTck     <=#Tp 1'b1;
         end
       else
-      if(WishboneScanChain)
+      if(WishboneScanChain & (!WBInProgress_tck))
         begin
           ADDR              <=#Tp JTAG_DR_IN[31:0];   // Latching address for WISHBONE slave access
           RW                <=#Tp JTAG_DR_IN[32];     // latch R/W bit
@@ -667,10 +675,10 @@ begin
   if(wb_rst_i)
     wb_cyc_o <=#Tp 1'b0;
   else
-  if(wb_Access_wbClk & ~wb_Access_wbClk_q & ~(wb_ack_i | wb_err_i))
+  if(wb_Access_wbClk & ~wb_Access_wbClk_q)
     wb_cyc_o <=#Tp 1'b1;
   else
-  if(wb_ack_i | wb_err_i)
+  if(wb_ack_i | wb_err_i | WBAccessCounterExceed)
     wb_cyc_o <=#Tp 1'b0;
 end
 
@@ -698,6 +706,44 @@ begin
   else
   if(wb_ack_i)
     WBErrorLatch<=#Tp 1'b0;     // Clearing status
+end
+
+
+// WBInProgress is set at the beginning of the access and cleared when wb_ack_i or wb_err_i is set
+always @ (posedge wb_clk_i or posedge wb_rst_i)
+begin
+  if(wb_rst_i)
+    WBInProgress<=#Tp 1'b0;
+  else
+  if(wb_Access_wbClk & ~wb_Access_wbClk_q)
+    WBInProgress<=#Tp 1'b1;
+  else
+  if(wb_ack_i | wb_err_i | WBAccessCounterExceed)
+    WBInProgress<=#Tp 1'b0;
+end
+
+
+// Synchronizing WBInProgress
+always @ (posedge wb_clk_i or posedge wb_rst_i)
+begin
+  if(wb_rst_i)
+    WBAccessCounter<=#Tp 8'h0;
+  else
+  if(wb_ack_i | wb_err_i | WBAccessCounterExceed)
+    WBAccessCounter<=#Tp 8'h0;
+  else
+  if(wb_cyc_o)
+    WBAccessCounter<=#Tp WBAccessCounter + 1'b1;
+end
+
+assign WBAccessCounterExceed = WBAccessCounter==8'hff;
+
+
+// Synchronizing WBInProgress
+always @ (posedge tck)
+begin
+    WBInProgress_sync1<=#Tp WBInProgress;
+    WBInProgress_tck<=#Tp WBInProgress_sync1;
 end
 
 

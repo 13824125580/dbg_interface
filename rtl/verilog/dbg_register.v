@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/04/29 08:41:02  mohor
+// Asynchronous reset used instead of synchronous.
+//
 // Revision 1.4  2002/04/22 12:54:11  mohor
 // Signal names changed to lower case.
 //
@@ -67,16 +70,16 @@
 `include "timescale.v"
 // synopsys translate_on
 
-module dbg_register(data_in, data_out, write, clk, reset, defaulty);
+module dbg_register(data_in, data_out, write, clk, reset);
 
 parameter WIDTH = 8; // default parameter of the register width
+parameter RESET_VALUE = 0;
 
 input [WIDTH-1:0] data_in;
 
 input write;
 input clk;
 input reset;
-input [WIDTH-1:0] defaulty;
 
 output [WIDTH-1:0] data_out;
 reg    [WIDTH-1:0] data_out;
@@ -85,7 +88,7 @@ always @ (posedge clk or posedge reset)
 //always @ (posedge clk)
 begin
   if(reset)
-    data_out[WIDTH-1:0]<=#1 defaulty;
+    data_out[WIDTH-1:0]<=#1 RESET_VALUE;
   else
     begin
       if(write)                         // write
