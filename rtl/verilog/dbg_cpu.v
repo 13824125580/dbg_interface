@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2004/04/07 19:28:55  igorm
+// Zero is shifted out when CTRL_READ command is active.
+//
 // Revision 1.10  2004/04/01 10:22:45  igorm
 // Signals for easier debugging removed.
 //
@@ -253,11 +256,11 @@ begin
     end
   else if (curr_cmd_rd_comm && crc_cnt_31)  // Latching data (from internal regs)
     begin
-      dr[`DBG_CPU_ACC_TYPE_LEN + `DBG_CPU_ADR_LEN + `DBG_CPU_LEN_LEN -1:0] <= #1 {acc_type, adr, len};
+      dr[`DBG_CPU_DR_LEN -1:0] <= #1 {acc_type, adr, len};
     end
   else if (curr_cmd_rd_ctrl && crc_cnt_31)  // Latching data (from control regs)
     begin
-      dr[`DBG_CPU_DR_LEN -1:`DBG_CPU_DR_LEN -`DBG_CPU_CTRL_LEN] <= #1 ctrl_reg;
+      dr[`DBG_CPU_DR_LEN -1:0] <= #1 {ctrl_reg, {`DBG_CPU_DR_LEN -`DBG_CPU_CTRL_LEN{1'b0}}};
     end
   else if (acc_type_read && curr_cmd_go && crc_cnt_31)  // Latchind first data (from WB)
     begin
@@ -886,13 +889,9 @@ begin
     begin
       tdo_o = ~crc_match_reg;
     end
-  else if (curr_cmd_rd_comm && crc_cnt_end && (!addr_len_cnt_end))
+  else if ((curr_cmd_rd_comm || curr_cmd_rd_ctrl) && crc_cnt_end && (!addr_len_cnt_end))
     begin
       tdo_o = dr[`DBG_CPU_ACC_TYPE_LEN + `DBG_CPU_ADR_LEN + `DBG_CPU_LEN_LEN -1];
-    end
-  else if (curr_cmd_rd_ctrl && crc_cnt_end && (!addr_len_cnt_end))
-    begin
-      tdo_o = 1'b0;
     end
   else if (status_cnt_en)
     begin
