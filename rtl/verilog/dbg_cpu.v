@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2004/01/19 07:32:41  simons
+// Reset values width added because of FV, a good sentence changed because some tools can not handle it.
+//
 // Revision 1.4  2004/01/17 18:38:11  mohor
 // cpu_tall_o is set with cpu_stb_o or register.
 //
@@ -166,7 +169,7 @@ reg           write_cycle_cpu;
 wire          read_cycle;
 wire          write_cycle;
 
-reg    [34:0] dr;
+reg    [31:0] dr;
 wire    [7:0] reg_data_out;
 
 wire          dr_read_reg;
@@ -193,7 +196,6 @@ reg           cycle_32_bit;
 reg           reg_access;
 
 reg    [31:0] adr;
-reg           set_addr;
 reg           cpu_ack_sync;
 reg           cpu_ack_tck;
 reg           cpu_ack_tck_q;
@@ -342,18 +344,12 @@ assign status_cnt_end = status_cnt4;
 
 
 // Latching address
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i)
-    begin
-      if (~dr_go_latched)
-        begin
-          adr <= #1 dr[31:0];
-          set_addr <= #1 1'b1;
-        end
-    end
-  else
-    set_addr <= #1 1'b0;
+  if (rst_i)
+    adr <= #1 32'h0;
+  else if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i & (~dr_go_latched))
+    adr <= #1 dr[31:0];
 end
 
 
@@ -361,12 +357,12 @@ assign cpu_addr_o = adr;
 
 
 // Shift register for shifting in and out the data
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (reg_access)
-    begin
-      dr[31:24] <= #1 reg_data_out;
-    end
+  if (rst_i)
+    dr <= #1 32'h0;
+  else if (reg_access)
+    dr[31:24] <= #1 reg_data_out;
   else if (cpu_ack_tck & (~cpu_ack_tck_q) & read_cycle_cpu)
     begin
       if (cycle_32_bit)
@@ -376,7 +372,7 @@ begin
     end
   else if (enable & ((~addr_cnt_end) | (~cmd_cnt_end) | ((~data_cnt_end) & write_cycle) | (crc_cnt_end & (~data_cnt_end) & read_cycle)))
     begin
-      dr <= #1 {dr[33:0], tdi_i};
+      dr <= #1 {dr[30:0], tdi_i};
     end
 end
 
@@ -489,9 +485,11 @@ begin
 end
 
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (update_dr_i)
+  if (rst_i)
+    write_cycle_cpu <= #1 1'b0;
+  else if (update_dr_i)
     write_cycle_cpu <= #1 1'b0;
   else if (cmd_write_cpu & go_prelim)
     write_cycle_cpu <= #1 1'b1;
@@ -553,11 +551,11 @@ end
 
 
 // Start cpu access cycle
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (update_dr_i)
+  if (rst_i)
     cpu_stb <= #1 1'b0;
-  else if (cpu_ack_tck)
+  else if (update_dr_i | cpu_ack_tck)
     cpu_stb <= #1 1'b0;
   else if (write_cycle_cpu & data_cnt_end & (~data_cnt_end_q) | read_cycle_cpu & (~read_cycle_cpu_q))
     cpu_stb <= #1 1'b1;

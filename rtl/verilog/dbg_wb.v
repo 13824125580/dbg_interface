@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2004/01/19 07:32:41  simons
+// Reset values width added because of FV, a good sentence changed because some tools can not handle it.
+//
 // Revision 1.15  2004/01/17 18:01:24  mohor
 // New version.
 //
@@ -272,9 +275,14 @@ end
 
 
 // Shift register for shifting in and out the data
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (read_cycle & crc_cnt_31)
+  if (rst_i)
+    begin
+      dr <= #1 51'h0;
+      latch_data <= #1 1'b0;
+    end
+  else if (read_cycle & crc_cnt_31)
     begin
       dr[31:0] <= #1 input_data[31:0];
       latch_data <= #1 1'b1;
@@ -671,16 +679,20 @@ begin
 end
 
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if ((cmd_read | cmd_write) & go_prelim)
+  if (rst_i)
+    rw_type <= #1 3'h0;
+  else if ((cmd_read | cmd_write) & go_prelim)
     rw_type <= #1 cmd;
 end
 
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (update_dr_i)
+  if (rst_i)
+    write_cycle <= #1 1'b0;
+  else if (update_dr_i)
     write_cycle <= #1 1'b0;
   else if (cmd_write & go_prelim)
     write_cycle <= #1 1'b1;
@@ -688,9 +700,14 @@ end
 
 
 // Start wishbone write cycle
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (write_cycle)
+  if (rst_i)
+    begin
+      start_wr_tck <= #1 1'b0;
+      wb_dat_o <= #1 32'h0;
+    end
+  else if (write_cycle)
     begin
       case (rw_type)  // synthesis parallel_case full_case
         `WB_WRITE8  : begin
@@ -762,9 +779,11 @@ end
 
 
 // wb_adr_o logic
-always @ (posedge wb_clk_i)
+always @ (posedge wb_clk_i or posedge rst_i)
 begin
-  if (set_addr_wb & (~set_addr_wb_q)) // Setting starting address
+  if (rst_i)
+    wb_adr_o <= #1 32'h0;
+  else if (set_addr_wb & (~set_addr_wb_q)) // Setting starting address
     wb_adr_o <= #1 adr;
   else if (wb_ack_i)
     begin

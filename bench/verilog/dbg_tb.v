@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.35  2004/01/22 11:07:28  mohor
+// test stall_test added.
+//
 // Revision 1.34  2004/01/20 14:24:08  mohor
 // Define name changed.
 //
@@ -582,40 +585,41 @@ task stall_test;
   integer i;
 
   begin
+    test_text = "stall_test";
     $display("\n\n(%0t) stall_test started", $time);
 
     // Set bp_i active for 1 clock cycle and check is stall is set or not
     check_stall(0); // Should not be set at the beginning
     @ (posedge wb_clk_i);
-      #1 dbg_tb.i_cpu_behavioral.cpu_bp_o = 1'b1;
-      check_stall(1); // set?
+    #1 dbg_tb.i_cpu_behavioral.cpu_bp_o = 1'b1;
+    #1 check_stall(1); // set?
     @ (posedge wb_clk_i);
-      #1 dbg_tb.i_cpu_behavioral.cpu_bp_o = 1'b0;
-      check_stall(1); // set?
+    #1 dbg_tb.i_cpu_behavioral.cpu_bp_o = 1'b0;
+    #1 check_stall(1); // set?
 
     gen_clk(1);
-    check_stall(1); // set?
+    #1 check_stall(1); // set?
 
     // Unstall with register
     set_instruction(`DEBUG);
     chain_select(`CPU_DEBUG_CHAIN, 1'b0);   // {chain, gen_crc_err}
-    check_stall(1); // set?
+    #1 check_stall(1); // set?
     debug_cpu(`CPU_WRITE_REG, `CPU_OP_ADR, 32'h0, 1'b0, result, "clr unstall"); // {command, addr, data, gen_crc_err, result, text}
-    check_stall(1); // set?
+    #1 check_stall(1); // set?
     debug_cpu(`CPU_GO, 32'h0, 32'h0, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
-    check_stall(0); // reset?
+    #1 check_stall(0); // reset?
 
     // Set stall with register
     debug_cpu(`CPU_WRITE_REG, `CPU_OP_ADR, 32'h0, 1'b0, result, "clr stall"); // {command, addr, data, gen_crc_err, result, text}
-    check_stall(0); // reset?
+    #1 check_stall(0); // reset?
     debug_cpu(`CPU_GO, 32'h0, 32'h1, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
-    check_stall(1); // set?
+    #1 check_stall(1); // set?
 
     // Unstall with register
     debug_cpu(`CPU_WRITE_REG, `CPU_OP_ADR, 32'h0, 1'b0, result, "clr unstall"); // {command, addr, data, gen_crc_err, result, text}
-    check_stall(1); // set?
+    #1 check_stall(1); // set?
     debug_cpu(`CPU_GO, 32'h0, 32'h0, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
-    check_stall(0); // reset?
+    #1 check_stall(0); // reset?
 
     $display("\n\n(%0t) stall_test passed\n\n", $time);
   end
