@@ -6,18 +6,16 @@
 ////  This file is part of the SoC/OpenRISC Development Interface ////
 ////  http://www.opencores.org/projects/DebugInterface/           ////
 ////                                                              ////
-////                                                              ////
 ////  Author(s):                                                  ////
-////       Igor Mohor                                             ////
-////       igorm@opencores.org                                    ////
+////       Igor Mohor (igorm@opencores.org)                       ////
 ////                                                              ////
 ////                                                              ////
-////  All additional information is available in the README.txt   ////
+////  All additional information is avaliable in the README.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2000,2001, 2002 Authors                        ////
+//// Copyright (C) 2000 - 2003 Authors                            ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -45,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.33  2003/10/23 16:17:01  mohor
+// CRC logic changed.
+//
 // Revision 1.32  2003/09/18 14:00:47  simons
 // Lower two address lines must be always zero.
 //
@@ -86,7 +87,7 @@
 // Structure changed. Hooks for jtag chain added.
 //
 // Revision 1.20  2002/02/06 12:23:09  mohor
-// LatchedJTAG_IR used when muxing TDO instead of JTAG_IR.
+// latched_jtag_ir used when muxing TDO instead of JTAG_IR.
 //
 // Revision 1.19  2002/02/05 13:34:51  mohor
 // Stupid bug that was entered by previous update fixed.
@@ -167,68 +168,47 @@
 
 // Top module
 module dbg_top(
-                
-                // CPU signals
-                cpu_clk_i, cpu_addr_o, cpu_data_i, cpu_data_o, wp_i, 
-                bp_i, opselect_o, lsstatus_i, istatus_i, 
-                cpu_stall_o, cpu_stall_all_o, cpu_sel_o, reset_o,
-
-                // WISHBONE common signals
-                wb_rst_i, wb_clk_i, 
-
-                // WISHBONE master interface
-                wb_adr_o, wb_dat_o, wb_dat_i, wb_cyc_o, wb_stb_o, wb_sel_o,
-                wb_we_o, wb_ack_i, wb_cab_o, wb_err_i, 
+                // JTAG signals
+                trst_i,     // trst_i is active high (inverted on higher layers)
+                tck_i,
+                tdi_i,
+                tdo_o,
 
                 // TAP states
-                ShiftDR, Exit1DR, UpdateDR, UpdateDR_q, SelectDRScan,
-                
+                shift_dr_i,
+                pause_dr_i,
+                update_dr_i,
+
                 // Instructions
-                IDCODESelected, CHAIN_SELECTSelected, DEBUGSelected, 
-                
-                // TAP signals
-                trst_in, tck, tdi, TDOData, 
-                
-                BypassRegister,
-                
-                // Monitor mux control
-                mon_cntl_o,
+                debug_select_i,
 
-                // Selected chains
-                RegisterScanChain,
-                CpuDebugScanChain0,
-                CpuDebugScanChain1,
-                CpuDebugScanChain2,
-                CpuDebugScanChain3,
-                WishboneScanChain
-
-
-
+                // WISHBONE common signals
+                wb_rst_i, wb_clk_i,
+                                                                                
+                // WISHBONE master interface
+                wb_adr_o, wb_dat_o, wb_dat_i, wb_cyc_o, wb_stb_o, wb_sel_o,
+                wb_we_o, wb_ack_i, wb_cab_o, wb_err_i, wb_cti_o, wb_bte_o
               );
 
-parameter Tp = 1;
 
+// JTAG signals
+input   trst_i;
+input   tck_i;
+input   tdi_i;
+output  tdo_o;
 
-// CPU signals
-input         cpu_clk_i;                  // Master clock (CPU clock)
-input  [31:0] cpu_data_i;                 // CPU data inputs (data that is written to the CPU registers)
-input  [10:0] wp_i;                       // Watchpoint inputs
-input         bp_i;                       // Breakpoint input
-input  [3:0]  lsstatus_i;                 // Load/store status inputs
-input  [1:0]  istatus_i;                  // Instruction status inputs
-output [31:0] cpu_addr_o;                 // CPU address output (for adressing registers within CPU)
-output [31:0] cpu_data_o;                 // CPU data output (data read from cpu registers)
-output [`OPSELECTWIDTH-1:0] opselect_o;   // Operation selection (selecting what kind of data is set to the cpu_data_i)
-output         cpu_stall_o;               // Stalls the selected CPU
-output         cpu_stall_all_o;           // Stalls all the rest CPUs
-output [`CPU_NUM-1:0] cpu_sel_o;          // Stalls all the rest CPUs
-output         reset_o;                   // Resets the CPU
+// TAP states
+input   shift_dr_i;
+input   pause_dr_i;
+input   update_dr_i;
 
+// Instructions
+input   debug_select_i;
 
 // WISHBONE common signals
 input         wb_rst_i;                   // WISHBONE reset
 input         wb_clk_i;                   // WISHBONE clock
-
+                                                                                
 // WISHBONE master interface
 output [31:0] wb_adr_o;
 output [31:0] wb_dat_o;
@@ -240,1000 +220,293 @@ output        wb_we_o;
 input         wb_ack_i;
 output        wb_cab_o;
 input         wb_err_i;
-
-// TAP states
-input         ShiftDR;
-input         Exit1DR;
-input         UpdateDR;
-input         UpdateDR_q;
-input         SelectDRScan;
-
-input         trst_in;
-input         tck;
-input         tdi;
-
-input         BypassRegister;
-
-output        TDOData;
-output [3:0]  mon_cntl_o;
-
-// Defining which instruction is selected
-input         IDCODESelected;
-input         CHAIN_SELECTSelected;
-input         DEBUGSelected;
-
-// Selected chains
-output        RegisterScanChain;
-output        CpuDebugScanChain0;
-output        CpuDebugScanChain1;
-output        CpuDebugScanChain2;
-output        CpuDebugScanChain3;
-output        WishboneScanChain;
-
-reg           wb_cyc_o;
-
-reg [31:0]    ADDR;
-reg [31:0]    DataOut;
-
-reg [`OPSELECTWIDTH-1:0] opselect_o;        // Operation selection (selecting what kind of data is set to the cpu_data_i)
-
-reg [`CHAIN_ID_LENGTH-1:0] Chain;           // Selected chain
-reg [31:0]    DataReadLatch;                // Data when reading register or CPU is latched one cpu_clk_i clock after the data is read.
-reg           RegAccessTck;                 // Indicates access to the registers (read or write)
-reg           CPUAccessTck0;                // Indicates access to the CPU (read or write)
-reg           CPUAccessTck1;                // Indicates access to the CPU (read or write)
-reg           CPUAccessTck2;                // Indicates access to the CPU (read or write)
-reg           CPUAccessTck3;                // Indicates access to the CPU (read or write)
-reg [7:0]     BitCounter;                   // Counting bits in the ShiftDR and Exit1DR stages
-reg           RW;                           // Read/Write bit
-reg           CrcMatch;                     // The crc that is shifted in and the internaly calculated crc are equal
-reg           CrcMatch_q;
-
-reg           RegAccess_q;                  // Delayed signals used for accessing the registers
-reg           RegAccess_q2;                 // Delayed signals used for accessing the registers
-reg           CPUAccess_q;                  // Delayed signals used for accessing the CPU 
-reg           CPUAccess_q2;                 // Delayed signals used for accessing the CPU 
-reg           CPUAccess_q3;                 // Delayed signals used for accessing the CPU 
-
-reg           wb_AccessTck;                 // Indicates access to the WISHBONE
-reg [31:0]    WBReadLatch;                  // Data latched during WISHBONE read
-reg           WBErrorLatch;                 // Error latched during WISHBONE read
-reg           WBInProgress;                 // WISHBONE access is in progress
-reg [7:0]     WBAccessCounter;              // Counting access cycles. WBInProgress is cleared to 0 after counter exceeds 0xff
-wire          WBAccessCounterExceed;        // Marks when the WBAccessCounter exceeds max value (oxff)
-reg           WBInProgress_sync1;           // Synchronizing WBInProgress
-reg           WBInProgress_tck;             // Synchronizing WBInProgress to tck clock signal
-
-wire trst;
+output  [2:0] wb_cti_o;
+output  [1:0] wb_bte_o;
 
 
-wire [31:0]             RegDataIn;          // Data from registers (read data)
-wire [`CRC_LENGTH-1:0]  CalculatedCrcOut;   // CRC calculated in this module. This CRC is apended at the end of the TDO.
+reg     cpu_debug_scan_chain;
+reg     wishbone_scan_chain;
 
-wire CpuStall_reg;                          // CPU is stalled by setting the register bit
-wire CpuReset_reg;                          // CPU is reset by setting the register bit
-wire CpuStall_trace;                        // CPU is stalled by trace module
-       
-       
-wire CpuStall_read_access_0;                // Stalling Cpu because of the read access (SPR read)
-wire CpuStall_read_access_1;                // Stalling Cpu because of the read access (SPR read)
-wire CpuStall_read_access_2;                // Stalling Cpu because of the read access (SPR read)
-wire CpuStall_read_access_3;                // Stalling Cpu because of the read access (SPR read)
-wire CpuStall_write_access_0;               // Stalling Cpu because of the write access (SPR write)
-wire CpuStall_write_access_1;               // Stalling Cpu because of the write access (SPR write)
-wire CpuStall_write_access_2;               // Stalling Cpu because of the write access (SPR write)
-wire CpuStall_write_access_3;               // Stalling Cpu because of the write access (SPR write)
-wire CpuStall_access;                       // Stalling Cpu because of the read or write access
+reg [`DATA_CNT -1:0]        data_cnt;
+reg [`CRC_CNT -1:0]         crc_cnt;
+reg [`STATUS_CNT -1:0]      status_cnt;
+reg [`CHAIN_DATA_LEN -1:0]  chain_dr;
+reg [`CHAIN_ID_LENGTH -1:0] chain; 
 
-wire BitCounter_Lt4;
-wire BitCounter_Eq5;
-wire BitCounter_Eq32;
-wire BitCounter_Lt38;
-wire BitCounter_Lt65;
+wire data_cnt_end;
+wire crc_cnt_end;
+wire status_cnt_end;
+reg  crc_cnt_end_q;
+reg  crc_cnt_end_q2;
+reg  crc_cnt_end_q3;
+reg  chain_select;
+reg  chain_select_error;
+wire crc_out;
+wire crc_match;
+wire crc_en_wb;
+wire shift_crc_wb;
 
+wire data_shift_en;
+wire selecting_command;
 
+reg tdo_o;
+reg wishbone_ce;
 
-// This signals are used only when TRACE is used in the design
-`ifdef TRACE_ENABLED
-  wire [39:0] TraceChain;                 // Chain that comes from trace module
-  reg  ReadBuffer_Tck;                    // Command for incrementing the trace read pointer (synchr with tck)
-  wire ReadTraceBuffer;                   // Command for incrementing the trace read pointer (synchr with MClk)
-  reg  ReadTraceBuffer_q;                 // Delayed command for incrementing the trace read pointer (synchr with MClk)
-  wire ReadTraceBufferPulse;              // Pulse for reading the trace buffer (valid for only one Mclk command)
-
-  // Outputs from registers
-  wire ContinMode;                        // Trace working in continous mode
-  wire TraceEnable;                       // Trace enabled
-  
-  wire [10:0] WpTrigger;                  // Watchpoint starts trigger
-  wire        BpTrigger;                  // Breakpoint starts trigger
-  wire [3:0]  LSSTrigger;                 // Load/store status starts trigger
-  wire [1:0]  ITrigger;                   // Instruction status starts trigger
-  wire [1:0]  TriggerOper;                // Trigger operation
-  
-  wire        WpTriggerValid;             // Watchpoint trigger is valid
-  wire        BpTriggerValid;             // Breakpoint trigger is valid
-  wire        LSSTriggerValid;            // Load/store status trigger is valid
-  wire        ITriggerValid;              // Instruction status trigger is valid
-  
-  wire [10:0] WpQualif;                   // Watchpoint starts qualifier
-  wire        BpQualif;                   // Breakpoint starts qualifier
-  wire [3:0]  LSSQualif;                  // Load/store status starts qualifier
-  wire [1:0]  IQualif;                    // Instruction status starts qualifier
-  wire [1:0]  QualifOper;                 // Qualifier operation
-  
-  wire        WpQualifValid;              // Watchpoint qualifier is valid
-  wire        BpQualifValid;              // Breakpoint qualifier is valid
-  wire        LSSQualifValid;             // Load/store status qualifier is valid
-  wire        IQualifValid;               // Instruction status qualifier is valid
-  
-  wire [10:0] WpStop;                     // Watchpoint stops recording of the trace
-  wire        BpStop;                     // Breakpoint stops recording of the trace
-  wire [3:0]  LSSStop;                    // Load/store status stops recording of the trace
-  wire [1:0]  IStop;                      // Instruction status stops recording of the trace
-  wire [1:0]  StopOper;                   // Stop operation
-  
-  wire WpStopValid;                       // Watchpoint stop is valid
-  wire BpStopValid;                       // Breakpoint stop is valid
-  wire LSSStopValid;                      // Load/store status stop is valid
-  wire IStopValid;                        // Instruction status stop is valid
-  
-  wire RecordPC;                          // Recording program counter
-  wire RecordLSEA;                        // Recording load/store effective address
-  wire RecordLDATA;                       // Recording load data
-  wire RecordSDATA;                       // Recording store data
-  wire RecordReadSPR;                     // Recording read SPR
-  wire RecordWriteSPR;                    // Recording write SPR
-  wire RecordINSTR;                       // Recording instruction
-  
-  // End: Outputs from registers
-
-  wire TraceTestScanChain;                // Trace Test Scan chain selected
-  wire [47:0] Trace_Data;                 // Trace data
-
-  wire [`OPSELECTWIDTH-1:0]opselect_trace;// Operation selection (trace selecting what kind of
-                                          // data is set to the cpu_data_i)
-  wire BitCounter_Lt40;
-
-`endif
-
-
-assign trst = trst_in;                   // trst_pad_i is active high !!! Inverted on higher layer.
-
-
-/**********************************************************************************
-*                                                                                 *
-*   JTAG_DR:  JTAG Data Register                                                  *
-*                                                                                 *
-**********************************************************************************/
-reg [`DR_LENGTH-1:0]JTAG_DR_IN;    // Data register
-reg TDOData;
-
-
-always @ (posedge tck or posedge trst)
+// data counter
+always @ (posedge tck_i or posedge trst_i)
 begin
-  if(trst)
-    JTAG_DR_IN[`DR_LENGTH-1:0]<=#Tp 0;
-  else
-  if(IDCODESelected)                          // To save space JTAG_DR_IN is also used for shifting out IDCODE
-    begin
-      if(ShiftDR)
-        JTAG_DR_IN[31:0] <= #Tp {tdi, JTAG_DR_IN[31:1]};
-      else
-        JTAG_DR_IN[31:0] <= #Tp `IDCODE_VALUE;
-    end
-  else
-  if(CHAIN_SELECTSelected & ShiftDR)
-    JTAG_DR_IN[12:0] <= #Tp {tdi, JTAG_DR_IN[12:1]};
-  else
-  if(DEBUGSelected & ShiftDR)
-    begin
-      if(CpuDebugScanChain0 | CpuDebugScanChain1 |
-         CpuDebugScanChain2 | CpuDebugScanChain3 | WishboneScanChain)
-        JTAG_DR_IN[73:0] <= #Tp {tdi, JTAG_DR_IN[73:1]};
-      else
-      if(RegisterScanChain)
-        JTAG_DR_IN[46:0] <= #Tp {tdi, JTAG_DR_IN[46:1]};
-    end
-end
- 
-wire [73:0] CPU_Data;
-wire [46:0] Register_Data;
-wire [73:0] WISHBONE_Data;
-wire [12:0] chain_sel_data;
-wire wb_Access_wbClk;
-wire [1:0] wb_cntl_o;
-
-
-reg crc_bypassed;
-always @ (posedge tck or posedge trst)
-begin
-  if(trst)
-    crc_bypassed <= 0;
-  else if (CHAIN_SELECTSelected)
-    crc_bypassed <=#Tp 1;
-  else if( 
-          RegisterScanChain  & BitCounter_Eq5  |
-          CpuDebugScanChain0 & BitCounter_Eq32 |
-          CpuDebugScanChain1 & BitCounter_Eq32 |
-          CpuDebugScanChain2 & BitCounter_Eq32 |
-          CpuDebugScanChain3 & BitCounter_Eq32 |
-          WishboneScanChain  & BitCounter_Eq32 )
-    crc_bypassed <=#Tp tdi;              // when write is performed.
+  if (trst_i)
+    data_cnt <= #1 'h0;
+  else if(shift_dr_i & (~data_cnt_end))
+    data_cnt <= #1 data_cnt + 1'b1;
+  else if (update_dr_i)
+    data_cnt <= #1 'h0;
 end
 
-reg  [7:0] send_crc;
-wire [7:0] CalculatedCrcIn;     // crc calculated from the input data (shifted in)
 
-// Calculated CRC is returned when read operation is performed, else received crc is returned (loopback).
-always @ (crc_bypassed or CrcMatch or CrcMatch_q or BypassRegister or CalculatedCrcOut)
+assign data_cnt_end = data_cnt == `CHAIN_DATA_LEN;
+
+
+// crc counter
+always @ (posedge tck_i or posedge trst_i)
+begin
+  if (trst_i)
+    crc_cnt <= #1 'h0;
+  else if(shift_dr_i & data_cnt_end & (~crc_cnt_end) & chain_select)
+    crc_cnt <= #1 crc_cnt + 1'b1;
+  else if (update_dr_i)
+    crc_cnt <= #1 'h0;
+end
+
+assign crc_cnt_end = crc_cnt == `CRC_LEN;
+
+
+always @ (posedge tck_i)
   begin
-    if (crc_bypassed)
-      begin
-        if (CrcMatch | CrcMatch_q)          // When crc is looped back, first bit is not inverted
-          send_crc = {8{BypassRegister}};   // since it caused the error. By inverting it we would
-        else                                // get ok crc.
-          send_crc = {8{~BypassRegister}};
-      end
-    else
-      begin
-        if (CrcMatch)
-          send_crc = {8{CalculatedCrcOut}};
-        else
-          send_crc = {8{~CalculatedCrcOut}};
-      end
+    crc_cnt_end_q  <= #1 crc_cnt_end;
+    crc_cnt_end_q2 <= #1 crc_cnt_end_q;
+    crc_cnt_end_q3 <= #1 crc_cnt_end_q2;
   end
 
-assign CPU_Data       = {send_crc,  DataReadLatch, 33'h0, 1'b0};
-assign Register_Data  = {send_crc,  DataReadLatch, 6'h0, 1'b0};
-assign WISHBONE_Data  = {send_crc,  WBReadLatch, 31'h0, WBInProgress, WBErrorLatch, 1'b0};
-assign chain_sel_data = {send_crc, 4'h0, 1'b0};
-                                                  
-                                                  
-`ifdef TRACE_ENABLED                              
-  assign Trace_Data     = {CalculatedCrcOut, TraceChain};
-`endif
 
-//TDO is changing on the falling edge of tck
-always @ (negedge tck or posedge trst)
+// status counter
+always @ (posedge tck_i or posedge trst_i)
 begin
-  if(trst)
-    begin
-      TDOData <= #Tp 0;
-      `ifdef TRACE_ENABLED
-      ReadBuffer_Tck<=#Tp 0;
-      `endif
-    end
-  else
-  if(UpdateDR)
-    begin
-      TDOData <= #Tp CrcMatch;
-      `ifdef TRACE_ENABLED
-      if(DEBUGSelected & TraceTestScanChain & TraceChain[0])  // Sample in the trace buffer is valid
-        ReadBuffer_Tck<=#Tp 1;                                // Increment read pointer
-      `endif
-    end
-  else
-    begin
-      if(ShiftDR)
-        begin
-          if(IDCODESelected)
-            TDOData <= #Tp JTAG_DR_IN[0]; // IDCODE is shifted out 32-bits, then tdi is bypassed
-          else
-          if(CHAIN_SELECTSelected)
-            TDOData <= #Tp chain_sel_data[BitCounter];        // Received crc is sent back
-          else
-          if(DEBUGSelected)
-            begin
-              if(CpuDebugScanChain0 | CpuDebugScanChain1 | CpuDebugScanChain2 | CpuDebugScanChain3)
-                TDOData <= #Tp CPU_Data[BitCounter];          // Data read from CPU in the previous cycle is shifted out
-              else
-              if(RegisterScanChain)
-                TDOData <= #Tp Register_Data[BitCounter];     // Data read from register in the previous cycle is shifted out
-              else
-              if(WishboneScanChain)
-                TDOData <= #Tp WISHBONE_Data[BitCounter];     // Data read from the WISHBONE slave
-              `ifdef TRACE_ENABLED
-              else
-              if(TraceTestScanChain)
-                TDOData <= #Tp Trace_Data[BitCounter];        // Data from the trace buffer is shifted out
-              `endif
-            end
-        end
-      else
-        begin
-          TDOData <= #Tp 0;
-          `ifdef TRACE_ENABLED
-          ReadBuffer_Tck<=#Tp 0;
-          `endif
-        end
-    end
+  if (trst_i)
+    status_cnt <= #1 'h0;
+  else if(shift_dr_i & crc_cnt_end & (~status_cnt_end))
+    status_cnt <= #1 status_cnt + 1'b1;
+  else if (update_dr_i)
+    status_cnt <= #1 'h0;
+end
+
+assign status_cnt_end = status_cnt == `STATUS_LEN;
+
+
+assign selecting_command = shift_dr_i & (data_cnt == `DATA_CNT'h0) & debug_select_i;
+
+
+always @ (posedge tck_i or posedge trst_i)
+begin
+  if (trst_i)
+    chain_select <= #1 1'b0;
+  else if(selecting_command & tdi_i)       // Chain select
+    chain_select <= #1 1'b1;
+  else if (update_dr_i)
+    chain_select <= #1 1'b0;
 end
 
 
-//synopsys translate_off
-always @ (posedge tck)
+always @ (chain)
 begin
-  if(ShiftDR & CHAIN_SELECTSelected & BitCounter > 12)
-    begin
-      $display("\n%m Error: BitCounter is bigger then chain_sel_data bits width[12:0]. BitCounter=%d\n",BitCounter);
-      $stop;
-    end
-  else
-  if(ShiftDR & DEBUGSelected)
-    begin
-      if((CpuDebugScanChain0 | CpuDebugScanChain1 | CpuDebugScanChain2 | CpuDebugScanChain3) & BitCounter > 73)
-        begin
-          $display("\n%m Error: BitCounter is bigger then CPU_Data bits width[73:0]. BitCounter=%d\n",BitCounter);
-          $stop;
-        end
-      else
-      if(RegisterScanChain & BitCounter > 46)
-        begin
-          $display("\n%m Error: BitCounter is bigger then Register_Data bits width[46:0]. BitCounter=%d\n",BitCounter);
-          $stop;
-        end
-      else
-      if(WishboneScanChain & BitCounter > 73)
-        begin
-          $display("\n%m Error: BitCounter is bigger then WISHBONE_Data bits width[73:0]. BitCounter=%d\n",BitCounter);
-          $stop;
-        end
-      `ifdef TRACE_ENABLED
-      else
-      if(TraceTestScanChain & BitCounter > 47)
-        begin
-          $display("\n%m Error: BitCounter is bigger then Trace_Data bits width[47:0]. BitCounter=%d\n",BitCounter);
-          $stop;
-        end
-      `endif
-    end
-end
-// synopsys translate_on
-
-
-
-
-
-
-
-
-/**********************************************************************************
-*                                                                                 *
-*   End: JTAG_DR                                                                  *
-*                                                                                 *
-**********************************************************************************/
-
-
-
-/**********************************************************************************
-*                                                                                 *
-*   CHAIN_SELECT logic                                                            *
-*                                                                                 *
-**********************************************************************************/
-always @ (posedge tck or posedge trst)
-begin
-  if(trst)
-    Chain[`CHAIN_ID_LENGTH-1:0]<=#Tp `GLOBAL_BS_CHAIN;  // Global BS chain is selected after reset
-  else
-  if(UpdateDR & CHAIN_SELECTSelected & CrcMatch)
-    Chain[`CHAIN_ID_LENGTH-1:0]<=#Tp JTAG_DR_IN[3:0];   // New chain is selected
-end
-
-
-
-/**********************************************************************************
-*                                                                                 *
-*   Register read/write logic                                                     *
-*   CPU registers read/write logic                                                *
-*                                                                                 *
-**********************************************************************************/
-always @ (posedge tck or posedge trst)
-begin
-  if(trst)
-    begin
-      ADDR[31:0]        <=#Tp 32'h0;
-      DataOut[31:0]     <=#Tp 32'h0;
-      RW                <=#Tp 1'b0;
-      RegAccessTck      <=#Tp 1'b0;
-      CPUAccessTck0     <=#Tp 1'b0;
-      CPUAccessTck1     <=#Tp 1'b0;
-      CPUAccessTck2     <=#Tp 1'b0;
-      CPUAccessTck3     <=#Tp 1'b0;
-      wb_AccessTck      <=#Tp 1'h0;
-    end
-  else
-  if(UpdateDR & DEBUGSelected & CrcMatch)
-    begin
-      if(RegisterScanChain)
-        begin
-          ADDR[4:0]         <=#Tp JTAG_DR_IN[4:0];    // Latching address for register access
-          RW                <=#Tp JTAG_DR_IN[5];      // latch R/W bit
-          DataOut[31:0]     <=#Tp JTAG_DR_IN[37:6];   // latch data for write
-          RegAccessTck      <=#Tp 1'b1;
-        end
-      else
-      if(WishboneScanChain & (!WBInProgress_tck))
-        begin
-          ADDR              <=#Tp JTAG_DR_IN[31:0];   // Latching address for WISHBONE slave access
-          RW                <=#Tp JTAG_DR_IN[32];     // latch R/W bit
-          DataOut           <=#Tp JTAG_DR_IN[64:33];  // latch data for write
-          wb_AccessTck      <=#Tp 1'b1;               // 
-        end
-      else
-      if(CpuDebugScanChain0)
-        begin
-          ADDR[31:0]        <=#Tp JTAG_DR_IN[31:0];   // Latching address for CPU register access
-          RW                <=#Tp JTAG_DR_IN[32];     // latch R/W bit
-          DataOut[31:0]     <=#Tp JTAG_DR_IN[64:33];  // latch data for write
-          CPUAccessTck0     <=#Tp 1'b1;
-        end
-      else
-      if(CpuDebugScanChain1)
-        begin
-          ADDR[31:0]        <=#Tp JTAG_DR_IN[31:0];   // Latching address for CPU register access
-          RW                <=#Tp JTAG_DR_IN[32];     // latch R/W bit
-          DataOut[31:0]     <=#Tp JTAG_DR_IN[64:33];  // latch data for write
-          CPUAccessTck1     <=#Tp 1'b1;
-        end
-      else
-      if(CpuDebugScanChain2)
-        begin
-          ADDR[31:0]        <=#Tp JTAG_DR_IN[31:0];   // Latching address for CPU register access
-          RW                <=#Tp JTAG_DR_IN[32];     // latch R/W bit
-          DataOut[31:0]     <=#Tp JTAG_DR_IN[64:33];  // latch data for write
-          CPUAccessTck2     <=#Tp 1'b1;
-        end
-      else
-      if(CpuDebugScanChain3)
-        begin
-          ADDR[31:0]        <=#Tp JTAG_DR_IN[31:0];   // Latching address for CPU register access
-          RW                <=#Tp JTAG_DR_IN[32];     // latch R/W bit
-          DataOut[31:0]     <=#Tp JTAG_DR_IN[64:33];  // latch data for write
-          CPUAccessTck3     <=#Tp 1'b1;
-        end
-    end
-  else
-    begin
-      RegAccessTck      <=#Tp 1'b0;       // This signals are valid for one tck clock period only
-      wb_AccessTck      <=#Tp 1'b0;
-      CPUAccessTck0     <=#Tp 1'b0;
-      CPUAccessTck1     <=#Tp 1'b0;
-      CPUAccessTck2     <=#Tp 1'b0;
-      CPUAccessTck3     <=#Tp 1'b0;
-    end
-end
-
-
-assign wb_adr_o = {ADDR[31:2] & {30{wb_cyc_o}}, 2'b0};
-assign wb_we_o  = RW & wb_cyc_o;
-assign wb_cab_o = 1'b0;
-
-reg [31:0] wb_dat_o;
-always @(wb_sel_o or wb_cyc_o or DataOut)
-begin
-  if(wb_cyc_o)
-      case (wb_sel_o)
-        4'b0001: wb_dat_o = {24'hx, DataOut[7:0]};
-        4'b0010: wb_dat_o = {16'hx, DataOut[7:0], 8'hx};
-        4'b0100: wb_dat_o = {8'hx, DataOut[7:0], 16'hx};
-        4'b1000: wb_dat_o = {DataOut[7:0], 24'hx};
-        4'b0011: wb_dat_o = {16'hx, DataOut[15:0]};
-        4'b1100: wb_dat_o = {DataOut[15:0], 16'hx};
-        default: wb_dat_o = DataOut;
-      endcase
-  else
-    wb_dat_o = 32'hx;
-end
-
-reg [3:0] wb_sel_o;
-always @(ADDR[1:0] or wb_cntl_o or wb_cyc_o)
-begin
-  if(wb_cyc_o)
-      case (wb_cntl_o)
-        2'b00:   wb_sel_o = 4'hf;
-        2'b01:   wb_sel_o = ADDR[1] ? 4'h3 : 4'hc;
-        2'b10:   wb_sel_o = ADDR[1] ? (ADDR[0] ? 4'h1 : 4'h2) : (ADDR[0] ? 4'h4 : 4'h8);
-        default: wb_sel_o = 4'hx;
-      endcase
-  else
-    wb_sel_o = 4'hx;
-end
-   
-// Synchronizing the RegAccess signal to cpu_clk_i clock
-dbg_sync_clk1_clk2 syn1 (.clk1(cpu_clk_i),   .clk2(tck),           .reset1(wb_rst_i),  .reset2(trst), 
-                         .set2(RegAccessTck), .sync_out(RegAccess)
-                        );
-
-// Synchronizing the wb_Access signal to wishbone clock
-dbg_sync_clk1_clk2 syn2 (.clk1(wb_clk_i),     .clk2(tck),           .reset1(wb_rst_i),  .reset2(trst), 
-                         .set2(wb_AccessTck), .sync_out(wb_Access_wbClk)
-                        );
-
-// Synchronizing the CPUAccess0 signal to cpu_clk_i clock
-dbg_sync_clk1_clk2 syn3 (.clk1(cpu_clk_i),    .clk2(tck),          .reset1(wb_rst_i),  .reset2(trst), 
-                         .set2(CPUAccessTck0), .sync_out(CPUAccess0)
-                        );
-
-// Synchronizing the CPUAccess1 signal to cpu_clk_i clock
-dbg_sync_clk1_clk2 syn4 (.clk1(cpu_clk_i),    .clk2(tck),          .reset1(wb_rst_i),  .reset2(trst), 
-                         .set2(CPUAccessTck1), .sync_out(CPUAccess1)
-                        );
-
-// Synchronizing the CPUAccess2 signal to cpu_clk_i clock
-dbg_sync_clk1_clk2 syn5 (.clk1(cpu_clk_i),    .clk2(tck),          .reset1(wb_rst_i),  .reset2(trst), 
-                         .set2(CPUAccessTck2), .sync_out(CPUAccess2)
-                        );
-
-// Synchronizing the CPUAccess3 signal to cpu_clk_i clock
-dbg_sync_clk1_clk2 syn6 (.clk1(cpu_clk_i),    .clk2(tck),          .reset1(wb_rst_i),  .reset2(trst), 
-                         .set2(CPUAccessTck3), .sync_out(CPUAccess3)
-                        );
-
-
-
-
-
-// Delayed signals used for accessing registers and CPU
-always @ (posedge cpu_clk_i or posedge wb_rst_i)
-begin
-  if(wb_rst_i)
-    begin
-      RegAccess_q   <=#Tp 1'b0;
-      RegAccess_q2  <=#Tp 1'b0;
-      CPUAccess_q   <=#Tp 1'b0;
-      CPUAccess_q2  <=#Tp 1'b0;
-      CPUAccess_q3  <=#Tp 1'b0;
-    end
-  else
-    begin
-      RegAccess_q   <=#Tp RegAccess;
-      RegAccess_q2  <=#Tp RegAccess_q;
-      CPUAccess_q   <=#Tp CPUAccess0 | CPUAccess1 | CPUAccess2 | CPUAccess3;
-      CPUAccess_q2  <=#Tp CPUAccess_q;
-      CPUAccess_q3  <=#Tp CPUAccess_q2;
-    end
-end
-
-// Chip select and read/write signals for accessing CPU
-assign CpuStall_write_access_0 = CPUAccess0 & ~CPUAccess_q2 &  RW;
-assign CpuStall_read_access_0  = CPUAccess0 & ~CPUAccess_q2 & ~RW;
-assign CpuStall_write_access_1 = CPUAccess1 & ~CPUAccess_q2 &  RW;
-assign CpuStall_read_access_1  = CPUAccess1 & ~CPUAccess_q2 & ~RW;
-assign CpuStall_write_access_2 = CPUAccess2 & ~CPUAccess_q2 &  RW;
-assign CpuStall_read_access_2  = CPUAccess2 & ~CPUAccess_q2 & ~RW;
-assign CpuStall_write_access_3 = CPUAccess3 & ~CPUAccess_q2 &  RW;
-assign CpuStall_read_access_3  = CPUAccess3 & ~CPUAccess_q2 & ~RW;
-assign CpuStall_access = (CPUAccess0 | CPUAccess1 | CPUAccess2 | CPUAccess3) & ~CPUAccess_q3;
-
-
-reg wb_Access_wbClk_q;
-// Delayed signals used for accessing WISHBONE
-always @ (posedge wb_clk_i or posedge wb_rst_i)
-begin
-  if(wb_rst_i)
-    wb_Access_wbClk_q <=#Tp 1'b0;
-  else
-    wb_Access_wbClk_q <=#Tp wb_Access_wbClk;
-end
-
-always @ (posedge wb_clk_i or posedge wb_rst_i)
-begin
-  if(wb_rst_i)
-    wb_cyc_o <=#Tp 1'b0;
-  else
-  if(wb_Access_wbClk & ~wb_Access_wbClk_q)
-    wb_cyc_o <=#Tp 1'b1;
-  else
-  if(wb_ack_i | wb_err_i | WBAccessCounterExceed)
-    wb_cyc_o <=#Tp 1'b0;
-end
-
-assign wb_stb_o = wb_cyc_o;
-
-
-// Latching data read from registers
-always @ (posedge wb_clk_i or posedge wb_rst_i)
-begin
-  if(wb_rst_i)
-    WBReadLatch[31:0]<=#Tp 32'h0;
-  else
-  if(wb_ack_i)
-    case (wb_sel_o)
-      4'b0001: WBReadLatch[31:0]<=#Tp {24'h0, wb_dat_i[7:0]};
-      4'b0010: WBReadLatch[31:0]<=#Tp {24'h0, wb_dat_i[15:8]};
-      4'b0100: WBReadLatch[31:0]<=#Tp {24'h0, wb_dat_i[23:16]};
-      4'b1000: WBReadLatch[31:0]<=#Tp {24'h0, wb_dat_i[31:24]};
-      4'b0011: WBReadLatch[31:0]<=#Tp {16'h0, wb_dat_i[15:0]};
-      4'b1100: WBReadLatch[31:0]<=#Tp {16'h0, wb_dat_i[31:16]};
-      default: WBReadLatch[31:0]<=#Tp wb_dat_i[31:0];
-    endcase
-end
-
-// Latching WISHBONE error cycle
-always @ (posedge wb_clk_i or posedge wb_rst_i)
-begin
-  if(wb_rst_i)
-    WBErrorLatch<=#Tp 1'b0;
-  else
-  if(wb_err_i)
-    WBErrorLatch<=#Tp 1'b1;     // Latching wb_err_i while performing WISHBONE access
-  else
-  if(wb_ack_i)
-    WBErrorLatch<=#Tp 1'b0;     // Clearing status
-end
-
-
-// WBInProgress is set at the beginning of the access and cleared when wb_ack_i or wb_err_i is set
-always @ (posedge wb_clk_i or posedge wb_rst_i)
-begin
-  if(wb_rst_i)
-    WBInProgress<=#Tp 1'b0;
-  else
-  if(wb_Access_wbClk & ~wb_Access_wbClk_q)
-    WBInProgress<=#Tp 1'b1;
-  else
-  if(wb_ack_i | wb_err_i | WBAccessCounterExceed)
-    WBInProgress<=#Tp 1'b0;
-end
-
-
-// Synchronizing WBInProgress
-always @ (posedge wb_clk_i or posedge wb_rst_i)
-begin
-  if(wb_rst_i)
-    WBAccessCounter<=#Tp 8'h0;
-  else
-  if(wb_ack_i | wb_err_i | WBAccessCounterExceed)
-    WBAccessCounter<=#Tp 8'h0;
-  else
-  if(wb_cyc_o)
-    WBAccessCounter<=#Tp WBAccessCounter + 1'b1;
-end
-
-assign WBAccessCounterExceed = WBAccessCounter==8'hff;
-
-
-// Synchronizing WBInProgress
-always @ (posedge tck)
-begin
-    WBInProgress_sync1<=#Tp WBInProgress;
-    WBInProgress_tck<=#Tp WBInProgress_sync1;
-end
-
-
-// Whan enabled, TRACE stalls CPU while saving data to the trace buffer.
-`ifdef TRACE_ENABLED
-  assign  cpu_stall_o = CpuStall_access | CpuStall_reg | CpuStall_trace ;
-`else
-  assign  cpu_stall_o = CpuStall_access | CpuStall_reg;
-`endif
-
-assign  reset_o = CpuReset_reg;
-
-
-`ifdef TRACE_ENABLED
-always @ (CpuStall_write_access_0 or CpuStall_write_access_1 or 
-          CpuStall_write_access_2 or CpuStall_write_access_2 or 
-          CpuStall_read_access_0  or CpuStall_read_access_1  or
-          CpuStall_read_access_2  or CpuStall_read_access_3  or opselect_trace)
-`else
-always @ (CpuStall_write_access_0 or CpuStall_write_access_1 or 
-          CpuStall_write_access_2 or CpuStall_write_access_3 or 
-          CpuStall_read_access_0  or CpuStall_read_access_1  or
-          CpuStall_read_access_2  or CpuStall_read_access_3)
-`endif
-begin
-  if(CpuStall_write_access_0)
-    opselect_o = `DEBUG_WRITE_0;
-  else
-  if(CpuStall_read_access_0)
-    opselect_o = `DEBUG_READ_0;
-  else
-  if(CpuStall_write_access_1)
-    opselect_o = `DEBUG_WRITE_1;
-  else
-  if(CpuStall_read_access_1)
-    opselect_o = `DEBUG_READ_1;
-  else
-  if(CpuStall_write_access_2)
-    opselect_o = `DEBUG_WRITE_2;
-  else
-  if(CpuStall_read_access_2)
-    opselect_o = `DEBUG_READ_2;
-  else
-  if(CpuStall_write_access_3)
-    opselect_o = `DEBUG_WRITE_3;
-  else
-  if(CpuStall_read_access_3)
-    opselect_o = `DEBUG_READ_3;
-  else
-`ifdef TRACE_ENABLED
-    opselect_o = opselect_trace;
-`else
-    opselect_o = 3'h0;
-`endif
-end
-
-
-// Latching data read from CPU or registers
-always @ (posedge cpu_clk_i or posedge wb_rst_i)
-begin
-  if(wb_rst_i)
-    DataReadLatch[31:0]<=#Tp 0;
-  else
-  if(CPUAccess_q & ~CPUAccess_q2)
-    DataReadLatch[31:0]<=#Tp cpu_data_i[31:0];
-  else
-  if(RegAccess_q & ~RegAccess_q2)
-    DataReadLatch[31:0]<=#Tp RegDataIn[31:0];
-end
-
-assign cpu_addr_o = ADDR;
-assign cpu_data_o = DataOut;
-
-
-
-/**********************************************************************************
-*                                                                                 *
-*   Read Trace buffer logic                                                       *
-*                                                                                 *
-**********************************************************************************/
-`ifdef TRACE_ENABLED
+  cpu_debug_scan_chain  <= #1 1'b0;
+  wishbone_scan_chain   <= #1 1'b0;
+  chain_select_error    <= #1 1'b0;
   
-
-// Synchronizing the trace read buffer signal to cpu_clk_i clock
-dbg_sync_clk1_clk2 syn4 (.clk1(cpu_clk_i),     .clk2(tck),           .reset1(wb_rst_i),  .reset2(trst), 
-                         .set2(ReadBuffer_Tck), .sync_out(ReadTraceBuffer)
-                        );
-
-
-
-  always @(posedge cpu_clk_i or posedge wb_rst_i)
-  begin
-    if(wb_rst_i)
-      ReadTraceBuffer_q <=#Tp 0;
-    else
-      ReadTraceBuffer_q <=#Tp ReadTraceBuffer;
-  end
-
-  assign ReadTraceBufferPulse = ReadTraceBuffer & ~ReadTraceBuffer_q;
-
-`endif
-
-/**********************************************************************************
-*                                                                                 *
-*   End: Read Trace buffer logic                                                  *
-*                                                                                 *
-**********************************************************************************/
-
-
-
-
-
-/**********************************************************************************
-*                                                                                 *
-*   Bit counter                                                                   *
-*                                                                                 *
-**********************************************************************************/
-
-
-always @ (posedge tck or posedge trst)
-begin
-  if(trst)
-    BitCounter[7:0]<=#Tp 0;
-  else
-  if(ShiftDR)
-    BitCounter[7:0]<=#Tp BitCounter[7:0]+1;
-  else
-  if(UpdateDR)
-    BitCounter[7:0]<=#Tp 0;
+  case (chain)                /* synthesis parallel_case */
+    `CPU_DEBUG_CHAIN      :   cpu_debug_scan_chain  <= #1 1'b1;
+    `WISHBONE_SCAN_CHAIN  :   wishbone_scan_chain   <= #1 1'b1;
+    default               :   chain_select_error    <= #1 1'b1; 
+  endcase
 end
 
 
-
-/**********************************************************************************
-*                                                                                 *
-*   End: Bit counter                                                              *
-*                                                                                 *
-**********************************************************************************/
-
-
-
-/**********************************************************************************
-*                                                                                 *
-*   Connecting Registers                                                          *
-*                                                                                 *
-**********************************************************************************/
-dbg_registers dbgregs(.data_in(DataOut[31:0]), .data_out(RegDataIn[31:0]), 
-                      .address(ADDR[4:0]), .rw(RW), .access(RegAccess & ~RegAccess_q), .clk(cpu_clk_i), 
-                      .bp(bp_i), .reset(wb_rst_i), 
-                      `ifdef TRACE_ENABLED
-                      .ContinMode(ContinMode), .TraceEnable(TraceEnable), 
-                      .WpTrigger(WpTrigger), .BpTrigger(BpTrigger), .LSSTrigger(LSSTrigger),
-                      .ITrigger(ITrigger), .TriggerOper(TriggerOper), .WpQualif(WpQualif),
-                      .BpQualif(BpQualif), .LSSQualif(LSSQualif), .IQualif(IQualif), 
-                      .QualifOper(QualifOper), .RecordPC(RecordPC), 
-                      .RecordLSEA(RecordLSEA), .RecordLDATA(RecordLDATA), 
-                      .RecordSDATA(RecordSDATA), .RecordReadSPR(RecordReadSPR), 
-                      .RecordWriteSPR(RecordWriteSPR), .RecordINSTR(RecordINSTR), 
-                      .WpTriggerValid(WpTriggerValid), 
-                      .BpTriggerValid(BpTriggerValid), .LSSTriggerValid(LSSTriggerValid), 
-                      .ITriggerValid(ITriggerValid), .WpQualifValid(WpQualifValid), 
-                      .BpQualifValid(BpQualifValid), .LSSQualifValid(LSSQualifValid), 
-                      .IQualifValid(IQualifValid),
-                      .WpStop(WpStop), .BpStop(BpStop), .LSSStop(LSSStop), .IStop(IStop), 
-                      .StopOper(StopOper), .WpStopValid(WpStopValid), .BpStopValid(BpStopValid), 
-                      .LSSStopValid(LSSStopValid), .IStopValid(IStopValid), 
-                      `endif
-                      .cpu_stall(CpuStall_reg), .cpu_stall_all(cpu_stall_all_o), .cpu_sel(cpu_sel_o),
-                      .cpu_reset(CpuReset_reg), .mon_cntl_o(mon_cntl_o), .wb_cntl_o(wb_cntl_o)
-
-                     );
-
-/**********************************************************************************
-*                                                                                 *
-*   End: Connecting Registers                                                     *
-*                                                                                 *
-**********************************************************************************/
+always @ (posedge tck_i or posedge trst_i)
+begin
+  if (trst_i)
+    chain <= `CHAIN_ID_LENGTH'b111;
+  else if(chain_select & crc_cnt_end & (~crc_cnt_end_q) & crc_match)
+    chain <= #1 chain_dr[`CHAIN_DATA_LEN -1:1];
+end
 
 
-/**********************************************************************************
-*                                                                                 *
-*   Connecting CRC module                                                         *
-*                                                                                 *
-**********************************************************************************/
-wire AsyncResetCrc = trst;
-wire SyncResetCrc = UpdateDR_q;
-
-assign BitCounter_Lt4   = BitCounter<4;
-assign BitCounter_Eq5   = BitCounter==5;
-assign BitCounter_Eq32  = BitCounter==32;
-assign BitCounter_Lt38  = BitCounter<38;
-assign BitCounter_Lt65  = BitCounter<65;
-
-`ifdef TRACE_ENABLED
-  assign BitCounter_Lt40 = BitCounter<40;
-`endif
+assign data_shift_en = shift_dr_i & (~data_cnt_end);
 
 
-// wire EnableCrcIn = ShiftDR & 
-//                   ( (CHAIN_SELECTSelected                  & BitCounter_Lt4) |
-//                     ((DEBUGSelected & RegisterScanChain)   & BitCounter_Lt38)| 
-//                     ((DEBUGSelected & CpuDebugScanChain0)  & BitCounter_Lt65)|
-//                     ((DEBUGSelected & CpuDebugScanChain1)  & BitCounter_Lt65)|
-//                     ((DEBUGSelected & CpuDebugScanChain2)  & BitCounter_Lt65)|
-//                     ((DEBUGSelected & CpuDebugScanChain3)  & BitCounter_Lt65)|
-//                     ((DEBUGSelected & WishboneScanChain)   & BitCounter_Lt65)  
-//                   );
+always @ (posedge tck_i)
+begin
+  if (data_shift_en)
+    chain_dr[`CHAIN_DATA_LEN -1:0] <= #1 {tdi_i, chain_dr[`CHAIN_DATA_LEN -1:1]};
+end
 
-wire EnableCrc   = ShiftDR & 
-                  ( (CHAIN_SELECTSelected                  & BitCounter_Lt4) |
-                    ((DEBUGSelected & RegisterScanChain)   & BitCounter_Lt38)| 
-                    ((DEBUGSelected & CpuDebugScanChain0)  & BitCounter_Lt65)|
-                    ((DEBUGSelected & CpuDebugScanChain1)  & BitCounter_Lt65)|
-                    ((DEBUGSelected & CpuDebugScanChain2)  & BitCounter_Lt65)|
-                    ((DEBUGSelected & CpuDebugScanChain3)  & BitCounter_Lt65)|
-                    ((DEBUGSelected & WishboneScanChain)   & BitCounter_Lt65)  
-                    `ifdef TRACE_ENABLED
-                                                                             |
-                    ((DEBUGSelected & TraceTestScanChain) & BitCounter_Lt40) 
-                    `endif
-                  );
-
-// wire EnableCrcOut= ShiftDR & 
-//                    (
-//                     ((DEBUGSelected & RegisterScanChain)   & BitCounter_Lt38)| 
-//                     ((DEBUGSelected & CpuDebugScanChain0)  & BitCounter_Lt65)|
-//                     ((DEBUGSelected & CpuDebugScanChain1)  & BitCounter_Lt65)|
-//                     ((DEBUGSelected & CpuDebugScanChain2)  & BitCounter_Lt65)|
-//                     ((DEBUGSelected & CpuDebugScanChain3)  & BitCounter_Lt65)|
-//                     ((DEBUGSelected & WishboneScanChain)   & BitCounter_Lt65)  
-//                     `ifdef TRACE_ENABLED
-//                                                                             |
-//                     ((DEBUGSelected & TraceTestScanChain) & BitCounter_Lt40) 
-//                     `endif
-//                    );
 
 // Calculating crc for input data
-//dbg_crc8_d1 crc1 (.data(tdi), .enable_crc(EnableCrcIn), .reset(AsyncResetCrc), .sync_rst_crc(SyncResetCrc), 
-dbg_crc8_d1 crc1 (.data(tdi), .enable_crc(EnableCrc), .reset(AsyncResetCrc), .sync_rst_crc(SyncResetCrc), 
-                  .crc_out(CalculatedCrcIn), .clk(tck));
+dbg_crc32_d1 i_dbg_crc32_d1_in
+             ( 
+              .data       (tdi_i),
+              .enable     (shift_dr_i),
+              .shift      (1'b0),
+              .rst        (trst_i),
+              .sync_rst   (update_dr_i),
+              .crc_out    (),
+              .clk        (tck_i),
+              .crc_match  (crc_match)
+             );
 
-// Calculating crc for output data
-//dbg_crc8_d1 crc2 (.data(TDOData), .enable_crc(EnableCrcOut), .reset(AsyncResetCrc), .sync_rst_crc(SyncResetCrc), 
-dbg_crc8_d1 crc2 (.data(TDOData), .enable_crc(EnableCrc), .reset(AsyncResetCrc), .sync_rst_crc(SyncResetCrc), 
-                  .crc_out(CalculatedCrcOut), .clk(tck));
 
+reg tdo_chain_select;
+wire crc_en;
+wire crc_en_dbg;
+reg crc_started;
+assign crc_en = crc_en_dbg | crc_en_wb;
+assign crc_en_dbg = shift_dr_i & crc_cnt_end & (~status_cnt_end);
 
-reg [3:0] crc_cnt;
-always @ (posedge tck or posedge trst)
+always @ (posedge tck_i)
 begin
-  if (trst)
-    crc_cnt <= 0;
-  else if (Exit1DR)
-    crc_cnt <=#Tp 0;
-//  else if ((~EnableCrcIn) & ShiftDR)
-  else if ((~EnableCrc) & ShiftDR)
-    crc_cnt <=#Tp crc_cnt + 1'b1;
+  if (crc_en)
+    crc_started <= #1 1'b1;
+  else if (update_dr_i)
+    crc_started <= #1 1'b0;
 end
 
 
-// Generating CrcMatch signal.
-always @ (posedge tck or posedge trst)
+reg tdo_tmp;
+
+
+// Calculating crc for input data
+dbg_crc32_d1 i_dbg_crc32_d1_out
+             ( 
+              .data       (tdo_tmp),
+              .enable     (crc_en), // enable has priority
+//              .shift      (1'b0),
+              .shift      (shift_dr_i & crc_started & (~crc_en)),
+              .rst        (trst_i),
+              .sync_rst   (update_dr_i),
+              .crc_out    (crc_out),
+              .clk        (tck_i),
+              .crc_match  ()
+             );
+
+// Following status is shifted out: 
+// 1. bit:          1 if crc is OK, else 0
+// 2. bit:          1 if command is "chain select", else 0
+// 3. bit:          1 if non-existing chain is selected else 0
+// 4. bit:          always 1
+
+reg [799:0] current_on_tdo;
+
+always @ (status_cnt or chain_select or crc_match or chain_select_error or crc_out)
 begin
-  if(trst)
-    CrcMatch <=#Tp 1'b1;
-  else if (SelectDRScan)
-    CrcMatch <=#Tp 1'b1;
-//  else if ((~EnableCrcIn) & ShiftDR)
-  else if ((~EnableCrc) & ShiftDR)
-    begin
-      if (tdi != CalculatedCrcIn[crc_cnt])
-        CrcMatch <=#Tp 1'b0;
-    end
+  case (status_cnt)                   /* synthesis full_case parallel_case */ 
+    `STATUS_CNT'd0  : begin
+                        tdo_chain_select = crc_match;
+                        current_on_tdo = "crc_match";
+                      end
+    `STATUS_CNT'd1  : begin
+                        tdo_chain_select = chain_select;
+                        current_on_tdo = "chain_select";
+                      end
+    `STATUS_CNT'd2  : begin
+                        tdo_chain_select = chain_select_error;
+                        current_on_tdo = "chain_select_error";
+                      end
+    `STATUS_CNT'd3  : begin
+                        tdo_chain_select = 1'b1;
+                        current_on_tdo = "one 1";
+                      end
+    `STATUS_CNT'd4  : begin
+                        tdo_chain_select = crc_out;
+                  //      tdo_chain_select = 1'hz;
+                        current_on_tdo = "crc_out";
+                      end
+  endcase
 end
 
 
-// Generating CrcMatch_q signal.
-always @ (posedge tck or posedge trst)
+wire tdi_wb;
+wire tdo_wb;
+
+always @ (shift_crc_wb or crc_out or wishbone_ce or tdo_wb or tdo_chain_select)
 begin
-  CrcMatch_q <=#Tp CrcMatch;
+  if (shift_crc_wb)       // shifting crc
+    tdo_tmp = crc_out;
+  else if (wishbone_ce)   //  shifting data from wb
+    tdo_tmp = tdo_wb;
+  else
+    tdo_tmp = tdo_chain_select;
 end
-                                                                                                                             
-
-// Active chain
-assign RegisterScanChain  = Chain == `REGISTER_SCAN_CHAIN;
-assign CpuDebugScanChain0 = Chain == `CPU_DEBUG_CHAIN_0;
-assign CpuDebugScanChain1 = Chain == `CPU_DEBUG_CHAIN_1;
-assign CpuDebugScanChain2 = Chain == `CPU_DEBUG_CHAIN_2;
-assign CpuDebugScanChain3 = Chain == `CPU_DEBUG_CHAIN_3;
-assign WishboneScanChain  = Chain == `WISHBONE_SCAN_CHAIN;
-
-`ifdef TRACE_ENABLED
-  assign TraceTestScanChain  = Chain == `TRACE_TEST_CHAIN;
-`endif
-
-/**********************************************************************************
-*                                                                                 *
-*   End: Connecting CRC module                                                    *
-*                                                                                 *
-**********************************************************************************/
-
-/**********************************************************************************
-*                                                                                 *
-*   Connecting trace module                                                       *
-*                                                                                 *
-**********************************************************************************/
-`ifdef TRACE_ENABLED
-  dbg_trace dbgTrace1(.Wp(wp_i), .Bp(bp_i), .DataIn(cpu_data_i), .OpSelect(opselect_trace), 
-                      .LsStatus(lsstatus_i), .IStatus(istatus_i), .CpuStall_O(CpuStall_trace), 
-                      .Mclk(cpu_clk_i), .Reset(wb_rst_i), .TraceChain(TraceChain), 
-                      .ContinMode(ContinMode), .TraceEnable_reg(TraceEnable), 
-                      .WpTrigger(WpTrigger), 
-                      .BpTrigger(BpTrigger), .LSSTrigger(LSSTrigger), .ITrigger(ITrigger), 
-                      .TriggerOper(TriggerOper), .WpQualif(WpQualif), .BpQualif(BpQualif), 
-                      .LSSQualif(LSSQualif), .IQualif(IQualif), .QualifOper(QualifOper), 
-                      .RecordPC(RecordPC), .RecordLSEA(RecordLSEA), 
-                      .RecordLDATA(RecordLDATA), .RecordSDATA(RecordSDATA), 
-                      .RecordReadSPR(RecordReadSPR), .RecordWriteSPR(RecordWriteSPR), 
-                      .RecordINSTR(RecordINSTR), 
-                      .WpTriggerValid(WpTriggerValid), .BpTriggerValid(BpTriggerValid), 
-                      .LSSTriggerValid(LSSTriggerValid), .ITriggerValid(ITriggerValid), 
-                      .WpQualifValid(WpQualifValid), .BpQualifValid(BpQualifValid), 
-                      .LSSQualifValid(LSSQualifValid), .IQualifValid(IQualifValid),
-                      .ReadBuffer(ReadTraceBufferPulse),
-                      .WpStop(WpStop), .BpStop(BpStop), .LSSStop(LSSStop), .IStop(IStop), 
-                      .StopOper(StopOper), .WpStopValid(WpStopValid), .BpStopValid(BpStopValid), 
-                      .LSSStopValid(LSSStopValid), .IStopValid(IStopValid) 
-                     );
-`endif
-/**********************************************************************************
-*                                                                                 *
-*   End: Connecting trace module                                                  *
-*                                                                                 *
-**********************************************************************************/
 
 
+always @ (negedge tck_i)
+begin
+  tdo_o <= #1 tdo_tmp;
+end
+
+
+
+
+// Signals for WISHBONE module
+
+
+always @ (posedge tck_i or posedge trst_i)
+begin
+  if (trst_i)
+    wishbone_ce <= #1 1'b0;
+  else if(selecting_command & (~tdi_i) & wishbone_scan_chain) // wishbone CE
+    wishbone_ce <= #1 1'b1;
+  else if (update_dr_i)   // igor !!! This needs to be changed?
+    wishbone_ce <= #1 1'b0;
+end
+
+
+assign tdi_wb = wishbone_ce & tdi_i;
+
+// Connecting wishbone module
+dbg_wb i_dbg_wb (
+                  // JTAG signals
+                  .trst_i        (trst_i), // trst_i is active high (inverted on higher layers)
+                  .tck_i         (tck_i),
+                  .tdi_i         (tdi_wb),
+                  .tdo_o         (tdo_wb),
+
+                  // TAP states
+                  .shift_dr_i    (shift_dr_i),
+                  .pause_dr_i    (pause_dr_i),
+                  .update_dr_i   (update_dr_i),
+
+                  .wishbone_ce_i (wishbone_ce),
+                  .crc_match_i   (crc_match),
+                  .crc_en_o      (crc_en_wb),
+                  .shift_crc_o   (shift_crc_wb),
+
+                  // WISHBONE common signals
+                  .wb_rst_i      (wb_rst_i),
+                  .wb_clk_i      (wb_clk_i),
+
+                  // WISHBONE master interface
+                  .wb_adr_o      (wb_adr_o), 
+                  .wb_dat_o      (wb_dat_o),
+                  .wb_dat_i      (wb_dat_i),
+                  .wb_cyc_o      (wb_cyc_o),
+                  .wb_stb_o      (wb_stb_o),
+                  .wb_sel_o      (wb_sel_o),
+                  .wb_we_o       (wb_we_o),
+                  .wb_ack_i      (wb_ack_i),
+                  .wb_cab_o      (wb_cab_o),
+                  .wb_err_i      (wb_err_i),
+                  .wb_cti_o      (wb_cti_o),
+                  .wb_bte_o      (wb_bte_o)
+
+            );
 
 endmodule
