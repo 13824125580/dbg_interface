@@ -26,16 +26,31 @@ echo "-HDLVAR ../bin/hdl.var"         >> ncvlog.args
 echo "-MESSAGES"                      >> ncvlog.args
 echo "-INCDIR ../../../bench/verilog" >> ncvlog.args
 echo "-INCDIR ../../../rtl/verilog"   >> ncvlog.args
+echo "-INCDIR ../../../../jtag/tap/rtl/verilog"   >> ncvlog.args
 echo "-NOCOPYRIGHT"                   >> ncvlog.args
 echo "-LOGFILE ../log/ncvlog.log"     >> ncvlog.args
 
-foreach filename ( `cat ../bin/rtl_file_list` )
-    echo "../../../rtl/verilog/"$filename >> ncvlog.args
-end
 
-foreach filename ( `cat ../bin/sim_file_list` )
-    echo "../../../bench/verilog/"$filename >> ncvlog.args
-end
+#foreach filename ( `cat ../bin/rtl_file_list` )
+#    echo "../../../rtl/verilog/"$filename >> ncvlog.args
+#end
+#
+#foreach filename ( `cat ../bin/sim_file_list` )
+#    echo "../../../bench/verilog/"$filename >> ncvlog.args
+#end
+
+
+# RTL files
+echo "../../../rtl/verilog/dbg_crc32_d1.v" >> ncvlog.args
+echo "../../../rtl/verilog/dbg_wb.v" >> ncvlog.args
+echo "../../../rtl/verilog/dbg_top.v" >> ncvlog.args
+echo "../../../../jtag/tap/rtl/verilog/tap_top.v" >> ncvlog.args
+
+
+# Simulation files
+echo "../../../bench/verilog/timescale.v" >> ncvlog.args
+echo "../../../bench/verilog/wb_slave_behavioral.v" >> ncvlog.args
+echo "../../../bench/verilog/dbg_tb.v" >> ncvlog.args
 
 ncvlog -f ncvlog.args
 

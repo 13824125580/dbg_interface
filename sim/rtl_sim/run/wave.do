@@ -116,8 +116,8 @@ define variable nofilenames
 define variable nofullpathfilenames
 include bookmark with filenames
 include scope history without filenames
-define waveform window listpane 13.22
-define waveform window namepane 20.97
+define waveform window listpane 10.93
+define waveform window namepane 18.99
 define multivalueindication
 define pattern curpos dot
 define pattern cursor1 dot
@@ -150,159 +150,205 @@ define zoom outfull on initial add off
 add group \
     tap_top \
       dbg_tb.i_tap_top.tck_pad_i \
+      dbg_tb.i_tap_top.tms_pad_i \
       dbg_tb.i_tap_top.tdi_pad_i \
       dbg_tb.i_tap_top.tdo_pad_o \
       dbg_tb.i_tap_top.tdo_padoe_o \
-      dbg_tb.i_tap_top.tms_pad_i \
+      dbg_tb.i_tap_top.idcode_tdo \
+      dbg_tb.i_tap_top.test_logic_reset \
+      dbg_tb.i_tap_top.run_test_idle \
+      dbg_tb.i_tap_top.select_dr_scan \
+      dbg_tb.i_tap_top.capture_dr \
+      dbg_tb.i_tap_top.shift_dr \
+      dbg_tb.i_tap_top.exit1_dr \
+      dbg_tb.i_tap_top.pause_dr \
+      dbg_tb.i_tap_top.exit2_dr \
+      dbg_tb.i_tap_top.update_dr \
+      dbg_tb.i_tap_top.select_ir_scan \
+      dbg_tb.i_tap_top.capture_ir \
+      dbg_tb.i_tap_top.shift_ir \
+      dbg_tb.i_tap_top.exit1_ir \
+      dbg_tb.i_tap_top.pause_ir \
+      dbg_tb.i_tap_top.exit2_ir \
+      dbg_tb.i_tap_top.update_ir \
+      dbg_tb.i_tap_top.bypass_reg \
+      dbg_tb.i_tap_top.bypass_select \
+      dbg_tb.i_tap_top.bypassed_tdo \
+      dbg_tb.i_tap_top.debug_select \
+      dbg_tb.i_tap_top.extest_select \
+      dbg_tb.i_tap_top.idcode_reg[31:0]'h \
+      dbg_tb.i_tap_top.idcode_select \
+      dbg_tb.i_tap_top.idcode_tdo \
+      dbg_tb.i_tap_top.instruction_tdo \
+      dbg_tb.i_tap_top.jtag_ir[3:0]'h \
+      dbg_tb.i_tap_top.latched_jtag_ir[3:0]'h \
+      dbg_tb.i_tap_top.mbist_select \
+      dbg_tb.i_tap_top.sample_preload_select \
       dbg_tb.i_tap_top.trst_pad_i \
-      dbg_tb.i_tap_top.TestLogicReset \
-      dbg_tb.i_tap_top.RunTestIdle \
-      dbg_tb.i_tap_top.SelectDRScan \
-      dbg_tb.i_tap_top.CaptureDR \
-      dbg_tb.i_tap_top.SelectIRScan \
-      dbg_tb.i_tap_top.CaptureIR \
-      dbg_tb.i_tap_top.PauseDR \
-      dbg_tb.i_tap_top.ShiftDR \
-      dbg_tb.i_tap_top.ShiftIR \
-      dbg_tb.i_tap_top.PauseIR \
-      dbg_tb.i_tap_top.UpdateDR \
-      dbg_tb.i_tap_top.UpdateIR \
-      dbg_tb.i_tap_top.UpdateDR_q \
-      dbg_tb.i_tap_top.Exit1DR \
-      dbg_tb.i_tap_top.Exit1IR \
-      dbg_tb.i_dbg_top.CrcMatch \
-      dbg_tb.i_dbg_top.crc_cnt[3:0]'h \
-      dbg_tb.i_dbg_top.crc_bypassed \
-      dbg_tb.i_dbg_top.CalculatedCrcIn[7:0]'h \
-      dbg_tb.i_dbg_top.CalculatedCrcOut[7:0]'h \
-      dbg_tb.i_dbg_top.BitCounter[7:0]'h \
-      dbg_tb.i_dbg_top.CalculatedCrcOut[7:0]'h \
-      dbg_tb.i_dbg_top.BitCounter[7:0]'h \
-      dbg_tb.i_dbg_top.TDOData \
-      dbg_tb.i_dbg_top.crc_cnt[3:0]'h \
-      dbg_tb.i_tap_top.JTAG_IR[3:0]'h \
-      dbg_tb.i_tap_top.LatchedJTAG_IR[3:0]'h \
-      dbg_tb.i_tap_top.BypassRegister \
-      dbg_tb.i_tap_top.CHAIN_SELECTSelected \
-      dbg_tb.i_tap_top.DEBUGSelected \
-      dbg_tb.i_tap_top.EXTESTSelected \
-      dbg_tb.i_tap_top.IDCODESelected \
-      dbg_tb.i_tap_top.MBISTSelected \
-      dbg_tb.i_tap_top.CpuDebugScanChain0 \
-      dbg_tb.i_tap_top.CpuDebugScanChain1 \
-      dbg_tb.i_tap_top.CpuDebugScanChain2 \
-      dbg_tb.i_tap_top.CpuDebugScanChain3 \
-      dbg_tb.i_tap_top.RegisterScanChain \
-      dbg_tb.i_tap_top.WishboneScanChain \
-      dbg_tb.i_tap_top.TDOData_dbg \
-      dbg_tb.i_tap_top.bs_chain_i \
-      dbg_tb.i_tap_top.mbist_so_i \
-
-add group \
-    dbg_registers \
-      dbg_tb.i_dbg_top.dbgregs.CPUOPOut[2:1]'h \
-      dbg_tb.i_dbg_top.dbgregs.CPUOP_Acc \
-      dbg_tb.i_dbg_top.dbgregs.CPUOP_Rd \
-      dbg_tb.i_dbg_top.dbgregs.CPUOP_Wr \
-      dbg_tb.i_dbg_top.dbgregs.CPUSELOut[1:0]'h \
-      dbg_tb.i_dbg_top.dbgregs.CPUSEL_Acc \
-      dbg_tb.i_dbg_top.dbgregs.CPUSEL_Rd \
-      dbg_tb.i_dbg_top.dbgregs.CPUSEL_Wr \
-      dbg_tb.i_dbg_top.dbgregs.CpuStallBp \
-      dbg_tb.i_dbg_top.dbgregs.MODEROut[31:0]'h \
-      dbg_tb.i_dbg_top.dbgregs.MODER_Acc \
-      dbg_tb.i_dbg_top.dbgregs.MODER_Rd \
-      dbg_tb.i_dbg_top.dbgregs.MODER_Wr \
-      dbg_tb.i_dbg_top.dbgregs.MONCNTLOut[3:0]'h \
-      dbg_tb.i_dbg_top.dbgregs.MON_CNTL_Acc \
-      dbg_tb.i_dbg_top.dbgregs.MON_CNTL_Rd \
-      dbg_tb.i_dbg_top.dbgregs.MON_CNTL_Wr \
-      dbg_tb.i_dbg_top.dbgregs.WB_CNTLOut[1:0]'h \
-      dbg_tb.i_dbg_top.dbgregs.WB_CNTL_Acc \
-      dbg_tb.i_dbg_top.dbgregs.WB_CNTL_Rd \
-      dbg_tb.i_dbg_top.dbgregs.WB_CNTL_Wr \
-      dbg_tb.i_dbg_top.dbgregs.access \
-      dbg_tb.i_dbg_top.dbgregs.address[4:0]'h \
-      dbg_tb.i_dbg_top.dbgregs.bp \
-      dbg_tb.i_dbg_top.dbgregs.clk \
-      dbg_tb.i_dbg_top.dbgregs.cpu_reset \
-      dbg_tb.i_dbg_top.dbgregs.cpu_stall \
-      dbg_tb.i_dbg_top.dbgregs.cpu_stall_all \
-      dbg_tb.i_dbg_top.dbgregs.cpu_sel[1:0]'h \
-      dbg_tb.i_dbg_top.dbgregs.data_in[31:0]'h \
-      dbg_tb.i_dbg_top.dbgregs.data_out[31:0]'h \
-      dbg_tb.i_dbg_top.dbgregs.mon_cntl_o[3:0]'h \
-      dbg_tb.i_dbg_top.dbgregs.reset \
-      dbg_tb.i_dbg_top.dbgregs.rw \
-      dbg_tb.i_dbg_top.dbgregs.wb_cntl_o[1:0]'h \
+      dbg_tb.i_tap_top.tck_pad_i \
 
 add group \
     dbg_top \
-      dbg_tb.i_dbg_top.BypassRegister \
-      dbg_tb.i_dbg_top.CHAIN_SELECTSelected \
-      dbg_tb.i_dbg_top.RegisterScanChain \
-      dbg_tb.i_dbg_top.CpuDebugScanChain0 \
-      dbg_tb.i_dbg_top.CpuDebugScanChain1 \
-      dbg_tb.i_dbg_top.CpuDebugScanChain2 \
-      dbg_tb.i_dbg_top.CpuDebugScanChain3 \
-      dbg_tb.i_dbg_top.cpu_addr_o[31:0]'h \
-      dbg_tb.i_dbg_top.cpu_data_i[31:0]'h \
-      dbg_tb.i_dbg_top.cpu_data_o[31:0]'h \
-      dbg_tb.i_dbg_top.opselect_o[2:0]'h \
-      dbg_tb.i_dbg_top.cpu_sel_o[1:0]'h \
-      dbg_tb.i_dbg_top.cpu_stall_all_o \
-      dbg_tb.i_dbg_top.cpu_stall_o \
-      dbg_tb.i_dbg_top.CpuStall_access \
-      dbg_tb.i_dbg_top.CpuStall_read_access_0 \
-      dbg_tb.i_dbg_top.CpuStall_read_access_1 \
-      dbg_tb.i_dbg_top.CpuStall_read_access_2 \
-      dbg_tb.i_dbg_top.CpuStall_read_access_3 \
-      dbg_tb.i_dbg_top.CpuStall_write_access_0 \
-      dbg_tb.i_dbg_top.CpuStall_write_access_1 \
-      dbg_tb.i_dbg_top.CpuStall_write_access_2 \
-      dbg_tb.i_dbg_top.CpuStall_write_access_3 \
-      dbg_tb.i_dbg_top.cpu_clk_i \
-      dbg_tb.i_dbg_top.DEBUGSelected \
-      dbg_tb.i_dbg_top.Exit1DR \
-      dbg_tb.i_dbg_top.IDCODESelected \
-      dbg_tb.i_dbg_top.ShiftDR \
-      dbg_tb.i_dbg_top.TDOData \
-      dbg_tb.i_dbg_top.UpdateDR \
-      dbg_tb.i_dbg_top.UpdateDR_q \
-      dbg_tb.i_dbg_top.WishboneScanChain \
-      dbg_tb.i_dbg_top.bp_i \
-      dbg_tb.i_dbg_top.cpu_addr_o[31:0]'h \
-      dbg_tb.i_dbg_top.cpu_clk_i \
-      dbg_tb.i_dbg_top.cpu_data_i[31:0]'h \
-      dbg_tb.i_dbg_top.cpu_data_o[31:0]'h \
-      dbg_tb.i_dbg_top.cpu_sel_o[1:0]'h \
-      dbg_tb.i_dbg_top.cpu_stall_all_o \
-      dbg_tb.i_dbg_top.cpu_stall_o \
-      dbg_tb.i_dbg_top.istatus_i[1:0]'h \
-      dbg_tb.i_dbg_top.lsstatus_i[3:0]'h \
-      dbg_tb.i_dbg_top.mon_cntl_o[3:0]'h \
-      dbg_tb.i_dbg_top.opselect_o[2:0]'h \
-      dbg_tb.i_dbg_top.reset_o \
-      dbg_tb.i_dbg_top.tck \
-      dbg_tb.i_dbg_top.tdi \
-      dbg_tb.i_dbg_top.trst_in \
-      dbg_tb.i_dbg_top.wb_ack_i \
-      dbg_tb.i_dbg_top.wb_adr_o[31:0]'h \
-      dbg_tb.i_dbg_top.wb_cab_o \
-      dbg_tb.i_dbg_top.wb_clk_i \
-      dbg_tb.i_dbg_top.wb_cyc_o \
-      dbg_tb.i_dbg_top.wb_dat_i[31:0]'h \
-      dbg_tb.i_dbg_top.wb_dat_o[31:0]'h \
-      dbg_tb.i_dbg_top.wb_err_i \
-      dbg_tb.i_dbg_top.wb_rst_i \
-      dbg_tb.i_dbg_top.wb_sel_o[3:0]'h \
-      dbg_tb.i_dbg_top.wb_stb_o \
-      dbg_tb.i_dbg_top.wb_we_o \
-      dbg_tb.i_dbg_top.wp_i[10:0]'h \
-      dbg_tb.i_dbg_top.RW \
+      dbg_tb.i_dbg_top.current_on_tdo[799:0]'a \
+      dbg_tb.i_dbg_top.chain_select \
+      dbg_tb.i_dbg_top.chain_select_error \
+      dbg_tb.i_dbg_top.chain_select \
+      dbg_tb.i_dbg_top.crc_cnt_end \
+      dbg_tb.i_dbg_top.crc_cnt_end_q \
+      dbg_tb.i_dbg_top.crc_cnt_end_q2 \
+      dbg_tb.i_dbg_top.data_cnt[2:0]'h \
+      dbg_tb.i_dbg_top.data_cnt_end \
+      dbg_tb.i_dbg_top.crc_cnt[5:0]'h \
+      dbg_tb.i_dbg_top.crc_cnt_end \
+      dbg_tb.i_dbg_top.crc_match \
+      dbg_tb.i_dbg_top.data_cnt_end \
+      dbg_tb.i_dbg_top.debug_select_i \
+      dbg_tb.i_dbg_top.shift_dr_i \
+      dbg_tb.i_dbg_top.status_cnt[2:0]'h \
+      dbg_tb.i_dbg_top.status_cnt_end \
+      dbg_tb.i_dbg_top.tck_i \
+      dbg_tb.i_dbg_top.tdi_i \
+      dbg_tb.i_dbg_top.tdo_o \
+      dbg_tb.i_dbg_top.trst_i \
+      dbg_tb.i_dbg_top.update_dr_i \
+      dbg_tb.i_dbg_top.wishbone_scan_chain \
+      dbg_tb.i_dbg_top.wishbone_ce \
+      dbg_tb.i_dbg_top.crc_en \
+      dbg_tb.i_dbg_top.crc_en_dbg \
+      dbg_tb.i_dbg_top.crc_en_wb \
+
+add group \
+    crc_out \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_out.clk \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_out.crc[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_out.crc_match \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_out.crc_out \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_out.data \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_out.enable \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_out.shift \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_out.new_crc[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_out.rst \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_out.sync_rst \
+
+add group \
+    crc_in \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_in.clk \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_in.crc_match \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_in.data \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_in.enable \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_in.new_crc[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_in.rst \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_in.shift \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_in.sync_rst \
+      dbg_tb.i_dbg_top.i_dbg_crc32_d1_in.crc[31:0]'h \
+
+add group \
+    wishbone \
+      dbg_tb.i_dbg_top.i_dbg_wb.TDO_WISHBONE[799:0]'a \
+      dbg_tb.i_dbg_top.i_dbg_wb.acc_cnt[7:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.acc_cnt_limit \
+      dbg_tb.i_dbg_top.i_dbg_wb.adr[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd[2:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.cnt[5:0]'d \
+      dbg_tb.i_dbg_top.i_dbg_wb.cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt[5:0]'d \
+      dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end_q \
+      dbg_tb.i_dbg_top.i_dbg_wb.enable \
+      dbg_tb.i_dbg_top.i_dbg_wb.input_storage[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.len[15:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.pause_dr_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_cyc_o \
+      dbg_tb.i_dbg_top.i_dbg_wb.shift_dr_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.start_tck \
+      dbg_tb.i_dbg_top.i_dbg_wb.start_wb \
+      dbg_tb.i_dbg_top.i_dbg_wb.start_wb_q \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_timeout_tck \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_error_tck \
+      dbg_tb.i_dbg_top.i_dbg_wb.status[3:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.status_cnt[2:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.status_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.tck_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.tdo_o \
+      dbg_tb.i_dbg_top.i_dbg_wb.trst_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.update_dr_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_ack_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_adr_o[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_bte_o[1:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_cab_o \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_clk_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_cti_o[2:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_cyc_o \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_dat_i[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_dat_o[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_err_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_rst_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_sel_o[3:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_stb_o \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_we_o \
+      dbg_tb.i_dbg_top.i_dbg_wb.wishbone_ce_i \
+
+add group \
+    tmp \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_clk_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.tck_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_cyc_o \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_ack_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_ack_latched \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_ack_latched_rst \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_ack_latched_rst_sync \
+      dbg_tb.i_dbg_top.i_dbg_wb.tck_ack_sync \
+      dbg_tb.i_dbg_top.i_dbg_wb.tck_ack \
+      dbg_tb.i_dbg_top.i_dbg_wb.busy_wb \
+      dbg_tb.i_dbg_top.i_dbg_wb.busy_sync \
+      dbg_tb.i_dbg_top.i_dbg_wb.busy_tck \
+      dbg_tb.i_dbg_top.i_dbg_wb.tdo_o \
+      dbg_tb.i_dbg_top.pause_dr_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.shift_dr_i \
+      dbg_tb.tdo_pad_o \
+      dbg_tb.tdo_padoe_o \
+      dbg_tb.tdo \
+      dbg_tb.i_dbg_top.shift_crc_wb \
+      dbg_tb.i_dbg_top.wishbone_ce \
+      dbg_tb.i_dbg_top.i_dbg_wb.acc_cnt_limit \
+
+add group \
+    tdo_tap_top \
+      dbg_tb.i_tap_top.tdi_pad_i \
+      dbg_tb.i_tap_top.tdo_o \
+      "tdo_o je vhod v dbg tdi_i" \
+        ( \
+          comment \
+        ) \
+      dbg_tb.i_tap_top.tdo_pad_o \
+      dbg_tb.i_tap_top.tdo_padoe_o \
+      dbg_tb.i_tap_top.data_tdo \
+      dbg_tb.i_tap_top.idcode_tdo \
+      dbg_tb.i_tap_top.bypassed_tdo \
+      dbg_tb.i_tap_top.instruction_tdo \
+
+add group \
+    tdo_dbg_top \
+      dbg_tb.i_dbg_top.tdi_i \
+      dbg_tb.i_dbg_top.tdo_wb \
+      "tdo_wb jw vhod v wb tdi_i" \
+        ( \
+          comment \
+        ) \
+      dbg_tb.i_dbg_top.tdi_wb \
+      dbg_tb.i_dbg_top.tdo_o \
+      dbg_tb.i_dbg_top.crc_out \
+
+add group \
+    tdo_wb \
+      dbg_tb.i_dbg_top.i_dbg_wb.tdi_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.tdo_o \
+      "tdo_o gre na dbg tdi_wb" \
+        ( \
+          comment \
+        ) \
 
 
 deselect all
-open window designbrowser 1 geometry 64 125 855 550
 open window waveform 1 geometry 14 67 1024 662
-zoom at 168762.05(0)ns 0.00005926 0.00000000
+zoom at 123419.02(0)ns 0.00323299 0.00000000
