@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.36  2004/01/16 14:51:33  mohor
+// cpu registers added.
+//
 // Revision 1.35  2004/01/14 22:59:16  mohor
 // Temp version.
 //
@@ -172,6 +175,7 @@
 `include "timescale.v"
 // synopsys translate_on
 `include "dbg_defines.v"
+`include "dbg_cpu_defines.v"
 
 // Top module
 module dbg_top(
@@ -189,11 +193,36 @@ module dbg_top(
                 debug_select_i,
 
                 // WISHBONE common signals
-                wb_rst_i, wb_clk_i,
+                wb_rst_i,
+                wb_clk_i,
                                                                                 
                 // WISHBONE master interface
-                wb_adr_o, wb_dat_o, wb_dat_i, wb_cyc_o, wb_stb_o, wb_sel_o,
-                wb_we_o, wb_ack_i, wb_cab_o, wb_err_i, wb_cti_o, wb_bte_o
+                wb_adr_o,
+                wb_dat_o,
+                wb_dat_i,
+                wb_cyc_o,
+                wb_stb_o,
+                wb_sel_o,
+                wb_we_o,
+                wb_ack_i,
+                wb_cab_o,
+                wb_err_i,
+                wb_cti_o,
+                wb_bte_o,
+
+                // CPU signals
+                cpu_clk_i, 
+                cpu_addr_o, 
+                cpu_data_i, 
+                cpu_data_o,
+                cpu_bp_i,
+                cpu_stall_o,
+                cpu_stall_all_o,
+                cpu_stb_o,
+                cpu_sel_o,
+                cpu_we_o,
+                cpu_ack_i,
+                cpu_rst_o
               );
 
 
@@ -228,6 +257,19 @@ input         wb_err_i;
 output  [2:0] wb_cti_o;
 output  [1:0] wb_bte_o;
 
+// CPU signals
+input         cpu_clk_i; 
+output [31:0] cpu_addr_o; 
+input  [31:0] cpu_data_i; 
+output [31:0] cpu_data_o;
+input         cpu_bp_i;
+output        cpu_stall_o;
+output        cpu_stall_all_o;
+output        cpu_stb_o;
+output [`CPU_NUM -1:0]  cpu_sel_o;
+output        cpu_we_o;
+input         cpu_ack_i;
+output        cpu_rst_o;
 
 reg     cpu_debug_scan_chain;
 reg     wishbone_scan_chain;
@@ -510,58 +552,73 @@ assign tdi_cpu = cpu_ce & tdi_i;
 // Connecting wishbone module
 dbg_wb i_dbg_wb (
                   // JTAG signals
-                  .tck_i         (tck_i),
-                  .tdi_i         (tdi_wb),
-                  .tdo_o         (tdo_wb),
+                  .tck_i            (tck_i),
+                  .tdi_i            (tdi_wb),
+                  .tdo_o            (tdo_wb),
 
                   // TAP states
-                  .shift_dr_i    (shift_dr_i),
-                  .pause_dr_i    (pause_dr_i),
-                  .update_dr_i   (update_dr_i),
+                  .shift_dr_i       (shift_dr_i),
+                  .pause_dr_i       (pause_dr_i),
+                  .update_dr_i      (update_dr_i),
 
-                  .wishbone_ce_i (wishbone_ce),
-                  .crc_match_i   (crc_match),
-                  .crc_en_o      (crc_en_wb),
-                  .shift_crc_o   (shift_crc_wb),
-                  .rst_i         (wb_rst_i),
+                  .wishbone_ce_i    (wishbone_ce),
+                  .crc_match_i      (crc_match),
+                  .crc_en_o         (crc_en_wb),
+                  .shift_crc_o      (shift_crc_wb),
+                  .rst_i            (wb_rst_i),
 
                   // WISHBONE common signals
-                  .wb_clk_i      (wb_clk_i),
+                  .wb_clk_i         (wb_clk_i),
 
                   // WISHBONE master interface
-                  .wb_adr_o      (wb_adr_o), 
-                  .wb_dat_o      (wb_dat_o),
-                  .wb_dat_i      (wb_dat_i),
-                  .wb_cyc_o      (wb_cyc_o),
-                  .wb_stb_o      (wb_stb_o),
-                  .wb_sel_o      (wb_sel_o),
-                  .wb_we_o       (wb_we_o),
-                  .wb_ack_i      (wb_ack_i),
-                  .wb_cab_o      (wb_cab_o),
-                  .wb_err_i      (wb_err_i),
-                  .wb_cti_o      (wb_cti_o),
-                  .wb_bte_o      (wb_bte_o)
+                  .wb_adr_o         (wb_adr_o), 
+                  .wb_dat_o         (wb_dat_o),
+                  .wb_dat_i         (wb_dat_i),
+                  .wb_cyc_o         (wb_cyc_o),
+                  .wb_stb_o         (wb_stb_o),
+                  .wb_sel_o         (wb_sel_o),
+                  .wb_we_o          (wb_we_o),
+                  .wb_ack_i         (wb_ack_i),
+                  .wb_cab_o         (wb_cab_o),
+                  .wb_err_i         (wb_err_i),
+                  .wb_cti_o         (wb_cti_o),
+                  .wb_bte_o         (wb_bte_o)
             );
 
 
 // Connecting cpu module
 dbg_cpu i_dbg_cpu (
                   // JTAG signals
-                  .tck_i         (tck_i),
-                  .tdi_i         (tdi_cpu),
-                  .tdo_o         (tdo_cpu),
+                  .tck_i            (tck_i),
+                  .tdi_i            (tdi_cpu),
+                  .tdo_o            (tdo_cpu),
 
                   // TAP states
-                  .shift_dr_i    (shift_dr_i),
-                  .pause_dr_i    (pause_dr_i),
-                  .update_dr_i   (update_dr_i),
+                  .shift_dr_i       (shift_dr_i),
+                  .pause_dr_i       (pause_dr_i),
+                  .update_dr_i      (update_dr_i),
 
-                  .cpu_ce_i      (cpu_ce),
-                  .crc_match_i   (crc_match),
-                  .crc_en_o      (crc_en_cpu),
-                  .shift_crc_o   (shift_crc_cpu),
-                  .rst_i         (wb_rst_i),
-                  .clk_i         (wb_clk_i)
+                  .cpu_ce_i         (cpu_ce),
+                  .crc_match_i      (crc_match),
+                  .crc_en_o         (crc_en_cpu),
+                  .shift_crc_o      (shift_crc_cpu),
+                  .rst_i            (wb_rst_i),
+
+                  // CPU signals
+                  .cpu_clk_i        (cpu_clk_i), 
+                  .cpu_addr_o       (cpu_addr_o), 
+                  .cpu_data_i       (cpu_data_i), 
+                  .cpu_data_o       (cpu_data_o),
+                  .cpu_bp_i         (cpu_bp_i),
+                  .cpu_stall_o      (cpu_stall_o),
+                  .cpu_stall_all_o  (cpu_stall_all_o),
+                  .cpu_stb_o        (cpu_stb_o),
+                  .cpu_sel_o        (cpu_sel_o),
+                  .cpu_we_o         (cpu_we_o),
+                  .cpu_ack_i        (cpu_ack_i),
+                  .cpu_rst_o        (cpu_rst_o)
+
+
               );
 
 

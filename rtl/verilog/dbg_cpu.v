@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2004/01/16 14:53:31  mohor
+// *** empty log message ***
+//
 //
 //
 
@@ -68,7 +71,20 @@ module dbg_cpu(
                 crc_en_o,
                 shift_crc_o,
                 rst_i,
-                clk_i
+
+                // CPU signals
+                cpu_clk_i, 
+                cpu_addr_o, 
+                cpu_data_i, 
+                cpu_data_o,
+                cpu_bp_i,
+                cpu_stall_o,
+                cpu_stall_all_o,
+                cpu_stb_o,
+                cpu_sel_o,          // Not synchronized
+                cpu_we_o,
+                cpu_ack_i,
+                cpu_rst_o
 
 
               );
@@ -88,7 +104,23 @@ input         crc_match_i;
 output        crc_en_o;
 output        shift_crc_o;
 input         rst_i;
-input         clk_i;
+
+
+// CPU signals
+input         cpu_clk_i; 
+output [31:0] cpu_addr_o; 
+input  [31:0] cpu_data_i; 
+output [31:0] cpu_data_o;
+input         cpu_bp_i;
+output        cpu_stall_o;
+output        cpu_stall_all_o;
+output        cpu_stb_o;
+output [`CPU_NUM -1:0]  cpu_sel_o;
+output        cpu_we_o;
+input         cpu_ack_i;
+output        cpu_rst_o;
+
+
                                                                                 
 reg           tdo_o;
 
@@ -116,13 +148,16 @@ reg     [3:0] status;
 wire          enable;
 
 reg           read_cycle_reg;
+reg           read_cycle_reg_q;
 reg           read_cycle_cpu;
+reg           read_cycle_cpu_q;
 reg           write_cycle_reg;
 reg           write_cycle_cpu;
 wire          read_cycle;
 wire          write_cycle;
 
 reg    [34:0] dr;
+wire    [7:0] reg_data_out;
 
 wire          dr_read_reg;
 wire          dr_write_reg;
@@ -144,9 +179,22 @@ reg           cmd_read_reg;
 reg           cmd_read_cpu;
 reg           cmd_write_reg;
 reg           cmd_write_cpu;
+reg           cycle_32_bit;
+reg           reg_access;
+
+reg [31:0] adr;
+reg set_addr;
+reg [199:0] latching_data_text;
+reg cpu_ack_sync;
+reg cpu_ack_tck;
+reg cpu_ack_tck_q;
+reg cpu_stb;
+reg cpu_stb_sync;
+reg cpu_stb_o;
 
 wire          go_prelim;
 wire          crc_cnt_31;
+
 
 
 assign enable = cpu_ce_i & shift_dr_i;
@@ -281,8 +329,6 @@ end
 assign status_cnt_end = status_cnt4;
 
 
-reg [31:0] adr;
-reg set_addr;
 
 
 // Latching address
@@ -301,17 +347,29 @@ begin
 end
 
 
-reg latch_data;
-reg [199:0] latching_data_text;
+assign cpu_addr_o = adr;
+
 
 // Shift register for shifting in and out the data
 always @ (posedge tck_i)
 begin
-  if (enable & ((~addr_cnt_end) | (~cmd_cnt_end) | ((~data_cnt_end) & write_cycle)))
+  if (reg_access)
+    begin
+      dr[31:24] <= #1 reg_data_out;
+      latching_data_text = "Latch reg data";
+    end
+  else if (cpu_ack_tck & (~cpu_ack_tck_q) & read_cycle_cpu)
+    begin
+      if (cycle_32_bit)
+        dr[31:0] <= #1 cpu_data_i;
+      else
+        dr[31:24] <= #1 cpu_data_i[7:0];
+      latching_data_text = "Latch cpu data";
+    end
+  else if (enable & ((~addr_cnt_end) | (~cmd_cnt_end) | ((~data_cnt_end) & write_cycle) | (crc_cnt_end & (~data_cnt_end) & read_cycle)))
     begin
       dr <= #1 {dr[33:0], tdi_i};
-      latch_data <= #1 1'b0;
-      latching_data_text = "tdi shifted in";
+      latching_data_text = "shifting data";
     end
   else
     latching_data_text = "nothing";
@@ -360,7 +418,8 @@ begin
       cmd_read_reg    <= #1 1'b0; 
       cmd_read_cpu    <= #1 1'b0; 
       cmd_write_reg   <= #1 1'b0; 
-      cmd_write_cpu   <= #1 1'b0; 
+      cmd_write_cpu   <= #1 1'b0;
+      cycle_32_bit    <= #1 1'b0; 
     end
   else if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i)
     begin
@@ -368,6 +427,7 @@ begin
       cmd_read_cpu    <= #1 dr_read_cpu8_latched | dr_read_cpu32_latched;
       cmd_write_reg   <= #1 dr_write_reg_latched;
       cmd_write_cpu   <= #1 dr_write_cpu8_latched | dr_write_cpu32_latched;
+      cycle_32_bit    <= #1 dr_read_cpu32_latched | dr_write_cpu32_latched;
     end
 end
 
@@ -377,7 +437,7 @@ always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
     data_cnt_limit <= #1 6'h0;
-  else if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i)
+  else if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i & (~dr_go_latched))
     begin
       if (dr_read_cpu32_latched | dr_write_cpu32_latched)
         data_cnt_limit <= #1 6'd32;
@@ -410,6 +470,13 @@ end
 
 always @ (posedge tck_i)
 begin
+  read_cycle_reg_q <= #1 read_cycle_reg;
+  read_cycle_cpu_q <= #1 read_cycle_cpu;
+end
+
+
+always @ (posedge tck_i)
+begin
   if (update_dr_i)
     write_cycle_reg <= #1 1'b0;
   else if (cmd_write_reg & go_prelim)
@@ -429,12 +496,12 @@ end
 assign read_cycle = read_cycle_reg | read_cycle_cpu;
 assign write_cycle = write_cycle_reg | write_cycle_cpu;
 
-reg reg_access;
 
-// Start register write cycle
+
+// Start register access cycle
 always @ (posedge tck_i)
 begin
-  if (write_cycle_reg & data_cnt_end & (~data_cnt_end_q))
+  if (write_cycle_reg & data_cnt_end & (~data_cnt_end_q) | read_cycle_reg & (~read_cycle_reg_q))
     begin
       reg_access <= #1 1'b1;
     end
@@ -447,19 +514,58 @@ end
 // Connecting dbg_cpu_registers
 dbg_cpu_registers i_dbg_cpu_registers
      (
-      .data_in          (dr[7:0]),
-      .data_out         (),
-      .address          (adr[1:0]),
-      .rw               (write_cycle),
-      .access           (reg_access),
-      .clk              (tck_i),
-      .bp               (1'b1),
-      .reset            (rst_i),
-      .cpu_stall        (),
-      .cpu_stall_all    (),
-      .cpu_sel          (),
-      .cpu_reset        ()
+      .data_i           (dr[7:0]),
+      .data_o           (reg_data_out),
+      .addr_i           (adr[1:0]),
+      .we_i             (write_cycle_reg),
+      .en_i             (reg_access),
+      .clk_i            (tck_i),
+      .bp_i             (cpu_bp_i),
+      .rst_i            (rst_i),
+      .cpu_clk_i        (cpu_clk_i),
+      .cpu_stall_o      (cpu_stall_o),
+      .cpu_stall_all_o  (cpu_stall_all_o),
+      .cpu_sel_o        (cpu_sel_o),
+      .cpu_rst_o        (cpu_rst_o)
      );
+
+
+
+assign cpu_we_o   = write_cycle_cpu;
+assign cpu_data_o = dr[31:0];
+
+
+
+
+// Synchronizing ack signal from cpu
+always @ (posedge tck_i)
+begin
+  cpu_ack_sync      <= #1 cpu_ack_i;
+  cpu_ack_tck       <= #1 cpu_ack_sync;
+  cpu_ack_tck_q     <= #1 cpu_ack_tck;
+end
+
+
+
+// Start cpu access cycle
+always @ (posedge tck_i)
+begin
+  if (update_dr_i)
+    cpu_stb <= #1 1'b0;
+  else if (cpu_ack_tck)
+    cpu_stb <= #1 1'b0;
+  else if (write_cycle_cpu & data_cnt_end & (~data_cnt_end_q) | read_cycle_cpu & (~read_cycle_cpu_q))
+    cpu_stb <= #1 1'b1;
+end
+
+
+
+always @ (posedge tck_i)
+begin
+  cpu_stb_sync  <= #1 cpu_stb;
+  cpu_stb_o     <= #1 cpu_stb_sync;
+end
+
 
 
 

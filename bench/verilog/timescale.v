@@ -15,7 +15,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2000 - 2003 Authors                            ////
+//// Copyright (C) 2000 - 2004 Authors                            ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -43,7 +43,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2003/12/23 14:26:01  mohor
+// New version of the debug interface. Not finished, yet.
+//
 //
 //
 //
 `timescale 1ns/10ps
+

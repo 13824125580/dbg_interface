@@ -53,6 +53,7 @@ echo "../../../../jtag/tap/rtl/verilog/tap_top.v" >> ncvlog.args
 # Simulation files
 echo "../../../bench/verilog/timescale.v" >> ncvlog.args
 echo "../../../bench/verilog/wb_slave_behavioral.v" >> ncvlog.args
+echo "../../../bench/verilog/cpu_behavioral.v" >> ncvlog.args
 echo "../../../bench/verilog/dbg_tb.v" >> ncvlog.args
 
 ncvlog -f ncvlog.args

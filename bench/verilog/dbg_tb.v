@@ -15,7 +15,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2000 - 2003 Authors                            ////
+//// Copyright (C) 2000 - 2004 Authors                            ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.25  2004/01/16 14:51:24  mohor
+// cpu registers added.
+//
 // Revision 1.24  2004/01/15 10:47:13  mohor
 // Working.
 //
@@ -133,7 +136,6 @@
 `include "dbg_defines.v"
 `include "dbg_wb_defines.v"
 `include "dbg_cpu_defines.v"
-//`include "dbg_tb_defines.v"
 
 // Test bench
 module dbg_tb;
@@ -174,6 +176,20 @@ wire        wb_err_i;
 wire  [2:0] wb_cti_o;
 wire  [1:0] wb_bte_o;
 
+// CPU signals
+wire        cpu_clk_i;
+wire [31:0] cpu_addr_o;
+wire [31:0] cpu_data_i;
+wire [31:0] cpu_data_o;
+wire        cpu_bp_i;
+wire        cpu_stall_o;
+wire        cpu_stall_all_o;
+wire        cpu_stb_o;
+wire  [`CPU_NUM -1:0]  cpu_sel_o;
+wire        cpu_we_o;
+wire        cpu_ack_i;
+wire        cpu_rst_o;
+
 // Text used for easier debugging
 reg [199:0] test_text;
 reg   [2:0] last_wb_cmd;
@@ -204,102 +220,142 @@ assign tdo = tdo_padoe_o? tdo_pad_o : 1'hz;
 
 // Connecting TAP module
 tap_top i_tap_top (
-                    .tms_pad_i(tms_pad_i), 
-                    .tck_pad_i(tck_pad_i), 
-                    .trst_pad_i(!trst_pad_i), 
-                    .tdi_pad_i(tdi_pad_i), 
-                    .tdo_pad_o(tdo_pad_o), 
-                    .tdo_padoe_o(tdo_padoe_o), 
+                    .tms_pad_i        (tms_pad_i), 
+                    .tck_pad_i        (tck_pad_i), 
+                    .trst_pad_i       (!trst_pad_i), 
+                    .tdi_pad_i        (tdi_pad_i), 
+                    .tdo_pad_o        (tdo_pad_o), 
+                    .tdo_padoe_o      (tdo_padoe_o), 
                 
                     // TAP states
-                    .shift_dr_o(shift_dr_o),
-                    .pause_dr_o(pause_dr_o),
-                    .update_dr_o(update_dr_o),
+                    .shift_dr_o       (shift_dr_o),
+                    .pause_dr_o       (pause_dr_o),
+                    .update_dr_o      (update_dr_o),
                 
                     // Select signals for boundary scan or mbist
-                    .extest_select_o(extest_select_o),
+                    .extest_select_o  (extest_select_o),
                     .sample_preload_select_o(sample_preload_select_o),
-                    .mbist_select_o(mbist_select_o),
-                    .debug_select_o(debug_select_o),
+                    .mbist_select_o   (mbist_select_o),
+                    .debug_select_o   (debug_select_o),
 
                     // TDO signal that is connected to TDI of sub-modules.
-                    .tdo_o(tdo_o),
+                    .tdo_o            (tdo_o),
 
                     // TDI signals from sub-modules
-                    .debug_tdi_i(debug_tdi_i),        // from debug module
-                    .bs_chain_tdi_i(bs_chain_tdi_i),  // from Boundary Scan Chain
-                    .mbist_tdi_i(mbist_tdi_i)         // from Mbist Chain
+                    .debug_tdi_i      (debug_tdi_i),        // from debug module
+                    .bs_chain_tdi_i   (bs_chain_tdi_i),  // from Boundary Scan Chain
+                    .mbist_tdi_i      (mbist_tdi_i)         // from Mbist Chain
 
                );
 
 
 // Connecting debug top module
 dbg_top i_dbg_top  (
-                    .tck_i(tck_pad_i),
-                    .tdi_i(tdo_o),
-                    .tdo_o(debug_tdi_i),
+                    .tck_i            (tck_pad_i),
+                    .tdi_i            (tdo_o),
+                    .tdo_o            (debug_tdi_i),
     
                     // TAP states
-                    .shift_dr_i   (shift_dr_o),
-                    .pause_dr_i   (pause_dr_o),
-                    .update_dr_i  (update_dr_o),
+                    .shift_dr_i       (shift_dr_o),
+                    .pause_dr_i       (pause_dr_o),
+                    .update_dr_i      (update_dr_o),
     
                     // Instructions
-                    .debug_select_i(debug_select_o),
+                    .debug_select_i   (debug_select_o),
 
                     // WISHBONE common signals
-                    .wb_rst_i      (wb_rst_i),
-                    .wb_clk_i      (wb_clk_i),
+                    .wb_rst_i         (wb_rst_i),
+                    .wb_clk_i         (wb_clk_i),
                                                                                                                                                                
                     // WISHBONE master interface
-                    .wb_adr_o      (wb_adr_o),
-                    .wb_dat_o      (wb_dat_o),
-                    .wb_dat_i      (wb_dat_i),
-                    .wb_cyc_o      (wb_cyc_o),
-                    .wb_stb_o      (wb_stb_o),
-                    .wb_sel_o      (wb_sel_o),
-                    .wb_we_o       (wb_we_o),
-                    .wb_ack_i      (wb_ack_i),
-                    .wb_cab_o      (wb_cab_o),
-                    .wb_err_i      (wb_err_i),
-                    .wb_cti_o      (wb_cti_o),
-                    .wb_bte_o      (wb_bte_o)
+                    .wb_adr_o         (wb_adr_o),
+                    .wb_dat_o         (wb_dat_o),
+                    .wb_dat_i         (wb_dat_i),
+                    .wb_cyc_o         (wb_cyc_o),
+                    .wb_stb_o         (wb_stb_o),
+                    .wb_sel_o         (wb_sel_o),
+                    .wb_we_o          (wb_we_o),
+                    .wb_ack_i         (wb_ack_i),
+                    .wb_cab_o         (wb_cab_o),
+                    .wb_err_i         (wb_err_i),
+                    .wb_cti_o         (wb_cti_o),
+                    .wb_bte_o         (wb_bte_o),
+
+                    // CPU signals
+                    .cpu_clk_i        (cpu_clk_i),
+                    .cpu_addr_o       (cpu_addr_o),
+                    .cpu_data_i       (cpu_data_i),
+                    .cpu_data_o       (cpu_data_o),
+                    .cpu_bp_i         (cpu_bp_i),
+                    .cpu_stall_o      (cpu_stall_o),
+                    .cpu_stall_all_o  (cpu_stall_all_o),
+                    .cpu_stb_o        (cpu_stb_o),
+                    .cpu_sel_o        (cpu_sel_o),
+                    .cpu_we_o         (cpu_we_o),
+                    .cpu_ack_i        (cpu_ack_i),
+                    .cpu_rst_o        (cpu_rst_o)
+
+
+
+
                    );
 
 
 
 // Connecting CRC module that calculates CRC that is shifted into debug
 dbg_crc32_d1 crc32_bench_out
-             (
-              .data       (tdi_pad_i),
-              .enable     (crc_out_en),
-              .shift      (crc_out_shift),
-              .rst        (wb_rst_i),
-              .sync_rst   (update_dr_o),
-              .crc_out    (crc_out),
-              .clk        (tck_pad_i),
-              .crc_match  ()
-             );
+                   (
+                    .data             (tdi_pad_i),
+                    .enable           (crc_out_en),
+                    .shift            (crc_out_shift),
+                    .rst              (wb_rst_i),
+                    .sync_rst         (update_dr_o),
+                    .crc_out          (crc_out),
+                    .clk              (tck_pad_i),
+                    .crc_match        ()
+                   );
 
 
 
 
 wb_slave_behavioral wb_slave
                    (
-                    .CLK_I(wb_clk_i),
-                    .RST_I(wb_rst_i),
-                    .ACK_O(wb_ack_i),
-                    .ADR_I(wb_adr_o),
-                    .CYC_I(wb_cyc_o),
-                    .DAT_O(wb_dat_i),
-                    .DAT_I(wb_dat_o),
-                    .ERR_O(wb_err_i),
-                    .RTY_O(),      // NOT USED for now!
-                    .SEL_I(wb_sel_o),
-                    .STB_I(wb_stb_o),
-                    .WE_I (wb_we_o),
-                    .CAB_I(1'b0)
+                    .CLK_I            (wb_clk_i),
+                    .RST_I            (wb_rst_i),
+                    .ACK_O            (wb_ack_i),
+                    .ADR_I            (wb_adr_o),
+                    .CYC_I            (wb_cyc_o),
+                    .DAT_O            (wb_dat_i),
+                    .DAT_I            (wb_dat_o),
+                    .ERR_O            (wb_err_i),
+                    .RTY_O            (),      // NOT USED for now!
+                    .SEL_I            (wb_sel_o),
+                    .STB_I            (wb_stb_o),
+                    .WE_I             (wb_we_o),
+                    .CAB_I            (1'b0)
                    );
+
+
+
+cpu_behavioral i_cpu_behavioral
+                   (
+                    // CPU signals
+                    .cpu_rst_i        (wb_rst_i),
+                    .cpu_clk_o        (cpu_clk_i),
+                    .cpu_addr_i       (cpu_addr_o),
+                    .cpu_data_o       (cpu_data_i),
+                    .cpu_data_i       (cpu_data_o),
+                    .cpu_bp_o         (cpu_bp_i),
+                    .cpu_stall_i      (cpu_stall_o),
+                    .cpu_stall_all_i  (cpu_stall_all_o),
+                    .cpu_stb_i        (cpu_stb_o),
+                    .cpu_sel_i        (cpu_sel_o),
+                    .cpu_we_i         (cpu_we_o),
+                    .cpu_ack_o        (cpu_ack_i),
+                    .cpu_rst_o        (cpu_rst_o)
+                   );
+
+
 
 
 // Initial values
@@ -434,12 +490,57 @@ begin
   #10000;
   chain_select(`CPU_DEBUG_CHAIN, 1'b0);   // {chain, gen_crc_err}
 
+
+
+
+  // Select cpu0
   #10000;
-  debug_cpu(`CPU_WRITE_REG, 32'h00000001, 32'h0, 1'b0, result, "cpu_write_reg"); // {command, addr, data, gen_crc_err, result, text}
+  debug_cpu(`CPU_WRITE_REG, `CPU_SEL_ADR, 32'h0, 1'b0, result, "select cpu 0"); // {command, addr, data, gen_crc_err, result, text}
+
+  #10000;
+  debug_cpu(`CPU_GO, 32'h0, 32'h1, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
+
+  // Read register
+  #10000;
+  debug_cpu(`CPU_READ_REG, `CPU_SEL_ADR, 32'h0, 1'b0, result, "cpu_read_reg"); // {command, addr, data, gen_crc_err, result, text}
 
   #10000;
   debug_cpu(`CPU_GO, 32'h0, 32'hff, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
 
+  // Stall cpu0
+  #10000;
+  debug_cpu(`CPU_WRITE_REG, `CPU_OP_ADR, 32'h0, 1'b0, result, "stall cpu0"); // {command, addr, data, gen_crc_err, result, text}
+
+  #10000;
+  debug_cpu(`CPU_GO, 32'h0, 32'h1, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
+
+  // write to cpu 32-bit
+  #10000;
+  debug_cpu(`CPU_WRITE32, 32'h32323232, 32'h0, 1'b0, result, "cpu_write_32"); // {command, addr, data, gen_crc_err, result, text}
+
+  #10000;
+  debug_cpu(`CPU_GO, 32'h0, 32'hdeadbeef, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
+
+  // write from cpu 32-bit
+  #10000;
+  debug_cpu(`CPU_READ32, 32'h32323232, 32'h0, 1'b0, result, "cpu_read_32"); // {command, addr, data, gen_crc_err, result, text}
+
+  #10000;
+  debug_cpu(`CPU_GO, 32'h0, 32'hdeadbeef, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
+
+  // write to cpu 8-bit
+  #10000;
+  debug_cpu(`CPU_WRITE8, 32'h08080808, 32'h0, 1'b0, result, "cpu_write_8"); // {command, addr, data, gen_crc_err, result, text}
+
+  #10000;
+  debug_cpu(`CPU_GO, 32'h0, 32'hdeadbeef, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
+
+  // write from cpu 8-bit
+  #10000;
+  debug_cpu(`CPU_READ8, 32'h08080808, 32'h0, 1'b0, result, "cpu_read_8"); // {command, addr, data, gen_crc_err, result, text}
+
+  #10000;
+  debug_cpu(`CPU_GO, 32'h0, 32'hdeadbeef, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
 
 /*
   // Testing read and write to CPU0 registers
