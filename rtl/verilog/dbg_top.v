@@ -45,6 +45,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.17  2002/01/25 07:58:35  mohor
+// IDCODE bug fixed, chains reused to decreas size of core. Data is shifted-in
+// not filled-in. Tested in hw.
+//
 // Revision 1.16  2001/12/20 11:17:26  mohor
 // TDO and TDO Enable signal are separated into two signals.
 //
@@ -238,7 +242,7 @@ reg         RISCAccess_q2;                // Delayed signals used for accessing 
 reg         wb_AccessTck;                 // Indicates access to the WISHBONE
 reg [31:0]  WBReadLatch;                  // Data latched during WISHBONE read
 reg         WBErrorLatch;                 // Error latched during WISHBONE read
-reg         trst;                         // trst is active high while trst_pad_i is active low
+wire        trst;                         // trst is active high while trst_pad_i is active low
 
 reg         BypassRegister;               // Bypass register
 
@@ -347,10 +351,7 @@ assign bs_chain_o         = tdi_pad_i;
 *   Synchronizing TRST to clock signal                                            *
 *                                                                                 *
 **********************************************************************************/
-always @ (posedge wb_clk_i)
-begin
-  trst <=#Tp ~trst_pad_i;                  // trst_pad_i is active low
-end
+assign trst <=#Tp ~trst_pad_i;            // trst_pad_i is active low
 
 
 /**********************************************************************************
