@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/04/22 12:54:11  mohor
+// Signal names changed to lower case.
+//
 // Revision 1.3  2001/11/26 10:47:09  mohor
 // Crc generation is different for read or write commands. Small synthesys fixes.
 //
@@ -78,8 +81,8 @@ input [WIDTH-1:0] defaulty;
 output [WIDTH-1:0] data_out;
 reg    [WIDTH-1:0] data_out;
 
-//always @ (posedge clk or posedge reset)
-always @ (posedge clk)
+always @ (posedge clk or posedge reset)
+//always @ (posedge clk)
 begin
   if(reset)
     data_out[WIDTH-1:0]<=#1 defaulty;
