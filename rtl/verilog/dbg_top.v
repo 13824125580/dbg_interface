@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.31  2003/09/17 14:38:57  simons
+// WB_CNTL register added, some syncronization fixes.
+//
 // Revision 1.30  2003/08/28 13:55:22  simons
 // Three more chains added for cpu debug access.
 //
@@ -671,10 +674,26 @@ begin
 end
 
 
-assign wb_adr_o = ADDR & {32{wb_cyc_o}};
+assign wb_adr_o = {ADDR[31:2] & {30{wb_cyc_o}}, 2'b0};
 assign wb_we_o  = RW & wb_cyc_o;
-assign wb_dat_o = DataOut & {32{wb_cyc_o}};
 assign wb_cab_o = 1'b0;
+
+reg [31:0] wb_dat_o;
+always @(wb_sel_o or wb_cyc_o or DataOut)
+begin
+  if(wb_cyc_o)
+      case (wb_sel_o)
+        4'b0001: wb_dat_o = {24'hx, DataOut[7:0]};
+        4'b0010: wb_dat_o = {16'hx, DataOut[7:0], 8'hx};
+        4'b0100: wb_dat_o = {8'hx, DataOut[7:0], 16'hx};
+        4'b1000: wb_dat_o = {DataOut[7:0], 24'hx};
+        4'b0011: wb_dat_o = {16'hx, DataOut[15:0]};
+        4'b1100: wb_dat_o = {DataOut[15:0], 16'hx};
+        default: wb_dat_o = DataOut;
+      endcase
+  else
+    wb_dat_o = 32'hx;
+end
 
 reg [3:0] wb_sel_o;
 always @(ADDR[1:0] or wb_cntl_o or wb_cyc_o)
@@ -684,10 +703,10 @@ begin
         2'b00:   wb_sel_o = 4'hf;
         2'b01:   wb_sel_o = ADDR[1] ? 4'h3 : 4'hc;
         2'b10:   wb_sel_o = ADDR[1] ? (ADDR[0] ? 4'h1 : 4'h2) : (ADDR[0] ? 4'h4 : 4'h8);
-        default: wb_sel_o = 4'hf;
+        default: wb_sel_o = 4'hx;
       endcase
   else
-    wb_sel_o = 4'hf;
+    wb_sel_o = 4'hx;
 end
    
 // Synchronizing the RegAccess signal to risc_clk_i clock
@@ -789,7 +808,15 @@ begin
     WBReadLatch[31:0]<=#Tp 32'h0;
   else
   if(wb_ack_i)
-    WBReadLatch[31:0]<=#Tp wb_dat_i[31:0];
+    case (wb_sel_o)
+      4'b0001: WBReadLatch[31:0]<=#Tp {24'h0, wb_dat_i[7:0]};
+      4'b0010: WBReadLatch[31:0]<=#Tp {24'h0, wb_dat_i[15:8]};
+      4'b0100: WBReadLatch[31:0]<=#Tp {24'h0, wb_dat_i[23:16]};
+      4'b1000: WBReadLatch[31:0]<=#Tp {24'h0, wb_dat_i[31:24]};
+      4'b0011: WBReadLatch[31:0]<=#Tp {16'h0, wb_dat_i[15:0]};
+      4'b1100: WBReadLatch[31:0]<=#Tp {16'h0, wb_dat_i[31:16]};
+      default: WBReadLatch[31:0]<=#Tp wb_dat_i[31:0];
+    endcase
 end
 
 // Latching WISHBONE error cycle
