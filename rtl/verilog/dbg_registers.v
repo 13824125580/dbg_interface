@@ -102,7 +102,7 @@ module dbg_registers(data_in, data_out, address, rw, access, clk, bp, reset,
                      WpStop, BpStop, LSSStop, IStop, StopOper, WpStopValid, BpStopValid, 
                      LSSStopValid, IStopValid, 
                      `endif
-                     risc_stall, risc_sall_all, risc_sel, risc_reset, mon_cntl_o
+                     risc_stall, risc_stall_all, risc_sel, risc_reset, mon_cntl_o
                     );
 
 parameter Tp = 1;
