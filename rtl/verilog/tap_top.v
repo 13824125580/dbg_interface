@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2002/03/08 15:28:16  mohor
+// Structure changed. Hooks for jtag chain added.
+//
 //
 //
 //
@@ -59,16 +62,14 @@ module tap_top(
                 // JTAG pins
                 tms_pad_i, tck_pad_i, trst_pad_i, tdi_pad_i, tdo_pad_o, tdo_padoen_o,
 
-                // RISC signals
-                risc_clk_i, risc_addr_o, risc_data_i, risc_data_o, wp_i, 
-                bp_i, opselect_o, lsstatus_i, istatus_i, risc_stall_o, reset_o, 
+                // TAP states
+                ShiftDR, Exit1DR, UpdateDR, UpdateDR_q, 
                 
-                // WISHBONE common signals
-                wb_rst_i, wb_clk_i, 
-
-                // WISHBONE master interface
-                wb_adr_o, wb_dat_o, wb_dat_i, wb_cyc_o, wb_stb_o, wb_sel_o,
-                wb_we_o, wb_ack_i, wb_cab_o, wb_err_i
+                // Instructions
+                IDCODESelected, CHAIN_SELECTSelected, DEBUGSelected, 
+                
+                // TDO from dbg module
+                TDOData_dbg, BypassRegister
               );
 
 parameter Tp = 1;
@@ -81,37 +82,19 @@ input   tdi_pad_i;                  // JTAG test data input pad
 output  tdo_pad_o;                  // JTAG test data output pad
 output  tdo_padoen_o;               // Output enable for JTAG test data output pad 
 
+// TAP states
+output  ShiftDR;
+output  Exit1DR;
+output  UpdateDR;
+output  UpdateDR_q;
 
-// RISC signals
-input         risc_clk_i;                 // Master clock (RISC clock)
-input  [31:0] risc_data_i;                // RISC data inputs (data that is written to the RISC registers)
-input  [10:0] wp_i;                       // Watchpoint inputs
-input         bp_i;                       // Breakpoint input
-input  [3:0]  lsstatus_i;                 // Load/store status inputs
-input  [1:0]  istatus_i;                  // Instruction status inputs
-output [31:0] risc_addr_o;                // RISC address output (for adressing registers within RISC)
-output [31:0] risc_data_o;                // RISC data output (data read from risc registers)
-output [`OPSELECTWIDTH-1:0] opselect_o;   // Operation selection (selecting what kind of data is set to the risc_data_i)
-output                      risc_stall_o; // Stalls the RISC
-output                      reset_o;      // Resets the RISC
+// Instructions
+output  IDCODESelected;
+output  CHAIN_SELECTSelected;
+output  DEBUGSelected;
 
-
-// WISHBONE common signals
-input         wb_rst_i;                   // WISHBONE reset
-input         wb_clk_i;                   // WISHBONE clock
-
-// WISHBONE master interface
-output [31:0] wb_adr_o;
-output [31:0] wb_dat_o;
-input  [31:0] wb_dat_i;
-output        wb_cyc_o;
-output        wb_stb_o;
-output  [3:0] wb_sel_o;
-output        wb_we_o;
-input         wb_ack_i;
-output        wb_cab_o;
-input         wb_err_i;
-
+input   TDOData_dbg;
+output  BypassRegister;
 
 reg     tdo_pad_o;
 
@@ -153,7 +136,6 @@ wire    trst;                         // trst is active high while trst_pad_i is
 wire    tck;
 wire    TMS;
 wire    tdi;
-wire    TDOData;
 
 wire    RiscDebugScanChain;
 wire    WishboneScanChain;
@@ -558,16 +540,16 @@ end
 **********************************************************************************/
 
 // This multiplexer can be expanded with number of user registers
-always @ (LatchedJTAG_IR or TDOInstruction or TDOData or TDOBypassed or bs_chain_o or ShiftIR or Exit1IR)
+always @ (LatchedJTAG_IR or TDOInstruction or TDOData_dbg or TDOBypassed or bs_chain_o or ShiftIR or Exit1IR)
 begin
   if(ShiftIR | Exit1IR)
     tdo_pad_o <=#Tp TDOInstruction;
   else
     begin
       case(LatchedJTAG_IR)
-        `IDCODE:            tdo_pad_o <=#Tp TDOData;      // Reading ID code
-        `CHAIN_SELECT:      tdo_pad_o <=#Tp TDOData;      // Selecting the chain
-        `DEBUG:             tdo_pad_o <=#Tp TDOData;      // Debug
+        `IDCODE:            tdo_pad_o <=#Tp TDOData_dbg;      // Reading ID code
+        `CHAIN_SELECT:      tdo_pad_o <=#Tp TDOData_dbg;      // Selecting the chain
+        `DEBUG:             tdo_pad_o <=#Tp TDOData_dbg;      // Debug
         `SAMPLE_PRELOAD:    tdo_pad_o <=#Tp bs_chain_o;   // Sampling/Preloading
         `EXTEST:            tdo_pad_o <=#Tp bs_chain_o;   // External test
         default:            tdo_pad_o <=#Tp TDOBypassed;  // BYPASS instruction
@@ -583,51 +565,5 @@ assign tdo_padoen_o = ShiftIR | ShiftDR | Exit1IR | Exit1DR | UpdateDR;
 *   End: Multiplexing TDO data                                                    *
 *                                                                                 *
 **********************************************************************************/
-
-
-
-
-// Connecting dbg_top module
-dbg_top i_dbg_top (
-                    // RISC signals
-                    .risc_clk_i(risc_clk_i),      .risc_addr_o(risc_addr_o),  .risc_data_i(risc_data_i), 
-                    .risc_data_o(risc_data_o),    .wp_i(wp_i),                .bp_i(bp_i), 
-                    .opselect_o(opselect_o),      .lsstatus_i(lsstatus_i),    .istatus_i(istatus_i), 
-                    .risc_stall_o(risc_stall_o),  .reset_o(reset_o), 
-                    
-                    // WISHBONE common signals
-                    .wb_rst_i(wb_rst_i),          .wb_clk_i(wb_clk_i), 
-                    
-                    // WISHBONE master interface
-                    .wb_adr_o(wb_adr_o),          .wb_dat_o(wb_dat_o),        .wb_dat_i(wb_dat_i), 
-                    .wb_cyc_o(wb_cyc_o),          .wb_stb_o(wb_stb_o),        .wb_sel_o(wb_sel_o), 
-                    .wb_we_o(wb_we_o),            .wb_ack_i(wb_ack_i),        .wb_cab_o(wb_cab_o), 
-                    .wb_err_i(wb_err_i), 
-                    
-                    // TAP states
-                    .ShiftDR(ShiftDR),            .Exit1DR(Exit1DR),          .UpdateDR(UpdateDR), 
-                    .UpdateDR_q(UpdateDR_q), 
-                    
-                    // Instructions
-                    .IDCODESelected(IDCODESelected), 
-                    .CHAIN_SELECTSelected(CHAIN_SELECTSelected), 
-                    .DEBUGSelected(DEBUGSelected), 
-                    
-                    // TAP signals
-                    .trst(trst),                  .tck(tck),                  .tdi(tdi),
-                    .TDOData(TDOData), 
-                    
-                    .BypassRegister(BypassRegister)
-
-                  );
-
-
-
-// Connecting bender_jtag module
-jtag_chain i_jtag_chain   (
-                            .capture_dr_i(CaptureDR),           .shift_dr_i(ShiftDR), 
-                            .update_dr_i(UpdateDR),             .extest_selected_i(EXTESTSelected), 
-                            .bs_chain_i(tdi),                   .bs_chain_o(bs_chain_o)
-                          );
 
 endmodule

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.21  2002/03/08 15:28:16  mohor
+// Structure changed. Hooks for jtag chain added.
+//
 // Revision 1.20  2002/02/06 12:23:09  mohor
 // LatchedJTAG_IR used when muxing TDO instead of JTAG_IR.
 //
@@ -146,10 +149,10 @@ module dbg_top(
                 IDCODESelected, CHAIN_SELECTSelected, DEBUGSelected, 
                 
                 // TAP signals
-                trst, tck, tdi, TDOData, 
+                trst_in, tck, tdi, TDOData, 
                 
                 BypassRegister
-                
+
               );
 
 parameter Tp = 1;
@@ -191,7 +194,7 @@ input         Exit1DR;
 input         UpdateDR;
 input         UpdateDR_q;
 
-input trst;
+input trst_in;
 input tck;
 input tdi;
 
@@ -228,6 +231,8 @@ reg           RISCAccess_q2;                // Delayed signals used for accessin
 reg           wb_AccessTck;                 // Indicates access to the WISHBONE
 reg [31:0]    WBReadLatch;                  // Data latched during WISHBONE read
 reg           WBErrorLatch;                 // Error latched during WISHBONE read
+
+wire trst;
 
 
 wire [31:0]             RegDataIn;        // Data from registers (read data)
@@ -319,10 +324,7 @@ wire BitCounter_Lt65;
 `endif
 
 
-
-
-
-
+assign trst = ~trst_in;                   // trst_pad_i is active low
 
 
 /**********************************************************************************
