@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2004/03/31 14:34:09  igorm
+// data_cnt_lim length changed to reduce number of warnings.
+//
 // Revision 1.8  2004/03/28 20:27:01  igorm
 // New release of the debug interface (3rd. release).
 //
@@ -237,7 +240,6 @@ assign acc_type_write   = (acc_type == `DBG_CPU_WRITE);
 
 
 
-reg [799:0] dr_text;
 // Shift register for shifting in and out the data
 always @ (posedge tck_i or posedge rst_i)
 begin
@@ -245,23 +247,19 @@ begin
     begin
       latch_data <= #1 1'b0;
       dr <= #1 {`DBG_CPU_DR_LEN{1'b0}};
-      dr_text = "reset";
     end
   else if (curr_cmd_rd_comm && crc_cnt_31)  // Latching data (from internal regs)
     begin
       dr[`DBG_CPU_ACC_TYPE_LEN + `DBG_CPU_ADR_LEN + `DBG_CPU_LEN_LEN -1:0] <= #1 {acc_type, adr, len};
-      dr_text = "latch reg data";
     end
   else if (curr_cmd_rd_ctrl && crc_cnt_31)  // Latching data (from control regs)
     begin
       dr[`DBG_CPU_DR_LEN -1:`DBG_CPU_DR_LEN -`DBG_CPU_CTRL_LEN] <= #1 ctrl_reg;
-      dr_text = "latch ctrl reg data";
     end
   else if (acc_type_read && curr_cmd_go && crc_cnt_31)  // Latchind first data (from WB)
     begin
       dr[31:0] <= #1 input_data[31:0];
       latch_data <= #1 1'b1;
-      dr_text = "latch first data";
     end
   else if (acc_type_read && curr_cmd_go && crc_cnt_end) // Latching data (from WB)
     begin
@@ -271,13 +269,11 @@ begin
                         begin
                           dr[31:0] <= #1 input_data[31:0];
                           latch_data <= #1 1'b1;
-                          dr_text = "latch_data word";
                         end
                       else
                         begin
                           dr[31:0] <= #1 {dr[30:0], 1'b0};
                           latch_data <= #1 1'b0;
-                          dr_text = "shift word";
                         end
                     end
       endcase
@@ -285,7 +281,6 @@ begin
   else if (enable && (!addr_len_cnt_end))
     begin
       dr <= #1 {dr[`DBG_CPU_DR_LEN -2:0], tdi_i};
-      dr_text = "shift dr";
     end
 end
 
@@ -864,7 +859,6 @@ begin
 end
 
 
-reg [799:0] tdo_text;
 
 // TDO multiplexer
 always @ (pause_dr_i or busy_tck or crc_cnt_end or crc_cnt_end_q or curr_cmd_wr_comm or curr_cmd_wr_ctrl or curr_cmd_go or acc_type_write or acc_type_read or crc_match_i or data_cnt_end or dr or data_cnt_end_q or crc_match_reg or status_cnt_en or status or addr_len_cnt_end or addr_len_cnt_end_q or curr_cmd_rd_comm or curr_cmd_rd_ctrl)
@@ -872,73 +866,60 @@ begin
   if (pause_dr_i)
     begin
     tdo_o = busy_tck;
-    tdo_text = "busy_tck";
     end
   else if (crc_cnt_end && (!crc_cnt_end_q) && (curr_cmd_wr_comm || curr_cmd_wr_ctrl || curr_cmd_go && acc_type_write ))
     begin
       tdo_o = ~crc_match_i;
-      tdo_text = "crc_match_i";
     end
   else if (curr_cmd_go && acc_type_read && crc_cnt_end && (!data_cnt_end))
     begin
       tdo_o = dr[31];
-      tdo_text = "dr[31]";
     end
   else if (curr_cmd_go && acc_type_read && data_cnt_end && (!data_cnt_end_q))
     begin
       tdo_o = ~crc_match_reg;
-      tdo_text = "crc_match_reg";
     end
   else if ((curr_cmd_rd_comm || curr_cmd_rd_ctrl) && addr_len_cnt_end && (!addr_len_cnt_end_q))
     begin
       tdo_o = ~crc_match_reg;
-      tdo_text = "crc_match_reg_rd_comm";
     end
   else if ((curr_cmd_rd_comm || curr_cmd_rd_ctrl) && crc_cnt_end && (!addr_len_cnt_end))
     begin
       tdo_o = dr[`DBG_CPU_ACC_TYPE_LEN + `DBG_CPU_ADR_LEN + `DBG_CPU_LEN_LEN -1];
-      tdo_text = "rd_comm | rd_ctrl data";
     end
   else if (status_cnt_en)
     begin
       tdo_o = status[3];
-      tdo_text = "status";
     end
   else
     begin
       tdo_o = 1'b0;
-      tdo_text = "zero";
     end
 end
 
-reg [799:0] status_text;
+
 // Status register
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
     begin
     status <= #1 {`DBG_CPU_STATUS_LEN{1'b0}};
-    status_text = "reset";
     end
   else if(crc_cnt_end && (!crc_cnt_end_q) && (!(curr_cmd_go && acc_type_read)))
     begin
     status <= #1 {1'b0, 1'b0, cpu_overrun_tck, crc_match_i};
-    status_text = "latch ni read";
     end
   else if (data_cnt_end && (!data_cnt_end_q) && curr_cmd_go && acc_type_read)
     begin
     status <= #1 {1'b0, 1'b0, underrun_tck, crc_match_reg};
-    status_text = "latch read";
     end
   else if (addr_len_cnt_end && (!addr_len_cnt_end) && (curr_cmd_rd_comm || curr_cmd_rd_ctrl))
     begin
     status <= #1 {1'b0, 1'b0, 1'b0, crc_match_reg};
-    status_text = "rd_comm | rd_ctrl";
     end
   else if (shift_dr_i && (!status_cnt_end))
     begin
     status <= #1 {status[`DBG_CPU_STATUS_LEN -2:0], status[`DBG_CPU_STATUS_LEN -1]};
-    status_text = "shifting";
     end
 end
 // Following status is shifted out (MSB first):
