@@ -45,6 +45,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2002/03/12 10:31:53  mohor
+// tap_top and dbg_top modules are put into two separate modules. tap_top
+// contains only tap state machine and related logic. dbg_top contains all
+// logic necessery for debugging.
+//
 // Revision 1.1  2002/03/08 15:28:16  mohor
 // Structure changed. Hooks for jtag chain added.
 //
@@ -63,13 +68,17 @@ module tap_top(
                 tms_pad_i, tck_pad_i, trst_pad_i, tdi_pad_i, tdo_pad_o, tdo_padoen_o,
 
                 // TAP states
-                ShiftDR, Exit1DR, UpdateDR, UpdateDR_q, 
+                ShiftDR, Exit1DR, UpdateDR, UpdateDR_q, CaptureDR, 
                 
                 // Instructions
-                IDCODESelected, CHAIN_SELECTSelected, DEBUGSelected, 
+                IDCODESelected, CHAIN_SELECTSelected, DEBUGSelected, EXTESTSelected, 
                 
                 // TDO from dbg module
-                TDOData_dbg, BypassRegister
+                TDOData_dbg, BypassRegister,
+                
+                // From Boundary Scan Chain
+                bs_chain_i
+                
               );
 
 parameter Tp = 1;
@@ -87,14 +96,20 @@ output  ShiftDR;
 output  Exit1DR;
 output  UpdateDR;
 output  UpdateDR_q;
+output  CaptureDR;
 
 // Instructions
 output  IDCODESelected;
 output  CHAIN_SELECTSelected;
 output  DEBUGSelected;
+output  EXTESTSelected;
 
 input   TDOData_dbg;
 output  BypassRegister;
+
+// From Boundary Scan Chain
+input   bs_chain_i;
+
 
 reg     tdo_pad_o;
 
@@ -140,7 +155,6 @@ wire    tdi;
 wire    RiscDebugScanChain;
 wire    WishboneScanChain;
 wire    RegisterScanChain;
-wire    bs_chain_o;
 
 
 assign trst = ~trst_pad_i;                // trst_pad_i is active low
@@ -540,7 +554,7 @@ end
 **********************************************************************************/
 
 // This multiplexer can be expanded with number of user registers
-always @ (LatchedJTAG_IR or TDOInstruction or TDOData_dbg or TDOBypassed or bs_chain_o or ShiftIR or Exit1IR)
+always @ (LatchedJTAG_IR or TDOInstruction or TDOData_dbg or TDOBypassed or bs_chain_i or ShiftIR or Exit1IR)
 begin
   if(ShiftIR | Exit1IR)
     tdo_pad_o <=#Tp TDOInstruction;
@@ -550,8 +564,8 @@ begin
         `IDCODE:            tdo_pad_o <=#Tp TDOData_dbg;      // Reading ID code
         `CHAIN_SELECT:      tdo_pad_o <=#Tp TDOData_dbg;      // Selecting the chain
         `DEBUG:             tdo_pad_o <=#Tp TDOData_dbg;      // Debug
-        `SAMPLE_PRELOAD:    tdo_pad_o <=#Tp bs_chain_o;   // Sampling/Preloading
-        `EXTEST:            tdo_pad_o <=#Tp bs_chain_o;   // External test
+        `SAMPLE_PRELOAD:    tdo_pad_o <=#Tp bs_chain_i;   // Sampling/Preloading
+        `EXTEST:            tdo_pad_o <=#Tp bs_chain_i;   // External test
         default:            tdo_pad_o <=#Tp TDOBypassed;  // BYPASS instruction
       endcase
     end

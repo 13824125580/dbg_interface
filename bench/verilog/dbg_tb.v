@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2002/03/08 15:27:08  mohor
+// Structure changed. Hooks for jtag chain added.
+//
 // Revision 1.9  2001/10/19 11:39:20  mohor
 // dbg_timescale.v changed to timescale.v This is done for the simulation of
 // few different cores in a single project.
@@ -127,35 +130,77 @@ reg         wb_ack_o;
 wire        wb_cab_i;
 reg         wb_err_o;
 
+wire ShiftDR;
+wire Exit1DR;
+wire UpdateDR;
+wire UpdateDR_q;
+wire CaptureDR;
+wire IDCODESelected;
+wire CHAIN_SELECTSelected;
+wire DEBUGSelected;
+wire TDOData_dbg;
+wire BypassRegister;
+wire EXTESTSelected;
 
 // Connecting TAP module
 tap_top i_tap_top
                (.tms_pad_i(P_TMS), .tck_pad_i(P_TCK), .trst_pad_i(P_TRST), .tdi_pad_i(P_TDI), 
                 .tdo_pad_o(P_TDO), .tdo_padoen_o(tdo_padoen_o), 
                 
-                .wb_rst_i(wb_rst_i), .risc_clk_i(Mclk), 
-                .risc_addr_o(ADDR_RISC), .risc_data_i(DATAOUT_RISC), .risc_data_o(DATAIN_RISC), 
-                .wp_i(Wp), .bp_i(Bp), 
-                .opselect_o(OpSelect), .lsstatus_i(LsStatus), .istatus_i(IStatus), 
-                .risc_stall_o(), .reset_o(),
+                // TAP states
+                .ShiftDR(ShiftDR), .Exit1DR(Exit1DR), .UpdateDR(UpdateDR), .UpdateDR_q(UpdateDR_q), 
+                .CaptureDR(CaptureDR), 
                 
-                .wb_clk_i(Mclk), .wb_adr_o(wb_adr_i), .wb_dat_o(wb_dat_i), .wb_dat_i(wb_dat_o), 
-                .wb_cyc_o(wb_cyc_i), .wb_stb_o(wb_stb_i), .wb_sel_o(wb_sel_i), .wb_we_o(wb_we_i), 
-                .wb_ack_i(wb_ack_o), .wb_cab_o(wb_cab_i), .wb_err_i(wb_err_o)
+                // Instructions
+                .IDCODESelected(IDCODESelected), .CHAIN_SELECTSelected(CHAIN_SELECTSelected), 
+                .DEBUGSelected(DEBUGSelected),   .EXTESTSelected(EXTESTSelected), 
+                
+                // TDO from dbg module
+                .TDOData_dbg(TDOData_dbg), .BypassRegister(BypassRegister), 
+                
+                // Boundary Scan Chain
+                .bs_chain_i(BS_CHAIN_I)
 
-                );
+               );
 
+dbg_top i_dbg_top
+               ( 
+                .risc_clk_i(Mclk), .risc_addr_o(ADDR_RISC), .risc_data_i(DATAOUT_RISC), 
+                .risc_data_o(DATAIN_RISC), .wp_i(Wp), .bp_i(Bp), .opselect_o(OpSelect), 
+                .lsstatus_i(LsStatus), .istatus_i(IStatus), .risc_stall_o(), .reset_o(),
+                
+                .wb_rst_i(wb_rst_i), .wb_clk_i(Mclk), 
+                
+                .wb_adr_o(wb_adr_i), .wb_dat_o(wb_dat_i), .wb_dat_i(wb_dat_o), 
+                .wb_cyc_o(wb_cyc_i), .wb_stb_o(wb_stb_i), .wb_sel_o(wb_sel_i), 
+                .wb_we_o(wb_we_i),   .wb_ack_i(wb_ack_o), .wb_cab_o(wb_cab_i), 
+                .wb_err_i(wb_err_o), 
+                
+                // TAP states
+                .ShiftDR(ShiftDR), .Exit1DR(Exit1DR), .UpdateDR(UpdateDR), .UpdateDR_q(UpdateDR_q), 
+                
+                // Instructions
+                .IDCODESelected(IDCODESelected), .CHAIN_SELECTSelected(CHAIN_SELECTSelected), 
+                .DEBUGSelected(DEBUGSelected), 
 
+                // TAP signals
+                .trst_in(P_TRST), .tck(P_TCK), .tdi(P_TDI), .TDOData(TDOData_dbg), 
+                
+                .BypassRegister(BypassRegister)
+
+               );
+ 
 reg TestEnabled;
-
-
-
+  
+   
+   
 initial
 begin
   TestEnabled<=#Tp 0;
   P_TMS<=#Tp 'hz;
   P_TCK<=#Tp 'hz;
   P_TDI<=#Tp 'hz;
+  BS_CHAIN_I = 0;
 
   Wp<=#Tp 0;
   Bp<=#Tp 0;
@@ -290,11 +335,11 @@ begin
     #1000 WriteRegister(32'h0000000c, `RECSEL_ADR,   8'h0f);  // Two samples are selected for recording (RECSDATA and RECLDATA)
     #1000 WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
     #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
-    wait(dbg_tb.i_tap_top.TraceEnable)
+    wait(dbg_tb.i_dbg_top.TraceEnable)
     @ (posedge Mclk);
       #1 Bp = 1;                                                 // Set breakpoint
     repeat(8) @(posedge Mclk);
-    wait(dbg_tb.i_tap_top.dbgTrace1.RiscStall)
+    wait(dbg_tb.i_dbg_top.dbgTrace1.RiscStall)
       #1 Bp = 0;                                                 // Clear breakpoint
 // End: Anything starts trigger, breakpoint starts qualifier */
 
@@ -306,7 +351,7 @@ begin
     #1000 WriteRegister(32'h00000003, `RECSEL_ADR,   8'h0c);  // Two samples are selected for recording (RECPC and RECLSEA)
     #1000 WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
     #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
-    wait(dbg_tb.i_tap_top.TraceEnable)
+    wait(dbg_tb.i_dbg_top.TraceEnable)
     @ (posedge Mclk)
       Wp[4] = 1;                                              // Set watchpoint[4]
       LsStatus = 4'h5;                                        // LsStatus[0] and LsStatus[2] are active
@@ -733,8 +778,8 @@ endtask
 `ifdef TRACE_ENABLED
 always @ (posedge Mclk)
 begin
-  if(dbg_tb.i_tap_top.dbgTrace1.WriteSample)
-    $write("\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tWritten to Trace buffer: WritePointer=0x%x, Data=0x%x", dbg_tb.i_tap_top.dbgTrace1.WritePointer, {dbg_tb.i_tap_top.dbgTrace1.DataIn, 1'b0, dbg_tb.i_tap_top.dbgTrace1.OpSelect[`OPSELECTWIDTH-1:0]});
+  if(dbg_tb.i_dbg_top.dbgTrace1.WriteSample)
+    $write("\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tWritten to Trace buffer: WritePointer=0x%x, Data=0x%x", dbg_tb.i_dbg_top.dbgTrace1.WritePointer, {dbg_tb.i_dbg_top.dbgTrace1.DataIn, 1'b0, dbg_tb.i_dbg_top.dbgTrace1.OpSelect[`OPSELECTWIDTH-1:0]});
 end
 `endif
 
@@ -749,7 +794,7 @@ end
 always @ (posedge P_TCK)
 begin
   if(UpdateIR_q)
-    case(dbg_tb.i_tap_top.JTAG_IR[`IR_LENGTH-1:0])
+    case(dbg_tb.i_tap_top.LatchedJTAG_IR[`IR_LENGTH-1:0])
       `EXTEST         : $write("\n\tInstruction EXTEST");
       `SAMPLE_PRELOAD : $write("\n\tInstruction SAMPLE_PRELOAD");
       `IDCODE         : $write("\n\tInstruction IDCODE");
@@ -770,7 +815,7 @@ end
 always @ (posedge P_TCK)
 begin
   if(dbg_tb.i_tap_top.CHAIN_SELECTSelected & dbg_tb.i_tap_top.UpdateDR_q)
-    case(dbg_tb.i_tap_top.i_dbg_top.Chain[`CHAIN_ID_LENGTH-1:0])
+    case(dbg_tb.i_dbg_top.Chain[`CHAIN_ID_LENGTH-1:0])
       `GLOBAL_BS_CHAIN      : $write("\nChain GLOBAL_BS_CHAIN");
       `RISC_DEBUG_CHAIN     : $write("\nChain RISC_DEBUG_CHAIN");
       `RISC_TEST_CHAIN      : $write("\nChain RISC_TEST_CHAIN");
@@ -784,32 +829,32 @@ end
 // print RISC registers read/write
 always @ (posedge Mclk)
 begin
-  if(dbg_tb.i_tap_top.i_dbg_top.RISCAccess & ~dbg_tb.i_tap_top.i_dbg_top.RISCAccess_q & dbg_tb.i_tap_top.i_dbg_top.RW)
-    $write("\n\t\tWrite to RISC Register (addr=0x%h, data=0x%h)", dbg_tb.i_tap_top.i_dbg_top.ADDR[31:0], dbg_tb.i_tap_top.i_dbg_top.DataOut[31:0]);
+  if(dbg_tb.i_dbg_top.RISCAccess & ~dbg_tb.i_dbg_top.RISCAccess_q & dbg_tb.i_dbg_top.RW)
+    $write("\n\t\tWrite to RISC Register (addr=0x%h, data=0x%h)", dbg_tb.i_dbg_top.ADDR[31:0], dbg_tb.i_dbg_top.DataOut[31:0]);
   else
-  if(dbg_tb.i_tap_top.i_dbg_top.RISCAccess_q & ~dbg_tb.i_tap_top.i_dbg_top.RISCAccess_q2 & ~dbg_tb.i_tap_top.i_dbg_top.RW)
-    $write("\n\t\tRead from RISC Register (addr=0x%h, data=0x%h)", dbg_tb.i_tap_top.i_dbg_top.ADDR[31:0], dbg_tb.i_tap_top.i_dbg_top.risc_data_i[31:0]);
+  if(dbg_tb.i_dbg_top.RISCAccess_q & ~dbg_tb.i_dbg_top.RISCAccess_q2 & ~dbg_tb.i_dbg_top.RW)
+    $write("\n\t\tRead from RISC Register (addr=0x%h, data=0x%h)", dbg_tb.i_dbg_top.ADDR[31:0], dbg_tb.i_dbg_top.risc_data_i[31:0]);
 end
 
 
 // print registers read/write
 always @ (posedge Mclk)
 begin
-  if(dbg_tb.i_tap_top.i_dbg_top.RegAccess_q & ~dbg_tb.i_tap_top.i_dbg_top.RegAccess_q2)
+  if(dbg_tb.i_dbg_top.RegAccess_q & ~dbg_tb.i_dbg_top.RegAccess_q2)
     begin
-      if(dbg_tb.i_tap_top.i_dbg_top.RW)
-        $write("\n\t\tWrite to Register (addr=0x%h, data=0x%h)", dbg_tb.i_tap_top.i_dbg_top.ADDR[4:0], dbg_tb.i_tap_top.i_dbg_top.DataOut[31:0]);
+      if(dbg_tb.i_dbg_top.RW)
+        $write("\n\t\tWrite to Register (addr=0x%h, data=0x%h)", dbg_tb.i_dbg_top.ADDR[4:0], dbg_tb.i_dbg_top.DataOut[31:0]);
       else
-        $write("\n\t\tRead from Register (addr=0x%h, data=0x%h). This data will be shifted out on next read request.", dbg_tb.i_tap_top.i_dbg_top.ADDR[4:0], dbg_tb.i_tap_top.i_dbg_top.RegDataIn[31:0]);
+        $write("\n\t\tRead from Register (addr=0x%h, data=0x%h). This data will be shifted out on next read request.", dbg_tb.i_dbg_top.ADDR[4:0], dbg_tb.i_dbg_top.RegDataIn[31:0]);
     end
 end
 
 
 // print CRC error
 `ifdef TRACE_ENABLED
-  wire CRCErrorReport = ~(dbg_tb.i_tap_top.i_dbg_top.CrcMatch & (dbg_tb.i_tap_top.CHAIN_SELECTSelected | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.RegisterScanChain | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.RiscDebugScanChain | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.TraceTestScanChain | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.WishboneScanChain));
+  wire CRCErrorReport = ~(dbg_tb.i_dbg_top.CrcMatch & (dbg_tb.i_dbg_top.CHAIN_SELECTSelected | dbg_tb.i_dbg_top.DEBUGSelected & dbg_tb.i_dbg_top.RegisterScanChain | dbg_tb.i_dbg_top.DEBUGSelected & dbg_tb.i_dbg_top.RiscDebugScanChain | dbg_tb.i_dbg_top.DEBUGSelected & dbg_tb.i_dbg_top.TraceTestScanChain | dbg_tb.i_dbg_top.DEBUGSelected & dbg_tb.i_dbg_top.WishboneScanChain));
 `else  // TRACE_ENABLED not enabled
-  wire CRCErrorReport = ~(dbg_tb.i_tap_top.i_dbg_top.CrcMatch & (dbg_tb.i_tap_top.CHAIN_SELECTSelected | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.RegisterScanChain | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.RiscDebugScanChain | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.WishboneScanChain));
+  wire CRCErrorReport = ~(dbg_tb.i_dbg_top.CrcMatch & (dbg_tb.i_tap_top.CHAIN_SELECTSelected | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.RegisterScanChain | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.RiscDebugScanChain | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.WishboneScanChain));
 `endif
 
 always @ (posedge P_TCK)
@@ -817,19 +862,19 @@ begin
   if(dbg_tb.i_tap_top.UpdateDR & ~dbg_tb.i_tap_top.IDCODESelected)
     begin
       if(dbg_tb.i_tap_top.CHAIN_SELECTSelected)
-        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_tap_top.i_dbg_top.JTAG_DR_IN[11:4], dbg_tb.i_tap_top.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
+        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_dbg_top.JTAG_DR_IN[11:4], dbg_tb.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
       else
       if(dbg_tb.i_tap_top.RegisterScanChain & ~dbg_tb.i_tap_top.CHAIN_SELECTSelected)
-        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_tap_top.i_dbg_top.JTAG_DR_IN[45:38], dbg_tb.i_tap_top.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
+        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_dbg_top.JTAG_DR_IN[45:38], dbg_tb.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
       else
       if(dbg_tb.i_tap_top.RiscDebugScanChain & ~dbg_tb.i_tap_top.CHAIN_SELECTSelected)
-        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_tap_top.i_dbg_top.JTAG_DR_IN[72:65], dbg_tb.i_tap_top.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
+        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_dbg_top.JTAG_DR_IN[72:65], dbg_tb.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
       if(dbg_tb.i_tap_top.WishboneScanChain & ~dbg_tb.i_tap_top.CHAIN_SELECTSelected)
-        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_tap_top.i_dbg_top.JTAG_DR_IN[72:65], dbg_tb.i_tap_top.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
+        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_dbg_top.JTAG_DR_IN[72:65], dbg_tb.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
 
       if(CRCErrorReport)
         begin
-          $write("\n\t\t\t\tCrc Error when receiving data (read or write) !!!  CrcIn should be: 0x%h\n", dbg_tb.i_tap_top.i_dbg_top.CalculatedCrcIn);
+          $write("\n\t\t\t\tCrc Error when receiving data (read or write) !!!  CrcIn should be: 0x%h\n", dbg_tb.i_dbg_top.CalculatedCrcIn);
           #1000 $stop;
         end
     end
@@ -843,7 +888,7 @@ begin
   if(dbg_tb.i_tap_top.IDCODESelected)
     begin
       if(dbg_tb.i_tap_top.ShiftDR)
-        TempData[31:0]<=#Tp {dbg_tb.i_tap_top.TDOData, TempData[31:1]};
+        TempData[31:0]<=#Tp {dbg_tb.i_tap_top.tdo_pad_o, TempData[31:1]};
       else
       if(dbg_tb.i_tap_top.UpdateDR)
         $write("\n\t\tIDCode = 0x%h", TempData[31:0]);
@@ -855,10 +900,10 @@ end
 reg [47:0] TraceData;
 always @ (posedge P_TCK)
 begin
-  if(dbg_tb.i_tap_top.DEBUGSelected & (dbg_tb.i_tap_top.i_dbg_top.Chain==`TRACE_TEST_CHAIN))
+  if(dbg_tb.i_tap_top.DEBUGSelected & (dbg_tb.i_dbg_top.Chain==`TRACE_TEST_CHAIN))
     begin
       if(dbg_tb.i_tap_top.ShiftDR)
-        TraceData[47:0]<=#Tp {dbg_tb.i_tap_top.TDOData, TraceData[47:1]};
+        TraceData[47:0]<=#Tp {dbg_tb.i_tap_top.tdo_pad_o, TraceData[47:1]};
       else
       if(dbg_tb.i_tap_top.UpdateDR)
         $write("\n\t\TraceData = 0x%h + Crc = 0x%h", TraceData[39:0], TraceData[47:40]);
