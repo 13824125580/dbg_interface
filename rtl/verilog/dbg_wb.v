@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2003/12/23 16:22:46  mohor
+// Tmp version.
+//
 // Revision 1.2  2003/12/23 15:26:26  mohor
 // Small fix.
 //
@@ -126,11 +129,14 @@ reg           tdo_o;
 
 reg [`WB_DR_LEN -1:0] dr;
 wire enable;
-reg [5:0] cnt;
+reg [1:0] cmd_cnt;
+reg [5:0] data_cnt;
 reg [5:0] crc_cnt;
-wire      cnt_end;
+wire      cmd_cnt_end;
+wire      data_cnt_end;
 wire      crc_cnt_end;
 reg       crc_cnt_end_q;
+reg       status_reset_en;
 
 
 reg [`STATUS_CNT -1:0]      status_cnt;
@@ -142,7 +148,7 @@ assign shift_crc_o = wishbone_ce_i & status_cnt_end & shift_dr_i;  // Signals db
 
 always @ (posedge tck_i)
 begin
-  if (enable & (~cnt_end))
+  if (enable & (~data_cnt_end))
     dr <= #1 {tdi_i, dr[`WB_DR_LEN -1:1]};
 end
 
@@ -150,14 +156,23 @@ end
 always @ (posedge tck_i or posedge trst_i)
 begin
   if (trst_i)
-    cnt <= #1 'h0;
+    cmd_cnt <= #1 'h0;
   else if (update_dr_i)
-    cnt <= #1 'h0;
-  else if (enable & (~cnt_end))
-    cnt <= #1 cnt + 1'b1;
+    cmd_cnt <= #1 'h0;
+  else if (enable & (~cmd_cnt_end))
+    cmd_cnt <= #1 cmd_cnt + 1'b1;
 end
 
-assign cnt_end = cnt == `WB_DR_LEN;
+
+always @ (posedge tck_i or posedge trst_i)
+begin
+  if (trst_i)
+    data_cnt <= #1 'h0;
+  else if (update_dr_i)
+    data_cnt <= #1 'h0;
+  else if (enable & cmd_cnt_end & (~data_cnt_end))
+    data_cnt <= #1 data_cnt + 1'b1;
+end
 
 
 // crc counter
@@ -165,13 +180,15 @@ always @ (posedge tck_i or posedge trst_i)
 begin
   if (trst_i)
     crc_cnt <= #1 'h0;
-  else if(enable & cnt_end & (~crc_cnt_end))
+  else if(enable & data_cnt_end & (~crc_cnt_end))
     crc_cnt <= #1 crc_cnt + 1'b1;
   else if (update_dr_i)
     crc_cnt <= #1 'h0;
 end
 
-assign crc_cnt_end = crc_cnt == 6'd32;
+assign cmd_cnt_end  = cmd_cnt  == 2'h3;
+assign data_cnt_end = data_cnt == 6'd48;
+assign crc_cnt_end  = crc_cnt  == 6'd32;
 
 always @ (posedge tck_i)
 begin
@@ -236,25 +253,30 @@ end
 always @ (crc_cnt_end or crc_cnt_end_q or crc_match_i or status or pause_dr_i or busy_tck)
 begin
   if (pause_dr_i)
-  begin
+    begin
     tdo_o = busy_tck;
     TDO_WISHBONE = "busy_tck";
-  end
+    end
   else if (crc_cnt_end & (~crc_cnt_end_q))
-  begin
-    tdo_o = crc_match_i;
-    TDO_WISHBONE = "crc_match_i";
-  end
+    begin
+      tdo_o = crc_match_i;
+      TDO_WISHBONE = "crc_match_i";
+    end
+  else if (crc_cnt_end)
+    begin
+      tdo_o = status[0];
+      TDO_WISHBONE = "status";
+    end
   else
-  begin
-    tdo_o = status[0];
-    TDO_WISHBONE = "status";
-  end
+    begin
+      tdo_o = 1'b0;
+      TDO_WISHBONE = "zero while CRC is shifted in";
+    end
 end
 
 assign crc_en_o = crc_cnt_end & (~status_cnt_end) & shift_dr_i;
 
-reg [2:0]  cmd;
+reg [2:0]  cmd, cmd_old;
 reg [31:0] adr;
 reg [15:0] len;
 reg start_tck;
@@ -267,6 +289,7 @@ begin
   if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i)
     begin
       cmd <= #1 dr[2:0];
+      cmd_old <= #1 cmd;
       adr <= #1 dr[34:3];
       len <= #1 dr[50:35];
       start_tck <= #1 1'b1;
@@ -300,7 +323,6 @@ end
 
 always @ (posedge wb_clk_i)
 begin
-//  if (start_wb & (~start_wb_q) & (cmd > `WB_STATUS) & (cmd < `WB_GO)) // Setting starting address
   if (start_wb & (~start_wb_q) & (cmd !== `WB_STATUS) & (cmd !== `WB_GO)) // Setting starting address
     wb_adr_o <= #1 adr;
   else if (wb_ack_i)
@@ -440,7 +462,7 @@ begin
     wb_error <= #1 1'b0;
   else if(wb_err_i)
     wb_error <= #1 1'b1;
-  else if(wb_ack_i | acc_cnt_limit)
+  else if((wb_ack_i | acc_cnt_limit) & status_reset_en) // error remains active until STATUS read is performed
     wb_error <= #1 1'b0;
 end
  
@@ -457,7 +479,7 @@ begin
     wb_timeout <= #1 1'b0;
   else if(acc_cnt_limit)
     wb_timeout <= #1 1'b1;
-  else if(wb_ack_i | wb_err_i)
+  else if((wb_ack_i | wb_err_i) & status_reset_en)  // error remains active until STATUS read is performed
     wb_timeout <= #1 1'b0;
 end
  
@@ -468,5 +490,17 @@ begin
 end
 
 
+
+// wb_timeout and wb_error are locked until WB_STATUS is performed
+always @ (posedge tck_i or posedge trst_i)
+begin
+  if (trst_i)
+    status_reset_en <= 1'b0;
+  else if((cmd_old == `WB_STATUS) & (cmd !== `WB_STATUS))
+    status_reset_en <= #1 1'b1;
+  else
+    status_reset_en <= #1 1'b0;
+end
+                                                                                                                                                             
 endmodule
 
