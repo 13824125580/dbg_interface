@@ -45,6 +45,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.22  2002/03/12 10:31:53  mohor
+// tap_top and dbg_top modules are put into two separate modules. tap_top
+// contains only tap state machine and related logic. dbg_top contains all
+// logic necessery for debugging.
+//
 // Revision 1.21  2002/03/08 15:28:16  mohor
 // Structure changed. Hooks for jtag chain added.
 //
@@ -457,6 +462,54 @@ begin
         end
     end
 end
+
+
+//synopsys translate_off
+always @ (posedge tck)
+begin
+  if(ShiftDR & CHAIN_SELECTSelected & BitCounter > 12)
+    begin
+      $display("\n%m Error: BitCounter is bigger then chain_sel_data bits width[12:0]. BitCounter=%d\n",BitCounter);
+      $stop;
+    end
+  else
+  if(ShiftDR & DEBUGSelected)
+    begin
+      if(RiscDebugScanChain & BitCounter > 73)
+        begin
+          $display("\n%m Error: BitCounter is bigger then RISC_Data bits width[73:0]. BitCounter=%d\n",BitCounter);
+          $stop;
+        end
+      else
+      if(RegisterScanChain & BitCounter > 45)
+        begin
+          $display("\n%m Error: BitCounter is bigger then RISC_Data bits width[46:0]. BitCounter=%d\n",BitCounter);
+          $stop;
+        end
+      else
+      if(WishboneScanChain & BitCounter > 73)
+        begin
+          $display("\n%m Error: BitCounter is bigger then WISHBONE_Data bits width[73:0]. BitCounter=%d\n",BitCounter);
+          $stop;
+        end
+      `ifdef TRACE_ENABLED
+      else
+      if(TraceTestScanChain & BitCounter > 47)
+        begin
+          $display("\n%m Error: BitCounter is bigger then Trace_Data bits width[47:0]. BitCounter=%d\n",BitCounter);
+          $stop;
+        end
+      `endif
+    end
+end
+// synopsys translate_on
+
+
+
+
+
+
+
 
 /**********************************************************************************
 *                                                                                 *
