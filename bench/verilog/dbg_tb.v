@@ -43,6 +43,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.38  2004/01/30 10:24:02  mohor
+// Defines WISHBONE_SUPPORTED and CPU_SUPPORTED added. By default both are
+// turned on.
+//
 // Revision 1.37  2004/01/25 14:10:25  mohor
 // Display for VATS added.
 //
@@ -762,7 +766,7 @@ task set_instruction;
     tdi_pad_i<=#1 instr[i]; // last shift
     tms_pad_i<=#1 1;        // going out of shiftIR
     gen_clk(1);
-    tdi_pad_i<=#1 'hz;    // tri-state
+    tdi_pad_i<=#1 1'hz;    // tri-state
     gen_clk(1);
     tms_pad_i<=#1 0;
     gen_clk(1);       // we are in RunTestIdle
@@ -789,7 +793,7 @@ task read_id_code;
 
     code = in_data_le;
 
-    tdi_pad_i<=#1 'hz; // tri-state
+    tdi_pad_i<=#1 1'hz; // tri-state
     gen_clk(1);
     tms_pad_i<=#1 0;
     gen_clk(1);       // we are in RunTestIdle
@@ -837,7 +841,7 @@ task chain_select;
       gen_clk(1);
     end
 
-    tdi_pad_i<=#1 'hz;  // tri-state
+    tdi_pad_i<=#1 1'hz;  // tri-state
 
     crc_in = 32'hffffffff;  // Initialize incoming CRC
     gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
@@ -992,7 +996,7 @@ task debug_wishbone_set_addr;
       gen_clk(1);
     end
 
-    tdi_pad_i<=#1 'hz;
+    tdi_pad_i<=#1 1'hz;
 
     crc_in = 32'hffffffff;  // Initialize incoming CRC
     gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
@@ -1338,7 +1342,7 @@ task debug_cpu_set_addr;
       gen_clk(1);
     end
 
-    tdi_pad_i<=#1 'hz;
+    tdi_pad_i<=#1 1'hz;
 
     crc_in = 32'hffffffff;  // Initialize incoming CRC
     gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
