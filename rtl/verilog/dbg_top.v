@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2001/12/05 13:28:21  mohor
+// trst signal is synchronized to wb_clk_i.
+//
 // Revision 1.14  2001/11/28 09:36:15  mohor
 // Register length fixed.
 //
@@ -109,7 +112,7 @@
 // Top module
 module dbg_top(
                 // JTAG pins
-                tms_pad_i, tck_pad_i, trst_pad_i, tdi_pad_i, tdo_pad_o, 
+                tms_pad_i, tck_pad_i, trst_pad_i, tdi_pad_i, tdo_pad_o, tdo_padoen_o,
 
                 // Boundary Scan signals
                 capture_dr_o, shift_dr_o, update_dr_o, extest_selected_o, bs_chain_i, bs_chain_o, 
@@ -136,6 +139,7 @@ input         tck_pad_i;                  // JTAG test clock pad
 input         trst_pad_i;                 // JTAG test reset pad
 input         tdi_pad_i;                  // JTAG test data input pad
 output        tdo_pad_o;                  // JTAG test data output pad
+output        tdo_padoen_o;               // Output enable for JTAG test data output pad 
 
 
 // Boundary Scan signals
@@ -1134,7 +1138,9 @@ begin
 end
 
 // Tristate control for tdo_pad_o pin
-assign tdo_pad_o = (ShiftIR | ShiftDR | Exit1IR | Exit1DR | UpdateDR)? TDOMuxed : 1'bz;
+//assign tdo_pad_o = (ShiftIR | ShiftDR | Exit1IR | Exit1DR | UpdateDR)? TDOMuxed : 1'bz;
+assign tdo_pad_o = TDOMuxed;
+assign tdo_padoen_o = ShiftIR | ShiftDR | Exit1IR | Exit1DR | UpdateDR;
 
 /**********************************************************************************
 *                                                                                 *
