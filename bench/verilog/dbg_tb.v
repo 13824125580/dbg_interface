@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.30  2004/01/20 08:03:35  mohor
+// IDCODE test improved.
+//
 // Revision 1.29  2004/01/19 13:13:18  mohor
 // Define tap_defines.v added to test bench.
 //
@@ -223,13 +226,10 @@ reg   test_enabled;
 reg [31:0] result;
 reg [31:0] in_data_le, in_data_be;
 reg [31:0] id;
-reg  crc_out_en;
-reg  crc_out_shift;
-wire crc_out;
 
-reg  crc_in_en;
 wire crc_match_in;
-
+reg [31:0] crc_in;
+reg [31:0] crc_out;
 
 
 wire tdo;
@@ -321,38 +321,6 @@ dbg_top i_dbg_top  (
 
 
 
-// Connecting CRC module that calculates CRC that is shifted into debug
-dbg_crc32_d1 crc32_bench_out
-                   (
-                    .data             (tdi_pad_i),
-                    .enable           (crc_out_en),
-                    .shift            (crc_out_shift),
-                    .rst              (wb_rst_i),
-                    .sync_rst         (update_dr_o),
-                    .crc_out          (crc_out),
-                    .clk              (tck_pad_i),
-                    .crc_match        ()
-                   );
-
-
-
-
-// Connecting CRC module that calculates CRC that is shifted from debug to bench
-dbg_crc32_d1 crc32_bench_in
-                   (
-                    .data             (tdo),
-                    .enable           (crc_in_en),
-                    .shift            (1'b0),
-                    .rst              (wb_rst_i),
-                    .sync_rst         (update_dr_o),
-                    .crc_out          (),
-                    .clk              (tck_pad_i),
-                    .crc_match        (crc_match_in)
-                   );
-
-
-
-
 wb_slave_behavioral wb_slave
                    (
                     .CLK_I            (wb_clk_i),
@@ -397,9 +365,6 @@ cpu_behavioral i_cpu_behavioral
 initial
 begin
   test_enabled = 1'b0;
-  crc_out_en = 1'b0;
-  crc_out_shift = 1'b0;
-  crc_in_en = 1'b0;
   wb_data = 32'h01234567;
   trst_pad_i = 1'b1;
   tms_pad_i = 1'hz;
@@ -741,36 +706,31 @@ task chain_select;
     tms_pad_i<=#1 0;
     gen_clk(2);  // we are in shiftDR
 
-    crc_out_en = 1; // Enable CRC calculation
-
+    crc_out = 32'hffffffff; // Initialize outgoing CRC
     tdi_pad_i<=#1 1'b1; // chain_select bit
+    calculate_crc(1'b1);
     gen_clk(1);
 
     for(i=0; i<`CHAIN_ID_LENGTH; i=i+1)
     begin
       tdi_pad_i<=#1 data[i];
+      calculate_crc(data[i]);
       gen_clk(1);
     end
-
-    crc_out_en = 0;     // Disable CRC calculation
-    crc_out_shift = 1;  // Enable CRC shifting
 
     for(i=31; i>=0; i=i-1)
     begin
       if (gen_crc_err & (i==0))  // Generate crc error at last crc bit
-        tdi_pad_i<=#1 ~crc_out;   // error crc
+        tdi_pad_i<=#1 ~crc_out[i];   // error crc
       else
-        tdi_pad_i<=#1 crc_out;    // ok crc
+        tdi_pad_i<=#1 crc_out[i];    // ok crc
 
       gen_clk(1);
     end
 
-    crc_out_shift = 0;  // Disable CRC shifting
-
     tdi_pad_i<=#1 'hz;  // tri-state
 
-    crc_in_en = 1;      // Enable CRC calculation on incoming data
-
+    crc_in = 32'hffffffff;  // Initialize incoming CRC
     gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
 
 
@@ -780,14 +740,12 @@ task chain_select;
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
 
-    crc_in_en = 0;      // Disable CRC calculation on incoming data
     if (~crc_match_in)
       begin
         $display("(%0t) Incoming CRC failed !!!", $time);
         $stop;
       end
 
-    tdi_pad_i<=#1 'hz;  // tri-state
     tms_pad_i<=#1 1;
     gen_clk(1);         // to update_dr
     tms_pad_i<=#1 0;
@@ -891,47 +849,46 @@ task debug_wishbone_set_addr;
     tms_pad_i<=#1 0;
     gen_clk(2);  // we are in shiftDR
 
-    crc_out_en = 1; // Enable CRC calculation
+    crc_out = 32'hffffffff; // Initialize outgoing CRC
 
     tdi_pad_i<=#1 1'b0; // chain_select bit = 0
+    calculate_crc(1'b0);
     gen_clk(1);
 
     for(i=2; i>=0; i=i-1)
     begin
       tdi_pad_i<=#1 command[i]; // command
+      calculate_crc(command[i]);
       gen_clk(1);
     end
 
     for(i=31; i>=0; i=i-1)       // address
     begin
       tdi_pad_i<=#1 addr[i];
+      calculate_crc(addr[i]);
       gen_clk(1);
     end
  
     for(i=15; i>=0; i=i-1)       // length
     begin
       tdi_pad_i<=#1 length[i];
+      calculate_crc(length[i]);
       gen_clk(1);
     end
-
-    crc_out_en = 0;     // Disable CRC calculation
-    crc_out_shift = 1;  // Enable CRC shifting
 
     for(i=31; i>=0; i=i-1)
     begin
       if (gen_crc_err & (i==0))  // Generate crc error at last crc bit
-        tdi_pad_i<=#1 ~crc_out;   // error crc
+        tdi_pad_i<=#1 ~crc_out[i];   // error crc
       else
-        tdi_pad_i<=#1 crc_out;    // ok crc
+        tdi_pad_i<=#1 crc_out[i];    // ok crc
 
       gen_clk(1);
     end
 
-    crc_out_shift = 0;  // Disable CRC shifting
-
     tdi_pad_i<=#1 'hz;
 
-    crc_in_en = 1;      // Enable CRC calculation on incoming data
+    crc_in = 32'hffffffff;  // Initialize incoming CRC
     gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
 
     for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
@@ -942,7 +899,6 @@ task debug_wishbone_set_addr;
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
 
-    crc_in_en = 0;      // Disable CRC calculation on incoming data
     if (~crc_match_in)
       begin
         $display("(%0t) Incoming CRC failed !!!", $time);
@@ -973,35 +929,32 @@ task debug_wishbone_status;
     tms_pad_i<=#1 0;
     gen_clk(2);  // we are in shiftDR
 
-    crc_out_en = 1; // Enable CRC calculation
+    crc_out = 32'hffffffff; // Initialize outgoing CRC
 
     tdi_pad_i<=#1 1'b0; // chain_select bit = 0
+    calculate_crc(1'b0);
     gen_clk(1);
 
     for(i=2; i>=0; i=i-1)
     begin
       tdi_pad_i<=#1 command[i]; // command
+      calculate_crc(command[i]);
       gen_clk(1);
     end
-
-    crc_out_en = 0;     // Disable CRC calculation
-    crc_out_shift = 1;  // Enable CRC shifting
 
     for(i=31; i>=0; i=i-1)
     begin
       if (gen_crc_err & (i==0))  // Generate crc error at last crc bit
-        tdi_pad_i<=#1 ~crc_out;   // error crc
+        tdi_pad_i<=#1 ~crc_out[i];   // error crc
       else
-        tdi_pad_i<=#1 crc_out;    // ok crc
+        tdi_pad_i<=#1 crc_out[i];    // ok crc
 
       gen_clk(1);
     end
 
-    crc_out_shift = 0;  // Disable CRC shifting
-
     tdi_pad_i<=#1 1'hz;
 
-    crc_in_en = 1;      // Enable CRC calculation on incoming data
+    crc_in = 32'hffffffff;  // Initialize incoming CRC
 
     gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
 
@@ -1013,7 +966,6 @@ task debug_wishbone_status;
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
 
-    crc_in_en = 0;      // Disable CRC calculation on incoming data
     if (~crc_match_in)
       begin
         $display("(%0t) Incoming CRC failed !!!", $time);
@@ -1045,14 +997,16 @@ task debug_wishbone_go;
     tms_pad_i<=#1 0;
     gen_clk(2);  // we are in shiftDR
 
-    crc_out_en = 1; // Enable CRC calculation
+    crc_out = 32'hffffffff; // Initialize outgoing CRC
 
     tdi_pad_i<=#1 1'b0; // chain_select bit = 0
+    calculate_crc(1'b0);
     gen_clk(1);
 
     for(i=2; i>=0; i=i-1)
     begin
       tdi_pad_i<=#1 command[i]; // command
+      calculate_crc(command[i]);
       gen_clk(1);
     end
 
@@ -1068,30 +1022,27 @@ task debug_wishbone_go;
               end
             pointer = 31-i[4:0];
             tdi_pad_i<=#1 wb_data[pointer];
+            calculate_crc(wb_data[pointer]);
             gen_clk(1);
 
           end
       end
 
-    crc_out_en = 0;     // Disable CRC calculation
-    crc_out_shift = 1;  // Enable CRC shifting
-
     for(i=31; i>=1; i=i-1)
     begin
-      tdi_pad_i<=#1 crc_out;    // ok crc
+      tdi_pad_i<=#1 crc_out[i];
       gen_clk(1);
     end
 
     if (gen_crc_err)  // Generate crc error at last crc bit
-      tdi_pad_i<=#1 ~crc_out;   // error crc
+      tdi_pad_i<=#1 ~crc_out[0];   // error crc
     else
-      tdi_pad_i<=#1 crc_out;    // ok crc
+      tdi_pad_i<=#1 crc_out[0];    // ok crc
 
     if (wait_for_wb_ready)
       begin
         tms_pad_i<=#1 1;
         gen_clk(1);       // to exit1_dr. Last CRC is shifted on this clk
-        crc_out_shift = 0;  // Disable CRC shifting
         tms_pad_i<=#1 0;
         gen_clk(1);       // to pause_dr
 
@@ -1112,9 +1063,8 @@ task debug_wishbone_go;
       end
 
 
-    crc_out_shift = 0;  // Disable CRC shifting
     tdi_pad_i<=#1 1'hz;
-    crc_in_en = 1;      // Enable CRC calculation on incoming data
+    crc_in = 32'hffffffff;  // Initialize incoming CRC
 
     if ((last_wb_cmd == `WB_READ8) | (last_wb_cmd == `WB_READ16) | (last_wb_cmd == `WB_READ32))  // When WB_WRITEx was previously activated, data needs to be shifted.
       begin
@@ -1134,7 +1084,6 @@ task debug_wishbone_go;
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
 
-    crc_in_en = 0;      // Disable CRC calculation on incoming data
     if (~crc_match_in)
       begin
         $display("(%0t) Incoming CRC failed !!!", $time);
@@ -1239,41 +1188,39 @@ task debug_cpu_set_addr;
     tms_pad_i<=#1 0;
     gen_clk(2);  // we are in shiftDR
 
-    crc_out_en = 1; // Enable CRC calculation
+    crc_out = 32'hffffffff; // Initialize outgoing CRC
 
     tdi_pad_i<=#1 1'b0; // chain_select bit = 0
+    calculate_crc(1'b0);
     gen_clk(1);
 
     for(i=2; i>=0; i=i-1)
     begin
       tdi_pad_i<=#1 command[i]; // command
+      calculate_crc(command[i]);
       gen_clk(1);
     end
 
     for(i=31; i>=0; i=i-1)       // address
     begin
       tdi_pad_i<=#1 addr[i];
+      calculate_crc(addr[i]);
       gen_clk(1);
     end
  
-    crc_out_en = 0;     // Disable CRC calculation
-    crc_out_shift = 1;  // Enable CRC shifting
-
     for(i=31; i>=0; i=i-1)
     begin
       if (gen_crc_err & (i==0))  // Generate crc error at last crc bit
-        tdi_pad_i<=#1 ~crc_out;   // error crc
+        tdi_pad_i<=#1 ~crc_out[i];   // error crc
       else
-        tdi_pad_i<=#1 crc_out;    // ok crc
+        tdi_pad_i<=#1 crc_out[i];    // ok crc
 
       gen_clk(1);
     end
 
-    crc_out_shift = 0;  // Disable CRC shifting
-
     tdi_pad_i<=#1 'hz;
 
-    crc_in_en = 1;      // Enable CRC calculation on incoming data
+    crc_in = 32'hffffffff;  // Initialize incoming CRC
     gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
 
     for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
@@ -1284,7 +1231,6 @@ task debug_cpu_set_addr;
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
 
-    crc_in_en = 0;      // Disable CRC calculation on incoming data
     if (~crc_match_in)
       begin
         $display("(%0t) Incoming CRC failed !!!", $time);
@@ -1316,14 +1262,15 @@ task debug_cpu_go;
     tms_pad_i<=#1 0;
     gen_clk(2);  // we are in shiftDR
 
-    crc_out_en = 1; // Enable CRC calculation
-
+    crc_out = 32'hffffffff; // Initialize outgoing CRC
     tdi_pad_i<=#1 1'b0; // chain_select bit = 0
+    calculate_crc(1'b0);
     gen_clk(1);
 
     for(i=2; i>=0; i=i-1)
     begin
       tdi_pad_i<=#1 command[i]; // command
+      calculate_crc(command[i]);
       gen_clk(1);
     end
 
@@ -1346,28 +1293,24 @@ task debug_cpu_go;
         for (i=len; i>=0; i=i-1)
           begin
             tdi_pad_i<=#1 data[i];
+            calculate_crc(data[i]);
             gen_clk(1);
           end
       end
 
-    crc_out_en = 0;     // Disable CRC calculation
-    crc_out_shift = 1;  // Enable CRC shifting
-
     for(i=31; i>=0; i=i-1)
     begin
       if (gen_crc_err & (i==0))  // Generate crc error at last crc bit
-        tdi_pad_i<=#1 ~crc_out;   // error crc
+        tdi_pad_i<=#1 ~crc_out[i];   // error crc
       else
-        tdi_pad_i<=#1 crc_out;    // ok crc
+        tdi_pad_i<=#1 crc_out[i];    // ok crc
 
       gen_clk(1);
     end
 
-    crc_out_shift = 0;  // Disable CRC shifting
-
     tdi_pad_i<=#1 1'hz;
 
-    crc_in_en = 1;      // Enable CRC calculation on incoming data
+    crc_in = 32'hffffffff;  // Initialize incoming CRC
 
     if (last_wb_cmd == `CPU_READ32)
       len = 32;
@@ -1394,7 +1337,6 @@ task debug_cpu_go;
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
 
-    crc_in_en = 0;      // Disable CRC calculation on incoming data
     if (~crc_match_in)
       begin
         $display("(%0t) Incoming CRC failed !!!", $time);
@@ -1421,6 +1363,85 @@ end
 
 
 
+// Calculating outgoing CRC
+task calculate_crc;
+  input data;
+ 
+  begin
+    crc_out[0]  <= #1 data          ^ crc_out[31];
+    crc_out[1]  <= #1 data          ^ crc_out[0]  ^ crc_out[31];
+    crc_out[2]  <= #1 data          ^ crc_out[1]  ^ crc_out[31];
+    crc_out[3]  <= #1 crc_out[2];
+    crc_out[4]  <= #1 data          ^ crc_out[3]  ^ crc_out[31];
+    crc_out[5]  <= #1 data          ^ crc_out[4]  ^ crc_out[31];
+    crc_out[6]  <= #1 crc_out[5];
+    crc_out[7]  <= #1 data          ^ crc_out[6]  ^ crc_out[31];
+    crc_out[8]  <= #1 data          ^ crc_out[7]  ^ crc_out[31];
+    crc_out[9]  <= #1 crc_out[8];
+    crc_out[10] <= #1 data         ^ crc_out[9]  ^ crc_out[31];
+    crc_out[11] <= #1 data         ^ crc_out[10] ^ crc_out[31];
+    crc_out[12] <= #1 data         ^ crc_out[11] ^ crc_out[31];
+    crc_out[13] <= #1 crc_out[12];
+    crc_out[14] <= #1 crc_out[13];
+    crc_out[15] <= #1 crc_out[14];
+    crc_out[16] <= #1 data         ^ crc_out[15] ^ crc_out[31];
+    crc_out[17] <= #1 crc_out[16];
+    crc_out[18] <= #1 crc_out[17];
+    crc_out[19] <= #1 crc_out[18];
+    crc_out[20] <= #1 crc_out[19];
+    crc_out[21] <= #1 crc_out[20];
+    crc_out[22] <= #1 data         ^ crc_out[21] ^ crc_out[31];
+    crc_out[23] <= #1 data         ^ crc_out[22] ^ crc_out[31];
+    crc_out[24] <= #1 crc_out[23];
+    crc_out[25] <= #1 crc_out[24];
+    crc_out[26] <= #1 data         ^ crc_out[25] ^ crc_out[31];
+    crc_out[27] <= #1 crc_out[26];
+    crc_out[28] <= #1 crc_out[27];
+    crc_out[29] <= #1 crc_out[28];
+    crc_out[30] <= #1 crc_out[29];
+    crc_out[31] <= #1 crc_out[30];
+  end
+endtask // calculate_crc
+
+
+// Calculating and checking input CRC
+always @(posedge tck_pad_i)
+begin
+  crc_in[0]  <= #1 tdo           ^ crc_in[31];
+  crc_in[1]  <= #1 tdo           ^ crc_in[0]  ^ crc_in[31];
+  crc_in[2]  <= #1 tdo           ^ crc_in[1]  ^ crc_in[31];
+  crc_in[3]  <= #1 crc_in[2];
+  crc_in[4]  <= #1 tdo           ^ crc_in[3]  ^ crc_in[31];
+  crc_in[5]  <= #1 tdo           ^ crc_in[4]  ^ crc_in[31];
+  crc_in[6]  <= #1 crc_in[5];
+  crc_in[7]  <= #1 tdo           ^ crc_in[6]  ^ crc_in[31];
+  crc_in[8]  <= #1 tdo           ^ crc_in[7]  ^ crc_in[31];
+  crc_in[9]  <= #1 crc_in[8];
+  crc_in[10] <= #1 tdo          ^ crc_in[9]  ^ crc_in[31];
+  crc_in[11] <= #1 tdo          ^ crc_in[10] ^ crc_in[31];
+  crc_in[12] <= #1 tdo          ^ crc_in[11] ^ crc_in[31];
+  crc_in[13] <= #1 crc_in[12];
+  crc_in[14] <= #1 crc_in[13];
+  crc_in[15] <= #1 crc_in[14];
+  crc_in[16] <= #1 tdo          ^ crc_in[15] ^ crc_in[31];
+  crc_in[17] <= #1 crc_in[16];
+  crc_in[18] <= #1 crc_in[17];
+  crc_in[19] <= #1 crc_in[18];
+  crc_in[20] <= #1 crc_in[19];
+  crc_in[21] <= #1 crc_in[20];
+  crc_in[22] <= #1 tdo          ^ crc_in[21] ^ crc_in[31];
+  crc_in[23] <= #1 tdo          ^ crc_in[22] ^ crc_in[31];
+  crc_in[24] <= #1 crc_in[23];
+  crc_in[25] <= #1 crc_in[24];
+  crc_in[26] <= #1 tdo          ^ crc_in[25] ^ crc_in[31];
+  crc_in[27] <= #1 crc_in[26];
+  crc_in[28] <= #1 crc_in[27];
+  crc_in[29] <= #1 crc_in[28];
+  crc_in[30] <= #1 crc_in[29];
+  crc_in[31] <= #1 crc_in[30];
+end
+
+assign crc_match_in = crc_in == 32'h0;
 
 
 
@@ -1461,7 +1482,7 @@ end
 
 
 // Detecting CRC error
-always @ (posedge dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end or posedge dbg_tb.i_dbg_top.chain_latch_en)
+always @ (posedge dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end or posedge dbg_tb.i_dbg_top.chain_latch_en or posedge dbg_tb.i_dbg_top.i_dbg_cpu.crc_cnt_end)
 begin
   #2;
   if (~dbg_tb.i_dbg_top.crc_match)
