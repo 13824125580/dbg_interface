@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.14  2001/11/28 09:36:15  mohor
+// Register length fixed.
+//
 // Revision 1.13  2001/11/27 13:37:43  mohor
 // CRC is returned when chain selection data is transmitted.
 //
@@ -230,11 +233,11 @@ reg         RISCAccess_q2;                // Delayed signals used for accessing 
 reg         wb_AccessTck;                 // Indicates access to the WISHBONE
 reg [31:0]  WBReadLatch;                  // Data latched during WISHBONE read
 reg         WBErrorLatch;                 // Error latched during WISHBONE read
+reg         trst;                         // trst is active high while trst_pad_i is active low
 
 wire TCK = tck_pad_i;
 wire TMS = tms_pad_i;
 wire TDI = tdi_pad_i;
-wire trst = ~trst_pad_i;                  // trst_pad_i is active low
 
 wire [31:0]             RegDataIn;        // Data from registers (read data)
 wire [`CRC_LENGTH-1:0]  CalculatedCrcOut; // CRC calculated in this module. This CRC is apended at the end of the TDO.
@@ -323,6 +326,17 @@ assign bs_chain_o         = tdi_pad_i;
                                           // data is set to the risc_data_i)
 
 `endif
+
+
+/**********************************************************************************
+*                                                                                 *
+*   Synchronizing TRST to clock signal                                            *
+*                                                                                 *
+**********************************************************************************/
+always @ (posedge wb_clk_i)
+begin
+  trst <=#Tp ~trst_pad_i;                  // trst_pad_i is active low
+end
 
 
 /**********************************************************************************
