@@ -1,0 +1,11 @@
+dbg_defines.v
+dbg_register.v
+dbg_top.v
+jtag_chain.v
+timescale.v
+dbg_crc8_d1.v
+dbg_registers.v
+dbg_sync_clk1_clk2.v
+dbg_trace.v
+tap_top.v
+
