@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2001/11/28 09:38:30  mohor
+// Trace disabled by default.
+//
 // Revision 1.5  2001/10/15 09:55:47  mohor
 // Wishbone interface added, few fixes for better performance,
 // hooks for boundary scan testing added.
@@ -89,7 +92,7 @@
 `define	IR_LENGTH	4
 
 // Length of the Data register (must be equal to the longest scan chain)
-`define	DR_LENGTH	73
+`define	DR_LENGTH	74
 
 // Length of the CHAIN ID register
 `define	CHAIN_ID_LENGTH	4
