@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.44  2004/04/01 09:33:26  igorm
+// Typo fixed.
+//
 // Revision 1.43  2004/03/31 14:34:13  igorm
 // data_cnt_lim length changed to reduce number of warnings.
 //
@@ -198,7 +201,14 @@
 //  $sformat(dbg_text, "\n\nbla 0x%0x 0x%0x\n\n", 32'h12345678, 16'h543);
 //  `DBG_TEXT(dbg_text) 
 
-
+// For common cpu routines
+`ifdef DBG_CPU0_SUPPORTED
+  `define DBG_CPU_SUPPORTED
+`else
+  `ifdef DBG_CPU1_SUPPORTED
+    `define DBG_CPU_SUPPORTED
+  `endif
+`endif
 
 // Test bench
 module dbg_tb;
@@ -244,18 +254,32 @@ wire  [2:0] wb_cti_o;
 wire  [1:0] wb_bte_o;
 `endif
 
-`ifdef DBG_CPU_SUPPORTED
+`ifdef DBG_CPU0_SUPPORTED
 // CPU signals
-wire        cpu_clk_i;
-wire [31:0] cpu_addr_o;
-wire [31:0] cpu_data_i;
-wire [31:0] cpu_data_o;
-wire        cpu_bp_i;
-wire        cpu_stall_o;
-wire        cpu_stb_o;
-wire        cpu_we_o;
-wire        cpu_ack_i;
-wire        cpu_rst_o;
+wire        cpu0_clk_i;
+wire [31:0] cpu0_addr_o;
+wire [31:0] cpu0_data_i;
+wire [31:0] cpu0_data_o;
+wire        cpu0_bp_i;
+wire        cpu0_stall_o;
+wire        cpu0_stb_o;
+wire        cpu0_we_o;
+wire        cpu0_ack_i;
+wire        cpu0_rst_o;
+`endif
+
+`ifdef DBG_CPU1_SUPPORTED
+// CPU signals
+wire        cpu1_clk_i;
+wire [31:0] cpu1_addr_o;
+wire [31:0] cpu1_data_i;
+wire [31:0] cpu1_data_o;
+wire        cpu1_bp_i;
+wire        cpu1_stall_o;
+wire        cpu1_stb_o;
+wire        cpu1_we_o;
+wire        cpu1_ack_i;
+wire        cpu1_rst_o;
 `endif
 
 // Text used for easier debugging
@@ -293,9 +317,12 @@ reg [`DBG_WB_ADR_LEN -1:0]       read_addr;
 reg [`DBG_WB_LEN_LEN -1:0]       read_length;
 reg [`DBG_CPU_CTRL_LEN -1:0]     read_ctrl_reg;
 
+integer length_global;
 wire tdo;
 
 assign tdo = tdo_padoe_o? tdo_pad_o : 1'hz;
+
+
 
 // Connecting TAP module
 tap_top i_tap_top (
@@ -364,19 +391,34 @@ dbg_top i_dbg_top  (
                     .wb_bte_o         (wb_bte_o)
                     `endif
 
-                    `ifdef DBG_CPU_SUPPORTED
+                    `ifdef DBG_CPU0_SUPPORTED
                     // CPU signals
                     ,
-                    .cpu_clk_i        (cpu_clk_i),
-                    .cpu_addr_o       (cpu_addr_o),
-                    .cpu_data_i       (cpu_data_i),
-                    .cpu_data_o       (cpu_data_o),
-                    .cpu_bp_i         (cpu_bp_i),
-                    .cpu_stall_o      (cpu_stall_o),
-                    .cpu_stb_o        (cpu_stb_o),
-                    .cpu_we_o         (cpu_we_o),
-                    .cpu_ack_i        (cpu_ack_i),
-                    .cpu_rst_o        (cpu_rst_o)
+                    .cpu0_clk_i        (cpu0_clk_i),
+                    .cpu0_addr_o       (cpu0_addr_o),
+                    .cpu0_data_i       (cpu0_data_i),
+                    .cpu0_data_o       (cpu0_data_o),
+                    .cpu0_bp_i         (cpu0_bp_i),
+                    .cpu0_stall_o      (cpu0_stall_o),
+                    .cpu0_stb_o        (cpu0_stb_o),
+                    .cpu0_we_o         (cpu0_we_o),
+                    .cpu0_ack_i        (cpu0_ack_i),
+                    .cpu0_rst_o        (cpu0_rst_o)
+                    `endif
+
+                    `ifdef DBG_CPU1_SUPPORTED
+                    // CPU signals
+                    ,
+                    .cpu1_clk_i        (cpu1_clk_i),
+                    .cpu1_addr_o       (cpu1_addr_o),
+                    .cpu1_data_i       (cpu1_data_i),
+                    .cpu1_data_o       (cpu1_data_o),
+                    .cpu1_bp_i         (cpu1_bp_i),
+                    .cpu1_stall_o      (cpu1_stall_o),
+                    .cpu1_stb_o        (cpu1_stb_o),
+                    .cpu1_we_o         (cpu1_we_o),
+                    .cpu1_ack_i        (cpu1_ack_i),
+                    .cpu1_rst_o        (cpu1_rst_o)
                     `endif
 
 
@@ -404,21 +446,41 @@ wb_slave_behavioral wb_slave
 `endif
 
 
-`ifdef DBG_CPU_SUPPORTED
-cpu_behavioral i_cpu_behavioral
+`ifdef DBG_CPU0_SUPPORTED
+cpu_behavioral i_cpu0_behavioral
                    (
                     // CPU signals
                     .cpu_rst_i        (rst_i),
-                    .cpu_clk_o        (cpu_clk_i),
-                    .cpu_addr_i       (cpu_addr_o),
-                    .cpu_data_o       (cpu_data_i),
-                    .cpu_data_i       (cpu_data_o),
-                    .cpu_bp_o         (cpu_bp_i),
-                    .cpu_stall_i      (cpu_stall_o),
-                    .cpu_stb_i        (cpu_stb_o),
-                    .cpu_we_i         (cpu_we_o),
-                    .cpu_ack_o        (cpu_ack_i),
-                    .cpu_rst_o        (cpu_rst_o)
+                    .cpu_clk_o        (cpu0_clk_i),
+                    .cpu_addr_i       (cpu0_addr_o),
+                    .cpu_data_o       (cpu0_data_i),
+                    .cpu_data_i       (cpu0_data_o),
+                    .cpu_bp_o         (cpu0_bp_i),
+                    .cpu_stall_i      (cpu0_stall_o),
+                    .cpu_stb_i        (cpu0_stb_o),
+                    .cpu_we_i         (cpu0_we_o),
+                    .cpu_ack_o        (cpu0_ack_i),
+                    .cpu_rst_o        (cpu0_rst_o)
+                   );
+`endif
+
+
+
+`ifdef DBG_CPU1_SUPPORTED
+cpu_behavioral i_cpu1_behavioral
+                   (
+                    // CPU signals
+                    .cpu_rst_i        (rst_i),
+                    .cpu_clk_o        (cpu1_clk_i),
+                    .cpu_addr_i       (cpu1_addr_o),
+                    .cpu_data_o       (cpu1_data_i),
+                    .cpu_data_i       (cpu1_data_o),
+                    .cpu_bp_o         (cpu1_bp_i),
+                    .cpu_stall_i      (cpu1_stall_o),
+                    .cpu_stb_i        (cpu1_stb_o),
+                    .cpu_we_i         (cpu1_we_o),
+                    .cpu_ack_o        (cpu1_ack_i),
+                    .cpu_rst_o        (cpu1_rst_o)
                    );
 `endif
 
@@ -481,9 +543,9 @@ begin
   #500;
   goto_run_test_idle;
 
-//  `ifdef DBG_CPU_SUPPORTED
+//  `ifdef DBG_CPU0_SUPPORTED
 //  // Test stall signal
-//  stall_test;
+//  stall_test_cpu0;
 //  `endif
 
   // Testing read and write to internal registers
@@ -591,9 +653,9 @@ begin
 */
   `endif  // DBG_WISHBONE_SUPPORTED
 
-  `ifdef DBG_CPU_SUPPORTED
+  `ifdef DBG_CPU0_SUPPORTED
   #10000;
-  module_select(`DBG_TOP_CPU_DEBUG_MODULE, 1'b0);   // {module_id, gen_crc_err}
+  module_select(`DBG_TOP_CPU0_DEBUG_MODULE, 1'b0);   // {module_id, gen_crc_err}
 
 
 
@@ -616,7 +678,7 @@ begin
   #10000;
 
   // Reset cpu on
-  debug_cpu_wr_ctrl(`DBG_CPU_CTRL_LEN'b10, "rst cpu on"); // {data, text} igor !!! poglej endian
+  debug_cpu_wr_ctrl(`DBG_CPU_CTRL_LEN'b10, "rst cpu on"); // {data, text}
   #10000;
 
   // Reset cpu off
@@ -648,7 +710,68 @@ begin
 
   #10000;
 
-  `endif
+  `endif  // DBG_CPU0_SUPPORTED
+
+
+  `ifdef DBG_CPU1_SUPPORTED
+  #10000;
+  module_select(`DBG_TOP_CPU1_DEBUG_MODULE, 1'b0);   // {module_id, gen_crc_err}
+
+
+
+
+  // Select cpu1
+
+  #10000;
+  debug_cpu(`DBG_CPU_WRITE, 1'b0, 32'h23456788, 16'h3, 1'b0, "cpu write 1"); // {command, ready, addr, length, gen_crc_err, text}
+
+  #10000;
+  debug_cpu(`DBG_CPU_READ, 1'b0, 32'h23456788, 16'h3, 1'b0, "cpu read 1"); // {command, ready, addr, length, gen_crc_err, text}
+  // Read register
+  #10000;
+
+  debug_cpu(`DBG_CPU_WRITE, 1'b0, 32'h32323232, 16'h3, 1'b0, "cpu write 1"); // {command, ready, addr, length, gen_crc_err, text}
+
+  #10000;
+  debug_cpu(`DBG_CPU_READ, 1'b0, 32'h77665544, 16'h3, 1'b0, "cpu read 1"); // {command, ready, addr, length, gen_crc_err, text}
+  // Read register
+  #10000;
+
+  // Reset cpu on
+  debug_cpu_wr_ctrl(`DBG_CPU_CTRL_LEN'b10, "rst cpu on"); // {data, text}
+  #10000;
+
+  // Reset cpu off
+  debug_cpu_wr_ctrl(`DBG_CPU_CTRL_LEN'b00, "rst cpu off"); // {data, text}
+  #10000;
+
+  // Stall cpu
+  debug_cpu_wr_ctrl(`DBG_CPU_CTRL_LEN'b01, "stall on"); // {data, text}
+  #10000;
+
+  debug_cpu_wr_ctrl(`DBG_CPU_CTRL_LEN'b00, "stall off"); // {data, text}
+  #10000;
+
+  // Stall cpu1
+  debug_cpu_rd_ctrl(read_ctrl_reg, "read ctrl");
+  $display("debug_cpu_rd_ctrl returns: read_ctrl_reg = 0x%0x", read_ctrl_reg);
+  #10000;
+
+  debug_cpu(`DBG_CPU_READ, 1'b0, 32'h23456788, 16'h3, 1'b0, "cpu read 2"); // {command, ready, addr, length, gen_crc_err, text}
+  // write to cpu 32-bit
+  #10000;
+
+  debug_cpu(`DBG_CPU_WRITE, 1'b0, 32'h32323232, 16'hf, 1'b0, "cpu write 2"); // {command, ready, addr, length, gen_crc_err, text}
+
+  #10000;
+
+  // read from cpu 32-bit
+  #10000;
+
+  #10000;
+
+  `endif  // DBG_CPU1_SUPPORTED
+
 
 
 
@@ -665,68 +788,68 @@ begin
 end
 
 
-`ifdef DBG_CPU_SUPPORTED
-task stall_test;
+`ifdef DBG_CPU0_SUPPORTED
+task stall_test_cpu0;
   integer i;
 
   begin
-    test_text = "stall_test";
-    $display("\n\n(%0t) stall_test started", $time);
+    test_text = "stall_test_cpu0";
+    $display("\n\n(%0t) stall_test_cpu0 started", $time);
 
     // Set bp_i active for 1 clock cycle and check is stall is set or not
-    check_stall(0); // Should not be set at the beginning
-    @ (posedge cpu_clk_i);
-    #1 dbg_tb.i_cpu_behavioral.cpu_bp_o = 1'b1;
-    #1 check_stall(1); // set?
-    @ (posedge cpu_clk_i);
-    #1 dbg_tb.i_cpu_behavioral.cpu_bp_o = 1'b0;
-    #1 check_stall(1); // set?
+    check_stall_cpu0(0); // Should not be set at the beginning
+    @ (posedge cpu0_clk_i);
+    #1 dbg_tb.i_cpu0_behavioral.cpu_bp_o = 1'b1;
+    #1 check_stall_cpu0(1); // set?
+    @ (posedge cpu0_clk_i);
+    #1 dbg_tb.i_cpu0_behavioral.cpu_bp_o = 1'b0;
+    #1 check_stall_cpu0(1); // set?
 
     gen_clk(1);
-    #1 check_stall(1); // set?
+    #1 check_stall_cpu0(1); // set?
 
     // Unstall with register
     set_instruction(`DEBUG);
-    module_select(`DBG_TOP_CPU_DEBUG_MODULE, 1'b0);   // {module_id, gen_crc_err}
-    #1 check_stall(1); // set?
+    module_select(`DBG_TOP_CPU0_DEBUG_MODULE, 1'b0);   // {module_id, gen_crc_err}
+    #1 check_stall_cpu0(1); // set?
 // igor !!!    debug_cpu(`CPU_WRITE_REG, `CPU_OP_ADR, 32'h0, 1'b0, result, "clr unstall"); // {command, addr, data, gen_crc_err, result, text}
-    #1 check_stall(1); // set?
+    #1 check_stall_cpu0(1); // set?
     debug_cpu(`DBG_CPU_WR_COMM, 32'h0, 32'h0, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
-    #1 check_stall(0); // reset?
+    #1 check_stall_cpu0(0); // reset?
 
     // Set stall with register
 // igor !!!    debug_cpu(`CPU_WRITE_REG, `CPU_OP_ADR, 32'h0, 1'b0, result, "clr stall"); // {command, addr, data, gen_crc_err, result, text}
-    #1 check_stall(0); // reset?
+    #1 check_stall_cpu0(0); // reset?
     debug_cpu(`DBG_CPU_WR_COMM, 32'h0, 32'h1, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
-    #1 check_stall(1); // set?
+    #1 check_stall_cpu0(1); // set?
 
     // Unstall with register
 // igor !!!    debug_cpu(`CPU_WRITE_REG, `CPU_OP_ADR, 32'h0, 1'b0, result, "clr unstall"); // {command, addr, data, gen_crc_err, result, text}
-    #1 check_stall(1); // set?
+    #1 check_stall_cpu0(1); // set?
     debug_cpu(`DBG_CPU_WR_COMM, 32'h0, 32'h0, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
-    #1 check_stall(0); // reset?
+    #1 check_stall_cpu0(0); // reset?
 
-    $display("\n\n(%0t) stall_test passed\n\n", $time);
+    $display("\n\n(%0t) stall_test_cpu0 passed\n\n", $time);
   end
-endtask   // stall_test
+endtask   // stall_test_cpu0
 
 
-task check_stall;
+task check_stall_cpu0;
   input should_be_set;
   begin
-    if (should_be_set && (!cpu_stall_o))
+    if (should_be_set && (!cpu0_stall_o))
       begin
-        $display ("\t\t(%0t) ERROR: cpu_stall_o is not set but should be.", $time);
+        $display ("\t\t(%0t) ERROR: cpu0_stall_o is not set but should be.", $time);
         $stop;
       end
-    if ((!should_be_set) && cpu_stall_o)
+    if ((!should_be_set) && cpu0_stall_o)
       begin
-        $display ("\t\t(%0t) ERROR: cpu_stall_o set but shouldn't be.", $time);
+        $display ("\t\t(%0t) ERROR: cpu0_stall_o set but shouldn't be.", $time);
         $stop;
       end
   end
-endtask   // check_stall
-`endif
+endtask   // check_stall_cpu0
+`endif  // DBG_CPU0_SUPPORTED
 
 
 task initialize_memory;
@@ -894,7 +1017,8 @@ task module_select;
 
   begin
     case (data)
-      `DBG_TOP_CPU_DEBUG_MODULE      : $display("(%0t) Task module_select (DBG_TOP_CPU_DEBUG_MODULE, gen_crc_err=%0d)", $time, gen_crc_err);
+      `DBG_TOP_CPU0_DEBUG_MODULE      : $display("(%0t) Task module_select (DBG_TOP_CPU0_DEBUG_MODULE, gen_crc_err=%0d)", $time, gen_crc_err);
+      `DBG_TOP_CPU1_DEBUG_MODULE      : $display("(%0t) Task module_select (DBG_TOP_CPU1_DEBUG_MODULE, gen_crc_err=%0d)", $time, gen_crc_err);
       `DBG_TOP_WISHBONE_DEBUG_MODULE : $display("(%0t) Task module_select (DBG_TOP_WISHBONE_DEBUG_MODULE, gen_crc_err=%0d)", $time, gen_crc_err);
       default                : $display("(%0t) Task module_select (ERROR!!! Unknown module selected)", $time);
     endcase
@@ -993,6 +1117,7 @@ task debug_wishbone;
           debug_wishbone_wr_comm(`DBG_WB_READ8, addr, length, gen_crc_err);
           last_wb_cmd = `DBG_WB_READ8;  last_wb_cmd_text = "DBG_WB_READ8";
 #10000;
+          length_global = length + 1;
           debug_wishbone_go(ready, gen_crc_err);
         end
       `DBG_WB_READ16   :  
@@ -1001,6 +1126,7 @@ task debug_wishbone;
           debug_wishbone_wr_comm(`DBG_WB_READ16, addr, length, gen_crc_err);
           last_wb_cmd = `DBG_WB_READ16;  last_wb_cmd_text = "DBG_WB_READ16";
 #10000;
+          length_global = length + 1;
           debug_wishbone_go(ready, gen_crc_err);
         end
       `DBG_WB_READ32   :  
@@ -1009,6 +1135,7 @@ task debug_wishbone;
           debug_wishbone_wr_comm(`DBG_WB_READ32, addr, length, gen_crc_err);
           last_wb_cmd = `DBG_WB_READ32;  last_wb_cmd_text = "DBG_WB_READ32";
 #10000;
+          length_global = length + 1;
           debug_wishbone_go(ready, gen_crc_err);
         end
       `DBG_WB_WRITE8   :  
@@ -1017,6 +1144,7 @@ task debug_wishbone;
           debug_wishbone_wr_comm(`DBG_WB_WRITE8, addr, length, gen_crc_err);
           last_wb_cmd = `DBG_WB_WRITE8;  last_wb_cmd_text = "DBG_WB_WRITE8";
 #10000;
+          length_global = length + 1;
           debug_wishbone_go(ready, gen_crc_err);
         end
       `DBG_WB_WRITE16  :  
@@ -1025,6 +1153,7 @@ task debug_wishbone;
           debug_wishbone_wr_comm(`DBG_WB_WRITE16, addr, length, gen_crc_err);
           last_wb_cmd = `DBG_WB_WRITE16;  last_wb_cmd_text = "DBG_WB_WRITE16";
 #10000;
+          length_global = length + 1;
           debug_wishbone_go(ready, gen_crc_err);
         end
       `DBG_WB_WRITE32  :  
@@ -1033,6 +1162,7 @@ task debug_wishbone;
           debug_wishbone_wr_comm(`DBG_WB_WRITE32, addr, length, gen_crc_err);
           last_wb_cmd = `DBG_WB_WRITE32;  last_wb_cmd_text = "DBG_WB_WRITE32";
 #10000;
+          length_global = length + 1;
           debug_wishbone_go(ready, gen_crc_err);
         end
       default:
@@ -1295,7 +1425,7 @@ task debug_wishbone_go;
 
     if ((last_wb_cmd == `DBG_WB_WRITE8) | (last_wb_cmd == `DBG_WB_WRITE16) | (last_wb_cmd == `DBG_WB_WRITE32))  // When WB_WRITEx was previously activated, data needs to be shifted.
       begin
-        for (i=0; i<((dbg_tb.i_dbg_top.i_dbg_wb.len_var) << 3); i=i+1)
+        for (i=0; i<((length_global) << 3); i=i+1)
           begin
             tmp_data = wb_data[word_pointer];
             if ((!(i%32)) && (i>0))
@@ -1350,9 +1480,9 @@ task debug_wishbone_go;
 
     if ((last_wb_cmd == `DBG_WB_READ8) | (last_wb_cmd == `DBG_WB_READ16) | (last_wb_cmd == `DBG_WB_READ32))  // When WB_READx was previously activated, data needs to be shifted.
       begin
-        $display("\t\tGenerating %0d clocks to read %0d data bytes.", dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_limit<<3, dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_limit);
+        $display("\t\tGenerating %0d clocks to read %0d data bytes.", length_global<<3, length_global);
         word_pointer = 0; // Reset pointer
-        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_limit<<3); i=i+1)
+        for (i=0; i<(length_global<<3); i=i+1)
           begin
             gen_clk(1);
             if (i[4:0] == 31)   // Latching data
@@ -1430,6 +1560,7 @@ task debug_cpu;
           $display("cpu_read (adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", addr, length, gen_crc_err, text);
           debug_cpu_wr_comm(`DBG_CPU_READ, addr, length, gen_crc_err);
           last_cpu_cmd = `DBG_CPU_READ;  last_cpu_cmd_text = "DBG_CPU_READ";
+          length_global = length + 1;
 #10000;
           debug_cpu_go(ready, gen_crc_err);
         end
@@ -1439,6 +1570,7 @@ task debug_cpu;
           debug_cpu_wr_comm(`DBG_CPU_WRITE, addr, length, gen_crc_err);
           last_cpu_cmd = `DBG_CPU_WRITE;  last_cpu_cmd_text = "DBG_CPU_WRITE";
 #10000;
+          length_global = length + 1;
           debug_cpu_go(ready, gen_crc_err);
         end
       default:
@@ -1783,7 +1915,7 @@ task debug_cpu_go;
 
     if (last_cpu_cmd == `DBG_CPU_WRITE)  // When DBG_CPU_WRITE was previously activated, data needs to be shifted.
       begin
-        for (i=0; i<((dbg_tb.i_dbg_top.i_dbg_cpu.len_var) << 3); i=i+1)
+        for (i=0; i<((length_global) << 3); i=i+1)
           begin
             tmp_data = wb_data[word_pointer];
             if ((!(i%32)) && (i>0))
@@ -1838,9 +1970,9 @@ task debug_cpu_go;
 
     if (last_cpu_cmd == `DBG_CPU_READ)  // When DBG_CPU_READ was previously activated, data needs to be shifted.
       begin
-        $display("\t\tGenerating %0d clocks to read %0d data bytes.", dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt_limit<<3, dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt_limit);
+        $display("\t\tGenerating %0d clocks to read %0d data bytes.", length_global<<3, length_global);
         word_pointer = 0; // Reset pointer
-        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt_limit<<3); i=i+1)
+        for (i=0; i<(length_global<<3); i=i+1)
           begin
             gen_clk(1);
             if (i[4:0] == 31)   // Latching data
@@ -2024,30 +2156,6 @@ begin
 end
 
 
-
-
-// Detecting CRC error
-/*
-always @ (    
-           posedge dbg_tb.i_dbg_top.module_latch_en
-           `ifdef DBG_WISHBONE_SUPPORTED
-           or posedge dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end
-           `endif
-           `ifdef DBG_CPU_SUPPORTED
-           or posedge dbg_tb.i_dbg_top.i_dbg_cpu.crc_cnt_end
-           `endif
-         )
-
-
-begin
-  #2;
-  if (~dbg_tb.i_dbg_top.crc_match)
-    begin
-      $display("\t\tCRC ERROR !!!");
-      $stop;
-    end
-end
-*/
 
 
 endmodule // dbg_tb
