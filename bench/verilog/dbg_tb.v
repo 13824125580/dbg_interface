@@ -4,7 +4,7 @@
 ////                                                              ////
 ////                                                              ////
 ////  This file is part of the SoC/OpenRISC Development Interface ////
-////  http://www.opencores.org/cores/DebugInterface/              ////
+////  http://www.opencores.org/projects/DebugInterface/           ////
 ////                                                              ////
 ////                                                              ////
 ////  Author(s):                                                  ////
@@ -45,6 +45,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2001/10/19 11:39:20  mohor
+// dbg_timescale.v changed to timescale.v This is done for the simulation of
+// few different cores in a single project.
+//
 // Revision 1.8  2001/10/17 10:39:17  mohor
 // bs_chain_o added.
 //
@@ -125,11 +129,9 @@ reg         wb_err_o;
 
 
 // Connecting TAP module
-dbg_top dbgTAP1(.tms_pad_i(P_TMS), .tck_pad_i(P_TCK), .trst_pad_i(P_TRST), .tdi_pad_i(P_TDI), 
-                .tdo_pad_o(P_TDO), 
-                .capture_dr_o(), .shift_dr_o(), .update_dr_o(), .extest_selected_o(), 
-                .bs_chain_i(1'b0), .bs_chain_o(), 
-
+tap_top i_tap_top
+               (.tms_pad_i(P_TMS), .tck_pad_i(P_TCK), .trst_pad_i(P_TRST), .tdi_pad_i(P_TDI), 
+                .tdo_pad_o(P_TDO), .tdo_padoen_o(tdo_padoen_o), 
                 
                 .wb_rst_i(wb_rst_i), .risc_clk_i(Mclk), 
                 .risc_addr_o(ADDR_RISC), .risc_data_i(DATAOUT_RISC), .risc_data_o(DATAIN_RISC), 
@@ -151,9 +153,9 @@ reg TestEnabled;
 initial
 begin
   TestEnabled<=#Tp 0;
-  P_TMS<=#Tp 0;
-  P_TCK<=#Tp 0;
-  P_TDI<=#Tp 0;
+  P_TMS<=#Tp 'hz;
+  P_TCK<=#Tp 'hz;
+  P_TDI<=#Tp 'hz;
 
   Wp<=#Tp 0;
   Bp<=#Tp 0;
@@ -232,7 +234,7 @@ begin
 
 // Testing read and write to internal registers
   SetInstruction(`IDCODE);
-  ReadIDCode;
+  ReadIDCode; // muten
 
   SetInstruction(`CHAIN_SELECT);
   ChainSelect(`REGISTER_SCAN_CHAIN, 8'h0e);  // {chain, crc}
@@ -288,11 +290,11 @@ begin
     #1000 WriteRegister(32'h0000000c, `RECSEL_ADR,   8'h0f);  // Two samples are selected for recording (RECSDATA and RECLDATA)
     #1000 WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
     #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
-    wait(dbg_tb.dbgTAP1.TraceEnable)
+    wait(dbg_tb.i_tap_top.TraceEnable)
     @ (posedge Mclk);
       #1 Bp = 1;                                                 // Set breakpoint
     repeat(8) @(posedge Mclk);
-    wait(dbg_tb.dbgTAP1.dbgTrace1.RiscStall)
+    wait(dbg_tb.i_tap_top.dbgTrace1.RiscStall)
       #1 Bp = 0;                                                 // Clear breakpoint
 // End: Anything starts trigger, breakpoint starts qualifier */
 
@@ -304,7 +306,7 @@ begin
     #1000 WriteRegister(32'h00000003, `RECSEL_ADR,   8'h0c);  // Two samples are selected for recording (RECPC and RECLSEA)
     #1000 WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
     #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
-    wait(dbg_tb.dbgTAP1.TraceEnable)
+    wait(dbg_tb.i_tap_top.TraceEnable)
     @ (posedge Mclk)
       Wp[4] = 1;                                              // Set watchpoint[4]
       LsStatus = 4'h5;                                        // LsStatus[0] and LsStatus[2] are active
@@ -426,13 +428,15 @@ task ChainSelect;
       GenClk(1);
     end
 
-    for(i=0; i<`CRC_LENGTH-1; i=i+1)
+//    for(i=0; i<`CRC_LENGTH-1; i=i+1)
+    for(i=0; i<`CRC_LENGTH; i=i+1)      // +1 because crc is 9 bit long
     begin
       P_TDI<=#Tp Crc[i];
       GenClk(1);
     end
 
-    P_TDI<=#Tp Crc[i]; // last shift
+//    P_TDI<=#Tp Crc[i]; // last shift
+    P_TDI<=#Tp 1'b0;     // Crc[i]; // last shift
     P_TMS<=#Tp 1;        // going out of shiftIR
     GenClk(1);
       P_TDI<=#Tp 'hz; // tri-state
@@ -453,8 +457,10 @@ task ReadIDCode;
 
     P_TDI<=#Tp 0;
     GenClk(31);
+
     P_TMS<=#Tp 1;        // going out of shiftIR
     GenClk(1);
+
       P_TDI<=#Tp 'hz; // tri-state
     GenClk(1);
     P_TMS<=#Tp 0;
@@ -510,13 +516,15 @@ task ReadRISCRegister;
       GenClk(1);
     end
 
-    for(i=0; i<`CRC_LENGTH-1; i=i+1)
+//    for(i=0; i<`CRC_LENGTH-1; i=i+1)
+    for(i=0; i<`CRC_LENGTH; i=i+1)      // crc is 9 bit long
     begin
       P_TDI<=#Tp Crc[i];     // Shifting CRC.
       GenClk(1);
     end
 
-    P_TDI<=#Tp Crc[i];   // Shifting last bit of CRC.
+//    P_TDI<=#Tp Crc[i];   // Shifting last bit of CRC.
+    P_TDI<=#Tp 1'b0;       // Crc[i];   // Shifting last bit of CRC.
     P_TMS<=#Tp 1;        // going out of shiftIR
     GenClk(1);
       P_TDI<=#Tp 'hz;   // Tristate TDI.
@@ -556,13 +564,15 @@ task WriteRISCRegister;
       GenClk(1);
     end
 
-    for(i=0; i<`CRC_LENGTH-1; i=i+1)
+//    for(i=0; i<`CRC_LENGTH-1; i=i+1)
+    for(i=0; i<`CRC_LENGTH; i=i+1)      // crc is 9 bit long
     begin
       P_TDI<=#Tp Crc[i];     // Shifting CRC
       GenClk(1);
     end
 
-    P_TDI<=#Tp Crc[i];        // shifting last bit of CRC
+//    P_TDI<=#Tp Crc[i];        // shifting last bit of CRC
+    P_TDI<=#Tp 1'b0;            // Crc[i];        // shifting last bit of CRC
     P_TMS<=#Tp 1;        // going out of shiftIR
     GenClk(1);
       P_TDI<=#Tp 'hz;        // tristate TDI
@@ -603,13 +613,15 @@ task ReadRegister;
       GenClk(1);
     end
 
-    for(i=0; i<`CRC_LENGTH-1; i=i+1)
+//    for(i=0; i<`CRC_LENGTH-1; i=i+1)
+    for(i=0; i<`CRC_LENGTH; i=i+1)      // crc is 9 bit long
     begin
       P_TDI<=#Tp Crc[i];     // Shifting CRC. CRC is not important in read cycle.
       GenClk(1);
     end
 
-    P_TDI<=#Tp Crc[i];     // Shifting last bit of CRC.
+//    P_TDI<=#Tp Crc[i];     // Shifting last bit of CRC.
+    P_TDI<=#Tp 1'b0;         // Crc[i];     // Shifting last bit of CRC.
     P_TMS<=#Tp 1;        // going out of shiftIR
     GenClk(1);
       P_TDI<=#Tp 'hz;     // Tri state TDI
@@ -650,13 +662,15 @@ task WriteRegister;
       GenClk(1);
     end
     
-    for(i=0; i<`CRC_LENGTH-1; i=i+1)
+//    for(i=0; i<`CRC_LENGTH-1; i=i+1)
+    for(i=0; i<`CRC_LENGTH; i=i+1)      // crc is 9 bit long
     begin
       P_TDI<=#Tp Crc[i];     // Shifting CRC
       GenClk(1);
     end
 
-    P_TDI<=#Tp Crc[i];   // Shifting last bit of CRC
+//    P_TDI<=#Tp Crc[i];   // Shifting last bit of CRC
+    P_TDI<=#Tp 1'b0;       // Crc[i];   // Shifting last bit of CRC
     P_TMS<=#Tp 1;        // going out of shiftIR
     GenClk(1);
       P_TDI<=#Tp 'hz;   // Tri state TDI
@@ -719,8 +733,8 @@ endtask
 `ifdef TRACE_ENABLED
 always @ (posedge Mclk)
 begin
-  if(dbg_tb.dbgTAP1.dbgTrace1.WriteSample)
-    $write("\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tWritten to Trace buffer: WritePointer=0x%x, Data=0x%x", dbg_tb.dbgTAP1.dbgTrace1.WritePointer, {dbg_tb.dbgTAP1.dbgTrace1.DataIn, 1'b0, dbg_tb.dbgTAP1.dbgTrace1.OpSelect[`OPSELECTWIDTH-1:0]});
+  if(dbg_tb.i_tap_top.dbgTrace1.WriteSample)
+    $write("\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tWritten to Trace buffer: WritePointer=0x%x, Data=0x%x", dbg_tb.i_tap_top.dbgTrace1.WritePointer, {dbg_tb.i_tap_top.dbgTrace1.DataIn, 1'b0, dbg_tb.i_tap_top.dbgTrace1.OpSelect[`OPSELECTWIDTH-1:0]});
 end
 `endif
 
@@ -729,13 +743,13 @@ end
 reg UpdateIR_q;
 always @ (posedge P_TCK)
 begin
-  UpdateIR_q<=#Tp dbg_tb.dbgTAP1.UpdateIR;
+  UpdateIR_q<=#Tp dbg_tb.i_tap_top.UpdateIR;
 end
 
 always @ (posedge P_TCK)
 begin
   if(UpdateIR_q)
-    case(dbg_tb.dbgTAP1.JTAG_IR[`IR_LENGTH-1:0])
+    case(dbg_tb.i_tap_top.JTAG_IR[`IR_LENGTH-1:0])
       `EXTEST         : $write("\n\tInstruction EXTEST");
       `SAMPLE_PRELOAD : $write("\n\tInstruction SAMPLE_PRELOAD");
       `IDCODE         : $write("\n\tInstruction IDCODE");
@@ -755,8 +769,8 @@ end
 // Print selected chain
 always @ (posedge P_TCK)
 begin
-  if(dbg_tb.dbgTAP1.CHAIN_SELECTSelected & dbg_tb.dbgTAP1.UpdateDR_q)
-    case(dbg_tb.dbgTAP1.Chain[`CHAIN_ID_LENGTH-1:0])
+  if(dbg_tb.i_tap_top.CHAIN_SELECTSelected & dbg_tb.i_tap_top.UpdateDR_q)
+    case(dbg_tb.i_tap_top.i_dbg_top.Chain[`CHAIN_ID_LENGTH-1:0])
       `GLOBAL_BS_CHAIN      : $write("\nChain GLOBAL_BS_CHAIN");
       `RISC_DEBUG_CHAIN     : $write("\nChain RISC_DEBUG_CHAIN");
       `RISC_TEST_CHAIN      : $write("\nChain RISC_TEST_CHAIN");
@@ -770,52 +784,52 @@ end
 // print RISC registers read/write
 always @ (posedge Mclk)
 begin
-  if(dbg_tb.dbgTAP1.RISCAccess & ~dbg_tb.dbgTAP1.RISCAccess_q & dbg_tb.dbgTAP1.RW)
-    $write("\n\t\tWrite to RISC Register (addr=0x%h, data=0x%h)", dbg_tb.dbgTAP1.ADDR[31:0], dbg_tb.dbgTAP1.DataOut[31:0]);
+  if(dbg_tb.i_tap_top.i_dbg_top.RISCAccess & ~dbg_tb.i_tap_top.i_dbg_top.RISCAccess_q & dbg_tb.i_tap_top.i_dbg_top.RW)
+    $write("\n\t\tWrite to RISC Register (addr=0x%h, data=0x%h)", dbg_tb.i_tap_top.i_dbg_top.ADDR[31:0], dbg_tb.i_tap_top.i_dbg_top.DataOut[31:0]);
   else
-  if(dbg_tb.dbgTAP1.RISCAccess_q & ~dbg_tb.dbgTAP1.RISCAccess_q2 & ~dbg_tb.dbgTAP1.RW)
-    $write("\n\t\tRead from RISC Register (addr=0x%h, data=0x%h)", dbg_tb.dbgTAP1.ADDR[31:0], dbg_tb.dbgTAP1.risc_data_i[31:0]);
+  if(dbg_tb.i_tap_top.i_dbg_top.RISCAccess_q & ~dbg_tb.i_tap_top.i_dbg_top.RISCAccess_q2 & ~dbg_tb.i_tap_top.i_dbg_top.RW)
+    $write("\n\t\tRead from RISC Register (addr=0x%h, data=0x%h)", dbg_tb.i_tap_top.i_dbg_top.ADDR[31:0], dbg_tb.i_tap_top.i_dbg_top.risc_data_i[31:0]);
 end
 
 
 // print registers read/write
 always @ (posedge Mclk)
 begin
-  if(dbg_tb.dbgTAP1.RegAccess_q & ~dbg_tb.dbgTAP1.RegAccess_q2)
+  if(dbg_tb.i_tap_top.i_dbg_top.RegAccess_q & ~dbg_tb.i_tap_top.i_dbg_top.RegAccess_q2)
     begin
-      if(dbg_tb.dbgTAP1.RW)
-        $write("\n\t\tWrite to Register (addr=0x%h, data=0x%h)", dbg_tb.dbgTAP1.ADDR[4:0], dbg_tb.dbgTAP1.DataOut[31:0]);
+      if(dbg_tb.i_tap_top.i_dbg_top.RW)
+        $write("\n\t\tWrite to Register (addr=0x%h, data=0x%h)", dbg_tb.i_tap_top.i_dbg_top.ADDR[4:0], dbg_tb.i_tap_top.i_dbg_top.DataOut[31:0]);
       else
-        $write("\n\t\tRead from Register (addr=0x%h, data=0x%h). This data will be shifted out on next read request.", dbg_tb.dbgTAP1.ADDR[4:0], dbg_tb.dbgTAP1.RegDataIn[31:0]);
+        $write("\n\t\tRead from Register (addr=0x%h, data=0x%h). This data will be shifted out on next read request.", dbg_tb.i_tap_top.i_dbg_top.ADDR[4:0], dbg_tb.i_tap_top.i_dbg_top.RegDataIn[31:0]);
     end
 end
 
 
 // print CRC error
 `ifdef TRACE_ENABLED
-  wire CRCErrorReport = ~(dbg_tb.dbgTAP1.CrcMatch & (dbg_tb.dbgTAP1.CHAIN_SELECTSelected | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.RegisterScanChain | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.RiscDebugScanChain | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.TraceTestScanChain | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.WishboneScanChain));
+  wire CRCErrorReport = ~(dbg_tb.i_tap_top.i_dbg_top.CrcMatch & (dbg_tb.i_tap_top.CHAIN_SELECTSelected | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.RegisterScanChain | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.RiscDebugScanChain | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.TraceTestScanChain | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.WishboneScanChain));
 `else  // TRACE_ENABLED not enabled
-  wire CRCErrorReport = ~(dbg_tb.dbgTAP1.CrcMatch & (dbg_tb.dbgTAP1.CHAIN_SELECTSelected | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.RegisterScanChain | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.RiscDebugScanChain | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.WishboneScanChain));
+  wire CRCErrorReport = ~(dbg_tb.i_tap_top.i_dbg_top.CrcMatch & (dbg_tb.i_tap_top.CHAIN_SELECTSelected | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.RegisterScanChain | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.RiscDebugScanChain | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.WishboneScanChain));
 `endif
 
 always @ (posedge P_TCK)
 begin
-  if(dbg_tb.dbgTAP1.UpdateDR & ~dbg_tb.dbgTAP1.IDCODESelected)
+  if(dbg_tb.i_tap_top.UpdateDR & ~dbg_tb.i_tap_top.IDCODESelected)
     begin
-      if(dbg_tb.dbgTAP1.CHAIN_SELECTSelected)
-        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.dbgTAP1.JTAG_DR_IN[11:4], dbg_tb.dbgTAP1.CalculatedCrcOut[`CRC_LENGTH-1:0]);
+      if(dbg_tb.i_tap_top.CHAIN_SELECTSelected)
+        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_tap_top.i_dbg_top.JTAG_DR_IN[11:4], dbg_tb.i_tap_top.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
       else
-      if(dbg_tb.dbgTAP1.RegisterScanChain & ~dbg_tb.dbgTAP1.CHAIN_SELECTSelected)
-        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.dbgTAP1.JTAG_DR_IN[45:38], dbg_tb.dbgTAP1.CalculatedCrcOut[`CRC_LENGTH-1:0]);
+      if(dbg_tb.i_tap_top.RegisterScanChain & ~dbg_tb.i_tap_top.CHAIN_SELECTSelected)
+        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_tap_top.i_dbg_top.JTAG_DR_IN[45:38], dbg_tb.i_tap_top.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
       else
-      if(dbg_tb.dbgTAP1.RiscDebugScanChain & ~dbg_tb.dbgTAP1.CHAIN_SELECTSelected)
-        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.dbgTAP1.JTAG_DR_IN[72:65], dbg_tb.dbgTAP1.CalculatedCrcOut[`CRC_LENGTH-1:0]);
-      if(dbg_tb.dbgTAP1.WishboneScanChain & ~dbg_tb.dbgTAP1.CHAIN_SELECTSelected)
-        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.dbgTAP1.JTAG_DR_IN[72:65], dbg_tb.dbgTAP1.CalculatedCrcOut[`CRC_LENGTH-1:0]);
+      if(dbg_tb.i_tap_top.RiscDebugScanChain & ~dbg_tb.i_tap_top.CHAIN_SELECTSelected)
+        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_tap_top.i_dbg_top.JTAG_DR_IN[72:65], dbg_tb.i_tap_top.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
+      if(dbg_tb.i_tap_top.WishboneScanChain & ~dbg_tb.i_tap_top.CHAIN_SELECTSelected)
+        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_tap_top.i_dbg_top.JTAG_DR_IN[72:65], dbg_tb.i_tap_top.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
 
       if(CRCErrorReport)
         begin
-          $write("\n\t\t\t\tCrc Error when receiving data (read or write) !!!  CrcIn should be: 0x%h\n", dbg_tb.dbgTAP1.CalculatedCrcIn);
+          $write("\n\t\t\t\tCrc Error when receiving data (read or write) !!!  CrcIn should be: 0x%h\n", dbg_tb.i_tap_top.i_dbg_top.CalculatedCrcIn);
           #1000 $stop;
         end
     end
@@ -826,12 +840,12 @@ end
 reg [31:0] TempData;
 always @ (posedge P_TCK)
 begin
-  if(dbg_tb.dbgTAP1.IDCODESelected)
+  if(dbg_tb.i_tap_top.IDCODESelected)
     begin
-      if(dbg_tb.dbgTAP1.ShiftDR)
-        TempData[31:0]<=#Tp {dbg_tb.dbgTAP1.TDOData, TempData[31:1]};
+      if(dbg_tb.i_tap_top.ShiftDR)
+        TempData[31:0]<=#Tp {dbg_tb.i_tap_top.TDOData, TempData[31:1]};
       else
-      if(dbg_tb.dbgTAP1.UpdateDR)
+      if(dbg_tb.i_tap_top.UpdateDR)
         $write("\n\t\tIDCode = 0x%h", TempData[31:0]);
     end
 end
@@ -841,12 +855,12 @@ end
 reg [47:0] TraceData;
 always @ (posedge P_TCK)
 begin
-  if(dbg_tb.dbgTAP1.DEBUGSelected & (dbg_tb.dbgTAP1.Chain==`TRACE_TEST_CHAIN))
+  if(dbg_tb.i_tap_top.DEBUGSelected & (dbg_tb.i_tap_top.i_dbg_top.Chain==`TRACE_TEST_CHAIN))
     begin
-      if(dbg_tb.dbgTAP1.ShiftDR)
-        TraceData[47:0]<=#Tp {dbg_tb.dbgTAP1.TDOData, TraceData[47:1]};
+      if(dbg_tb.i_tap_top.ShiftDR)
+        TraceData[47:0]<=#Tp {dbg_tb.i_tap_top.TDOData, TraceData[47:1]};
       else
-      if(dbg_tb.dbgTAP1.UpdateDR)
+      if(dbg_tb.i_tap_top.UpdateDR)
         $write("\n\t\TraceData = 0x%h + Crc = 0x%h", TraceData[39:0], TraceData[47:40]);
     end
 end

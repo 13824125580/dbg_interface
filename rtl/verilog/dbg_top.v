@@ -4,7 +4,7 @@
 ////                                                              ////
 ////                                                              ////
 ////  This file is part of the SoC/OpenRISC Development Interface ////
-////  http://www.opencores.org/cores/DebugInterface/              ////
+////  http://www.opencores.org/projects/DebugInterface/           ////
 ////                                                              ////
 ////                                                              ////
 ////  Author(s):                                                  ////
@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.20  2002/02/06 12:23:09  mohor
+// LatchedJTAG_IR used when muxing TDO instead of JTAG_IR.
+//
 // Revision 1.19  2002/02/05 13:34:51  mohor
 // Stupid bug that was entered by previous update fixed.
 //
@@ -124,11 +127,6 @@
 
 // Top module
 module dbg_top(
-                // JTAG pins
-                tms_pad_i, tck_pad_i, trst_pad_i, tdi_pad_i, tdo_pad_o, tdo_padoen_o,
-
-                // Boundary Scan signals
-                capture_dr_o, shift_dr_o, update_dr_o, extest_selected_o, bs_chain_i, bs_chain_o, 
                 
                 // RISC signals
                 risc_clk_i, risc_addr_o, risc_data_i, risc_data_o, wp_i, 
@@ -139,29 +137,23 @@ module dbg_top(
 
                 // WISHBONE master interface
                 wb_adr_o, wb_dat_o, wb_dat_i, wb_cyc_o, wb_stb_o, wb_sel_o,
-                wb_we_o, wb_ack_i, wb_cab_o, wb_err_i
+                wb_we_o, wb_ack_i, wb_cab_o, wb_err_i, 
 
-
+                // TAP states
+                ShiftDR, Exit1DR, UpdateDR, UpdateDR_q, 
+                
+                // Instructions
+                IDCODESelected, CHAIN_SELECTSelected, DEBUGSelected, 
+                
+                // TAP signals
+                trst, tck, tdi, TDOData, 
+                
+                BypassRegister
+                
               );
 
 parameter Tp = 1;
 
-// JTAG pins
-input         tms_pad_i;                  // JTAG test mode select pad
-input         tck_pad_i;                  // JTAG test clock pad
-input         trst_pad_i;                 // JTAG test reset pad
-input         tdi_pad_i;                  // JTAG test data input pad
-output        tdo_pad_o;                  // JTAG test data output pad
-output        tdo_padoen_o;               // Output enable for JTAG test data output pad 
-
-
-// Boundary Scan signals
-output capture_dr_o;
-output shift_dr_o;
-output update_dr_o;
-output extest_selected_o;
-input  bs_chain_i;
-output bs_chain_o;
 
 // RISC signals
 input         risc_clk_i;                 // Master clock (RISC clock)
@@ -193,69 +185,50 @@ input         wb_ack_i;
 output        wb_cab_o;
 input         wb_err_i;
 
-reg           wb_cyc_o;
-
 // TAP states
-reg TestLogicReset;
-reg RunTestIdle;
-reg SelectDRScan;
-reg CaptureDR;
-reg ShiftDR;
-reg Exit1DR;
-reg PauseDR;
-reg Exit2DR;
-reg UpdateDR;
+input         ShiftDR;
+input         Exit1DR;
+input         UpdateDR;
+input         UpdateDR_q;
 
-reg SelectIRScan;
-reg CaptureIR;
-reg ShiftIR;
-reg Exit1IR;
-reg PauseIR;
-reg Exit2IR;
-reg UpdateIR;
+input trst;
+input tck;
+input tdi;
+
+input BypassRegister;
+
+output TDOData;
 
 
 // Defining which instruction is selected
-reg EXTESTSelected;
-reg SAMPLE_PRELOADSelected;
-reg IDCODESelected;
-reg CHAIN_SELECTSelected;
-reg INTESTSelected;
-reg CLAMPSelected;
-reg CLAMPZSelected;
-reg HIGHZSelected;
-reg DEBUGSelected;
-reg BYPASSSelected;
+input         IDCODESelected;
+input         CHAIN_SELECTSelected;
+input         DEBUGSelected;
 
-reg [31:0]  ADDR;
-reg [31:0]  DataOut;
+reg           wb_cyc_o;
 
-reg [`OPSELECTWIDTH-1:0] opselect_o;      // Operation selection (selecting what kind of data is set to the risc_data_i)
+reg [31:0]    ADDR;
+reg [31:0]    DataOut;
 
-reg [`CHAIN_ID_LENGTH-1:0] Chain;         // Selected chain
-reg [31:0]  DataReadLatch;                // Data when reading register or RISC is latched one risc_clk_i clock after the data is read.
-reg         RegAccessTck;                 // Indicates access to the registers (read or write)
-reg         RISCAccessTck;                // Indicates access to the RISC (read or write)
-reg [7:0]   BitCounter;                   // Counting bits in the ShiftDR and Exit1DR stages
-reg         RW;                           // Read/Write bit
-reg         CrcMatch;                     // The crc that is shifted in and the internaly calculated crc are equal
+reg [`OPSELECTWIDTH-1:0] opselect_o;        // Operation selection (selecting what kind of data is set to the risc_data_i)
 
-reg         RegAccess_q;                  // Delayed signals used for accessing the registers
-reg         RegAccess_q2;                 // Delayed signals used for accessing the registers
-reg         RISCAccess_q;                 // Delayed signals used for accessing the RISC
-reg         RISCAccess_q2;                // Delayed signals used for accessing the RISC
+reg [`CHAIN_ID_LENGTH-1:0] Chain;           // Selected chain
+reg [31:0]    DataReadLatch;                // Data when reading register or RISC is latched one risc_clk_i clock after the data is read.
+reg           RegAccessTck;                 // Indicates access to the registers (read or write)
+reg           RISCAccessTck;                // Indicates access to the RISC (read or write)
+reg [7:0]     BitCounter;                   // Counting bits in the ShiftDR and Exit1DR stages
+reg           RW;                           // Read/Write bit
+reg           CrcMatch;                     // The crc that is shifted in and the internaly calculated crc are equal
 
-reg         wb_AccessTck;                 // Indicates access to the WISHBONE
-reg [31:0]  WBReadLatch;                  // Data latched during WISHBONE read
-reg         WBErrorLatch;                 // Error latched during WISHBONE read
-wire        trst;                         // trst is active high while trst_pad_i is active low
+reg           RegAccess_q;                  // Delayed signals used for accessing the registers
+reg           RegAccess_q2;                 // Delayed signals used for accessing the registers
+reg           RISCAccess_q;                 // Delayed signals used for accessing the RISC
+reg           RISCAccess_q2;                // Delayed signals used for accessing the RISC
 
-reg         BypassRegister;               // Bypass register
+reg           wb_AccessTck;                 // Indicates access to the WISHBONE
+reg [31:0]    WBReadLatch;                  // Data latched during WISHBONE read
+reg           WBErrorLatch;                 // Error latched during WISHBONE read
 
-
-wire TCK = tck_pad_i;
-wire TMS = tms_pad_i;
-wire TDI = tdi_pad_i;
 
 wire [31:0]             RegDataIn;        // Data from registers (read data)
 wire [`CRC_LENGTH-1:0]  CalculatedCrcOut; // CRC calculated in this module. This CRC is apended at the end of the TDO.
@@ -279,18 +252,12 @@ wire BitCounter_Eq32;
 wire BitCounter_Lt38;
 wire BitCounter_Lt65;
 
-assign capture_dr_o       = CaptureDR;
-assign shift_dr_o         = ShiftDR;
-assign update_dr_o        = UpdateDR;
-assign extest_selected_o  = EXTESTSelected;
-wire   BS_CHAIN_I         = bs_chain_i;
-assign bs_chain_o         = tdi_pad_i;
 
 
 // This signals are used only when TRACE is used in the design
 `ifdef TRACE_ENABLED
   wire [39:0] TraceChain;                 // Chain that comes from trace module
-  reg  ReadBuffer_Tck;                    // Command for incrementing the trace read pointer (synchr with TCK)
+  reg  ReadBuffer_Tck;                    // Command for incrementing the trace read pointer (synchr with tck)
   wire ReadTraceBuffer;                   // Command for incrementing the trace read pointer (synchr with MClk)
   reg  ReadTraceBuffer_q;                 // Delayed command for incrementing the trace read pointer (synchr with MClk)
   wire ReadTraceBufferPulse;              // Pulse for reading the trace buffer (valid for only one Mclk command)
@@ -352,306 +319,10 @@ assign bs_chain_o         = tdi_pad_i;
 `endif
 
 
-/**********************************************************************************
-*                                                                                 *
-*   Synchronizing TRST to clock signal                                            *
-*                                                                                 *
-**********************************************************************************/
-assign trst = ~trst_pad_i;                // trst_pad_i is active low
-
-
-/**********************************************************************************
-*                                                                                 *
-*   TAP State Machine: Fully JTAG compliant                                       *
-*                                                                                 *
-**********************************************************************************/
-
-// TestLogicReset state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    TestLogicReset<=#Tp 1;
-  else
-    begin
-      if(TMS & (TestLogicReset | SelectIRScan))
-        TestLogicReset<=#Tp 1;
-      else
-        TestLogicReset<=#Tp 0;
-    end
-end
-
-// RunTestIdle state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    RunTestIdle<=#Tp 0;
-  else
-    begin
-      if(~TMS & (TestLogicReset | RunTestIdle | UpdateDR | UpdateIR))
-        RunTestIdle<=#Tp 1;
-      else
-        RunTestIdle<=#Tp 0;
-    end
-end
-
-// SelectDRScan state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    SelectDRScan<=#Tp 0;
-  else
-    begin
-      if(TMS & (RunTestIdle | UpdateDR | UpdateIR))
-        SelectDRScan<=#Tp 1;
-      else
-        SelectDRScan<=#Tp 0;
-    end
-end
-
-// CaptureDR state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    CaptureDR<=#Tp 0;
-  else
-    begin
-      if(~TMS & SelectDRScan)
-        CaptureDR<=#Tp 1;
-      else
-        CaptureDR<=#Tp 0;
-    end
-end
-
-// ShiftDR state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    ShiftDR<=#Tp 0;
-  else
-    begin
-      if(~TMS & (CaptureDR | ShiftDR | Exit2DR))
-        ShiftDR<=#Tp 1;
-      else
-        ShiftDR<=#Tp 0;
-    end
-end
-
-// Exit1DR state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    Exit1DR<=#Tp 0;
-  else
-    begin
-      if(TMS & (CaptureDR | ShiftDR))
-        Exit1DR<=#Tp 1;
-      else
-        Exit1DR<=#Tp 0;
-    end
-end
-
-// PauseDR state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    PauseDR<=#Tp 0;
-  else
-    begin
-      if(~TMS & (Exit1DR | PauseDR))
-        PauseDR<=#Tp 1;
-      else
-        PauseDR<=#Tp 0;
-    end
-end
-
-// Exit2DR state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    Exit2DR<=#Tp 0;
-  else
-    begin
-      if(TMS & PauseDR)
-        Exit2DR<=#Tp 1;
-      else
-        Exit2DR<=#Tp 0;
-    end
-end
-
-// UpdateDR state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    UpdateDR<=#Tp 0;
-  else
-    begin
-      if(TMS & (Exit1DR | Exit2DR))
-        UpdateDR<=#Tp 1;
-      else
-        UpdateDR<=#Tp 0;
-    end
-end
-
-// Delayed UpdateDR state
-reg UpdateDR_q;
-always @ (posedge TCK)
-begin
-  UpdateDR_q<=#Tp UpdateDR;
-end
-
-
-// SelectIRScan state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    SelectIRScan<=#Tp 0;
-  else
-    begin
-      if(TMS & SelectDRScan)
-        SelectIRScan<=#Tp 1;
-      else
-        SelectIRScan<=#Tp 0;
-    end
-end
-
-// CaptureIR state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    CaptureIR<=#Tp 0;
-  else
-    begin
-      if(~TMS & SelectIRScan)
-        CaptureIR<=#Tp 1;
-      else
-        CaptureIR<=#Tp 0;
-    end
-end
-
-// ShiftIR state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    ShiftIR<=#Tp 0;
-  else
-    begin
-      if(~TMS & (CaptureIR | ShiftIR | Exit2IR))
-        ShiftIR<=#Tp 1;
-      else
-        ShiftIR<=#Tp 0;
-    end
-end
-
-// Exit1IR state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    Exit1IR<=#Tp 0;
-  else
-    begin
-      if(TMS & (CaptureIR | ShiftIR))
-        Exit1IR<=#Tp 1;
-      else
-        Exit1IR<=#Tp 0;
-    end
-end
-
-// PauseIR state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    PauseIR<=#Tp 0;
-  else
-    begin
-      if(~TMS & (Exit1IR | PauseIR))
-        PauseIR<=#Tp 1;
-      else
-        PauseIR<=#Tp 0;
-    end
-end
-
-// Exit2IR state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    Exit2IR<=#Tp 0;
-  else
-    begin
-      if(TMS & PauseIR)
-        Exit2IR<=#Tp 1;
-      else
-        Exit2IR<=#Tp 0;
-    end
-end
-
-// UpdateIR state
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    UpdateIR<=#Tp 0;
-  else
-    begin
-      if(TMS & (Exit1IR | Exit2IR))
-        UpdateIR<=#Tp 1;
-      else
-        UpdateIR<=#Tp 0;
-    end
-end
-
-/**********************************************************************************
-*                                                                                 *
-*   End: TAP State Machine                                                        *
-*                                                                                 *
-**********************************************************************************/
 
 
 
-/**********************************************************************************
-*                                                                                 *
-*   JTAG_IR:  JTAG Instruction Register                                           *
-*                                                                                 *
-**********************************************************************************/
-wire [1:0]Status = 2'b10;     // Holds current chip status. Core should return this status. For now a constant is used.
 
-reg [`IR_LENGTH-1:0]JTAG_IR;  // Instruction register
-reg [`IR_LENGTH-1:0]LatchedJTAG_IR;
-
-reg TDOInstruction;
-
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    JTAG_IR[`IR_LENGTH-1:0] <= #Tp 0;
-  else
-    begin
-      if(CaptureIR)
-        begin
-          JTAG_IR[1:0] <= #Tp 2'b01;       // This value is fixed for easier fault detection
-          JTAG_IR[3:2] <= #Tp Status[1:0]; // Current status of chip
-        end
-      else
-        begin
-          if(ShiftIR)
-            begin
-              JTAG_IR[`IR_LENGTH-1:0] <= #Tp {TDI, JTAG_IR[`IR_LENGTH-1:1]};
-            end
-        end
-    end
-end
-
-
-//TDO is changing on the falling edge of TCK
-always @ (negedge TCK)
-begin
-  if(ShiftIR)
-    TDOInstruction <= #Tp JTAG_IR[0];
-end
-
-/**********************************************************************************
-*                                                                                 *
-*   End: JTAG_IR                                                                  *
-*                                                                                 *
-**********************************************************************************/
 
 
 /**********************************************************************************
@@ -663,7 +334,7 @@ reg [`DR_LENGTH-1:0]JTAG_DR_IN;    // Data register
 reg TDOData;
 
 
-always @ (posedge TCK or posedge trst)
+always @ (posedge tck or posedge trst)
 begin
   if(trst)
     JTAG_DR_IN[`DR_LENGTH-1:0]<=#Tp 0;
@@ -671,21 +342,21 @@ begin
   if(IDCODESelected)                          // To save space JTAG_DR_IN is also used for shifting out IDCODE
     begin
       if(ShiftDR)
-        JTAG_DR_IN[31:0] <= #Tp {TDI, JTAG_DR_IN[31:1]};
+        JTAG_DR_IN[31:0] <= #Tp {tdi, JTAG_DR_IN[31:1]};
       else
         JTAG_DR_IN[31:0] <= #Tp `IDCODE_VALUE;
     end
   else
   if(CHAIN_SELECTSelected & ShiftDR)
-    JTAG_DR_IN[12:0] <= #Tp {TDI, JTAG_DR_IN[12:1]};
+    JTAG_DR_IN[12:0] <= #Tp {tdi, JTAG_DR_IN[12:1]};
   else
   if(DEBUGSelected & ShiftDR)
     begin
       if(RiscDebugScanChain | WishboneScanChain)
-        JTAG_DR_IN[73:0] <= #Tp {TDI, JTAG_DR_IN[73:1]};
+        JTAG_DR_IN[73:0] <= #Tp {tdi, JTAG_DR_IN[73:1]};
       else
       if(RegisterScanChain)
-        JTAG_DR_IN[46:0] <= #Tp {TDI, JTAG_DR_IN[46:1]};
+        JTAG_DR_IN[46:0] <= #Tp {tdi, JTAG_DR_IN[46:1]};
     end
 end
  
@@ -697,7 +368,7 @@ wire wb_Access_wbClk;
 
 
 reg select_crc_out;
-always @ (posedge TCK or posedge trst)
+always @ (posedge tck or posedge trst)
 begin
   if(trst)
     select_crc_out <= 0;
@@ -705,7 +376,7 @@ begin
   if( RegisterScanChain  & BitCounter_Eq5  |
       RiscDebugScanChain & BitCounter_Eq32 |
       WishboneScanChain  & BitCounter_Eq32 )
-    select_crc_out <=#Tp TDI;
+    select_crc_out <=#Tp tdi;
   else
   if(CHAIN_SELECTSelected)
     select_crc_out <=#Tp 1;
@@ -729,8 +400,8 @@ assign chain_sel_data = {send_crc, 4'h0};
   assign Trace_Data     = {CalculatedCrcOut, TraceChain};
 `endif
 
-//TDO is changing on the falling edge of TCK
-always @ (negedge TCK or posedge trst)
+//TDO is changing on the falling edge of tck
+always @ (negedge tck or posedge trst)
 begin
   if(trst)
     begin
@@ -753,7 +424,7 @@ begin
       if(ShiftDR)
         begin
           if(IDCODESelected)
-            TDOData <= #Tp JTAG_DR_IN[0]; // IDCODE is shifted out 32-bits, then TDI is bypassed
+            TDOData <= #Tp JTAG_DR_IN[0]; // IDCODE is shifted out 32-bits, then tdi is bypassed
           else
           if(CHAIN_SELECTSelected)
             TDOData <= #Tp chain_sel_data[BitCounter];        // Received crc is sent back
@@ -798,7 +469,7 @@ end
 *   CHAIN_SELECT logic                                                            *
 *                                                                                 *
 **********************************************************************************/
-always @ (posedge TCK or posedge trst)
+always @ (posedge tck or posedge trst)
 begin
   if(trst)
     Chain[`CHAIN_ID_LENGTH-1:0]<=#Tp `GLOBAL_BS_CHAIN;  // Global BS chain is selected after reset
@@ -815,7 +486,7 @@ end
 *   RISC registers read/write logic                                               *
 *                                                                                 *
 **********************************************************************************/
-always @ (posedge TCK or posedge trst)
+always @ (posedge tck or posedge trst)
 begin
   if(trst)
     begin
@@ -855,7 +526,7 @@ begin
     end
   else
     begin
-      RegAccessTck      <=#Tp 1'b0;       // This signals are valid for one TCK clock period only
+      RegAccessTck      <=#Tp 1'b0;       // This signals are valid for one tck clock period only
       RISCAccessTck     <=#Tp 1'b0;
       wb_AccessTck      <=#Tp 1'b0;
     end
@@ -870,18 +541,18 @@ assign wb_cab_o = 1'b0;
    
    
 // Synchronizing the RegAccess signal to risc_clk_i clock
-dbg_sync_clk1_clk2 syn1 (.clk1(risc_clk_i),   .clk2(TCK),           .reset1(wb_rst_i),  .reset2(trst), 
+dbg_sync_clk1_clk2 syn1 (.clk1(risc_clk_i),   .clk2(tck),           .reset1(wb_rst_i),  .reset2(trst), 
                          .set2(RegAccessTck), .sync_out(RegAccess)
                         );
 
 // Synchronizing the RISCAccess signal to risc_clk_i clock
-dbg_sync_clk1_clk2 syn2 (.clk1(risc_clk_i),    .clk2(TCK),          .reset1(wb_rst_i),  .reset2(trst), 
+dbg_sync_clk1_clk2 syn2 (.clk1(risc_clk_i),    .clk2(tck),          .reset1(wb_rst_i),  .reset2(trst), 
                          .set2(RISCAccessTck), .sync_out(RISCAccess)
                         );
 
 
 // Synchronizing the wb_Access signal to wishbone clock
-dbg_sync_clk1_clk2 syn3 (.clk1(wb_clk_i),     .clk2(TCK),           .reset1(wb_rst_i),  .reset2(trst), 
+dbg_sync_clk1_clk2 syn3 (.clk1(wb_clk_i),     .clk2(tck),           .reset1(wb_rst_i),  .reset2(trst), 
                          .set2(wb_AccessTck), .sync_out(wb_Access_wbClk)
                         );
 
@@ -1020,7 +691,7 @@ assign risc_data_o = DataOut;
   
 
 // Synchronizing the trace read buffer signal to risc_clk_i clock
-dbg_sync_clk1_clk2 syn4 (.clk1(risc_clk_i),     .clk2(TCK),           .reset1(wb_rst_i),  .reset2(trst), 
+dbg_sync_clk1_clk2 syn4 (.clk1(risc_clk_i),     .clk2(tck),           .reset1(wb_rst_i),  .reset2(trst), 
                          .set2(ReadBuffer_Tck), .sync_out(ReadTraceBuffer)
                         );
 
@@ -1045,139 +716,8 @@ dbg_sync_clk1_clk2 syn4 (.clk1(risc_clk_i),     .clk2(TCK),           .reset1(wb
 **********************************************************************************/
 
 
-/**********************************************************************************
-*                                                                                 *
-*   Bypass logic                                                                  *
-*                                                                                 *
-**********************************************************************************/
-reg TDOBypassed;
-
-always @ (posedge TCK)
-begin
-  if(ShiftDR)
-    BypassRegister<=#Tp TDI;
-end
-
-always @ (negedge TCK)
-begin
-    TDOBypassed<=#Tp BypassRegister;
-end
-/**********************************************************************************
-*                                                                                 *
-*   End: Bypass logic                                                             *
-*                                                                                 *
-**********************************************************************************/
 
 
-
-
-
-/**********************************************************************************
-*                                                                                 *
-*   Activating Instructions                                                       *
-*                                                                                 *
-**********************************************************************************/
-
-// Updating JTAG_IR (Instruction Register)
-always @ (posedge TCK or posedge trst)
-begin
-  if(trst)
-    LatchedJTAG_IR <=#Tp `IDCODE;   // IDCODE selected after reset
-  else
-  if(UpdateIR)
-    LatchedJTAG_IR <=#Tp JTAG_IR;
-end
-
-
-
-// Updating JTAG_IR (Instruction Register)
-always @ (LatchedJTAG_IR)
-begin
-  EXTESTSelected          = 0;
-  SAMPLE_PRELOADSelected  = 0;
-  IDCODESelected          = 0;
-  CHAIN_SELECTSelected    = 0;
-  INTESTSelected          = 0;
-  CLAMPSelected           = 0;
-  CLAMPZSelected          = 0;
-  HIGHZSelected           = 0;
-  DEBUGSelected           = 0;
-  BYPASSSelected          = 0;
-
-  case(LatchedJTAG_IR)
-    `EXTEST:            EXTESTSelected          = 1;    // External test
-    `SAMPLE_PRELOAD:    SAMPLE_PRELOADSelected  = 1;    // Sample preload
-    `IDCODE:            IDCODESelected          = 1;    // ID Code
-    `CHAIN_SELECT:      CHAIN_SELECTSelected    = 1;    // Chain select
-    `INTEST:            INTESTSelected          = 1;    // Internal test
-    `CLAMP:             CLAMPSelected           = 1;    // Clamp
-    `CLAMPZ:            CLAMPZSelected          = 1;    // ClampZ
-    `HIGHZ:             HIGHZSelected           = 1;    // High Z
-    `DEBUG:             DEBUGSelected           = 1;    // Debug
-    `BYPASS:            BYPASSSelected          = 1;    // BYPASS
-    default:            BYPASSSelected          = 1;    // BYPASS
-  endcase
-end
-
-
-/**********************************************************************************
-*                                                                                 *
-*   Multiplexing TDO and Tristate control                                         *
-*                                                                                 *
-**********************************************************************************/
-wire TDOShifted;
-assign TDOShifted = (ShiftIR | Exit1IR)? TDOInstruction : TDOData;
-/**********************************************************************************
-*                                                                                 *
-*   End:  Multiplexing TDO and Tristate control                                   *
-*                                                                                 *
-**********************************************************************************/
-
-
-
-// This multiplexer can be expanded with number of user registers
-reg TDOMuxed;
-//always @ (JTAG_IR or TDOShifted or TDOBypassed or BS_CHAIN_I)
-always @ (LatchedJTAG_IR or TDOShifted or TDOBypassed or BS_CHAIN_I)
-begin
-  case(JTAG_IR)
-    `IDCODE: // Reading ID code
-      begin
-        TDOMuxed<=#Tp TDOShifted;
-      end
-    `CHAIN_SELECT: // Selecting the chain
-      begin
-        TDOMuxed<=#Tp TDOShifted;
-      end
-    `DEBUG: // Debug
-      begin
-        TDOMuxed<=#Tp TDOShifted;
-      end
-    `SAMPLE_PRELOAD:  // Sampling/Preloading
-      begin
-        TDOMuxed<=#Tp BS_CHAIN_I;
-      end
-    `EXTEST:  // External test
-      begin
-        TDOMuxed<=#Tp BS_CHAIN_I;
-      end
-    default:  // BYPASS instruction
-      begin
-        TDOMuxed<=#Tp TDOBypassed;
-      end
-  endcase
-end
-
-// Tristate control for tdo_pad_o pin
-//assign tdo_pad_o = (ShiftIR | ShiftDR | Exit1IR | Exit1DR | UpdateDR)? TDOMuxed : 1'bz;
-assign tdo_pad_o = TDOMuxed;
-assign tdo_padoen_o = ShiftIR | ShiftDR | Exit1IR | Exit1DR | UpdateDR;
-
-/**********************************************************************************
-*                                                                                 *
-*   End: Activating Instructions                                                  *
-*                                                                                 *
-**********************************************************************************/
 
 /**********************************************************************************
 *                                                                                 *
@@ -1186,7 +726,7 @@ assign tdo_padoen_o = ShiftIR | ShiftDR | Exit1IR | Exit1DR | UpdateDR;
 **********************************************************************************/
 
 
-always @ (posedge TCK or posedge trst)
+always @ (posedge tck or posedge trst)
 begin
   if(trst)
     BitCounter[7:0]<=#Tp 0;
@@ -1284,16 +824,16 @@ wire EnableCrcOut= ShiftDR &
                    );
 
 // Calculating crc for input data
-dbg_crc8_d1 crc1 (.Data(TDI), .EnableCrc(EnableCrcIn), .Reset(AsyncResetCrc), .SyncResetCrc(SyncResetCrc), 
-                  .CrcOut(CalculatedCrcIn), .Clk(TCK));
+dbg_crc8_d1 crc1 (.Data(tdi), .EnableCrc(EnableCrcIn), .Reset(AsyncResetCrc), .SyncResetCrc(SyncResetCrc), 
+                  .CrcOut(CalculatedCrcIn), .Clk(tck));
 
 // Calculating crc for output data
 dbg_crc8_d1 crc2 (.Data(TDOData), .EnableCrc(EnableCrcOut), .Reset(AsyncResetCrc), .SyncResetCrc(SyncResetCrc), 
-                  .CrcOut(CalculatedCrcOut), .Clk(TCK));
+                  .CrcOut(CalculatedCrcOut), .Clk(tck));
 
 
 // Generating CrcMatch signal
-always @ (posedge TCK or posedge trst)
+always @ (posedge tck or posedge trst)
 begin
   if(trst)
     CrcMatch <=#Tp 1'b0;
