@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.23  2002/04/17 11:16:33  mohor
+// A block for checking possible simulation/synthesis missmatch added.
+//
 // Revision 1.22  2002/03/12 10:31:53  mohor
 // tap_top and dbg_top modules are put into two separate modules. tap_top
 // contains only tap state machine and related logic. dbg_top contains all
@@ -481,7 +484,7 @@ begin
           $stop;
         end
       else
-      if(RegisterScanChain & BitCounter > 45)
+      if(RegisterScanChain & BitCounter > 46)
         begin
           $display("\n%m Error: BitCounter is bigger then RISC_Data bits width[46:0]. BitCounter=%d\n",BitCounter);
           $stop;
