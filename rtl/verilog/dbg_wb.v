@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2004/01/08 17:53:36  mohor
+// tmp version.
+//
 // Revision 1.6  2004/01/07 11:58:56  mohor
 // temp4 version.
 //
@@ -135,7 +138,6 @@ reg    [31:0] wb_adr_o;
 reg    [31:0] wb_dat_o;
 reg     [3:0] wb_sel_o;
 
-reg     [3:0] wb_sel_old;
 reg           tdo_o;
 
 reg    [50:0] dr;
@@ -161,7 +163,7 @@ reg           status_reset_en;
 
 reg           crc_match_reg;
 
-reg [2:0]  cmd, cmd_old;
+reg [2:0]  cmd, cmd_old, dr_cmd_latched;
 reg [31:0] adr;
 reg [15:0] len;
 reg start_rd_tck;
@@ -181,10 +183,10 @@ wire status_cnt_end;
 
 wire byte, half, long;
 reg  byte_q, half_q, long_q;
-wire cmd_read;
-wire cmd_write;
-wire cmd_go;
-wire cmd_old_read;
+reg  cmd_read;
+reg  cmd_write;
+reg  cmd_go;
+reg  cmd_old_read;
 
 reg  status_cnt1, status_cnt2, status_cnt3, status_cnt4;
 
@@ -208,7 +210,7 @@ begin
       case (cmd_old)  // synthesis parallel_case full_case
         `WB_READ8 : begin
                       if(byte & (~byte_q))
-                        dr[31:24] <= #1 input_data[]; mama
+                        dr[31:24] <= #1 input_data[];
                       else
                         dr <= #1 dr<<1;
                     end
@@ -285,50 +287,39 @@ end
 
 
 
-assign cmd_read = (cmd == `WB_READ8) | (cmd == `WB_READ16) | (cmd == `WB_READ32);
-assign cmd_write = (cmd == `WB_WRITE8) | (cmd == `WB_WRITE16) | (cmd == `WB_WRITE32);
-assign cmd_go = cmd == `WB_GO;
-assign cmd_old_read = (cmd_old == `WB_READ8) | (cmd_old == `WB_READ16) | (cmd_old == `WB_READ32);
+//assign cmd_read = (cmd == `WB_READ8) | (cmd == `WB_READ16) | (cmd == `WB_READ32);
+//assign cmd_write = (cmd == `WB_WRITE8) | (cmd == `WB_WRITE16) | (cmd == `WB_WRITE32);
+//assign cmd_go = cmd == `WB_GO;
+//assign cmd_old_read = (cmd_old == `WB_READ8) | (cmd_old == `WB_READ16) | (cmd_old == `WB_READ32);
 
 
 wire dr_read;
 wire dr_write;
 wire dr_go;
-wire dr_status;
 
 assign dr_read = (dr[2:0] == `WB_READ8) | (dr[2:0] == `WB_READ16) | (dr[2:0] == `WB_READ32);
 assign dr_write = (dr[2:0] == `WB_WRITE8) | (dr[2:0] == `WB_WRITE16) | (dr[2:0] == `WB_WRITE32);
 assign dr_go = dr[2:0] == `WB_GO;
-assign dr_status = dr[2:0] == `WB_STATUS;
 
 
 always @ (posedge tck_i)
 begin
   if (update_dr_i)
-    dr_read_latched  <= #1 1'b0;
+    begin
+      dr_cmd_latched = 3'h0;
+      dr_read_latched  <= #1 1'b0;
+      dr_write_latched  <= #1 1'b0;
+      dr_go_latched  <= #1 1'b0;
+    end
   else if (cmd_cnt_end & (~cmd_cnt_end_q))
-    dr_read_latched <= #1 dr_read;
+    begin
+      dr_cmd_latched = dr[2:0];
+      dr_read_latched <= #1 dr_read;
+      dr_write_latched <= #1 dr_write;
+      dr_go_latched <= #1 dr_go;
+    end
 end
 
-
-always @ (posedge tck_i)
-begin
-  if (update_dr_i)
-    dr_write_latched  <= #1 1'b0;
-  else if (cmd_cnt_end & (~cmd_cnt_end_q))
-    dr_write_latched <= #1 dr_write;
-end
-
-
-always @ (posedge tck_i)
-begin
-  if (update_dr_i)
-    dr_go_latched  <= #1 1'b0;
-  else if (cmd_cnt_end & (~cmd_cnt_end_q))
-    dr_go_latched <= #1 dr_go;
-end
-                                                                                                                                                                                    
-                                                                                                                                                                                    
 
 always @ (posedge tck_i)
 begin
@@ -503,7 +494,7 @@ begin
     crc_match_reg <= #1 crc_match_i;
 end
 
-
+/*
 always @ (posedge tck_i or posedge trst_i)
 begin
   if (trst_i)
@@ -519,6 +510,29 @@ begin
         cmd <= #1 dr[2:0];
 
       cmd_old <= #1 cmd;
+    end
+end
+*/
+
+always @ (posedge tck_i or posedge trst_i)
+begin
+  if (trst_i)
+    begin
+      cmd <= #1 'h0;
+      cmd_old <= #1 'h0;
+      cmd_read <= #1 1'b0; 
+      cmd_write <= #1 1'b0; 
+      cmd_go <= #1 1'b0;
+      cmd_old_read <= #1 1'b0; 
+    end
+  else if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i)
+    begin
+      cmd <= #1 dr_cmd_latched;
+      cmd_old <= #1 cmd;
+      cmd_read <= #1 dr_read_latched;
+      cmd_write <= #1 dr_write_latched;
+      cmd_go <= #1 dr_go_latched;
+      cmd_old_read <= #1 cmd_read;
     end
 end
 
@@ -542,7 +556,8 @@ end
 // Start wishbone read cycle
 always @ (posedge tck_i)
 begin
-  if (set_addr & dr_read_latched)
+//  if (set_addr & dr_read_latched)
+  if (cmd_cnt_end & (~cmd_cnt_end_q) & cmd_read & dr_go)
     start_rd_tck <= #1 1'b1;
   else if (cmd_old_read & cmd_go & crc_cnt_end_q & (~data_cnt_end))
     begin
@@ -676,10 +691,8 @@ end
 always @ (posedge wb_clk_i or posedge wb_rst_i)
 begin
   if (wb_rst_i)
-    begin
-      wb_sel_o[3:0] <= #1 4'h0;
-    end
-  else
+    wb_sel_o[3:0] <= #1 4'h0;
+  else if (cmd_write & dr_go_latched | cmd_read)   // write or first read
     begin
       wb_sel_o[0] <= #1 (cmd[1:0] == 2'b11) & (wb_adr_o[1:0] == 2'b00) | (cmd[1:0] == 2'b01) & (wb_adr_o[1:0] == 2'b11) | 
                         (cmd[1:0] == 2'b10) & (wb_adr_o[1:0] == 2'b10);
@@ -687,19 +700,18 @@ begin
       wb_sel_o[2] <= #1 (cmd[1]) & (wb_adr_o[1:0] == 2'b00) | (cmd[1:0] == 2'b01) & (wb_adr_o[1:0] == 2'b01);
       wb_sel_o[3] <= #1 (wb_adr_o[1:0] == 2'b00);
     end
+  else                                            // read
+    begin
+      wb_sel_o[0] <= #1 (cmd_old[1:0] == 2'b11) & (wb_adr_o[1:0] == 2'b00) | (cmd_old[1:0] == 2'b01) & (wb_adr_o[1:0] == 2'b11) | 
+                        (cmd_old[1:0] == 2'b10) & (wb_adr_o[1:0] == 2'b10);
+      wb_sel_o[1] <= #1 (cmd_old[1:0] == 2'b11) & (wb_adr_o[1:0] == 2'b00) | (cmd_old[1] ^ cmd_old[0]) & (wb_adr_o[1:0] == 2'b10);
+      wb_sel_o[2] <= #1 (cmd_old[1]) & (wb_adr_o[1:0] == 2'b00) | (cmd_old[1:0] == 2'b01) & (wb_adr_o[1:0] == 2'b01);
+      wb_sel_o[3] <= #1 (wb_adr_o[1:0] == 2'b00);
+    end
 end
 
 
-always @ (posedge wb_clk_i or posedge wb_rst_i)
-begin
-  if (wb_rst_i)
-    wb_sel_old <= #1 4'h0;
-  else if (wb_ack_i)
-    wb_sel_old <= #1 wb_sel_o;
-end
-
-
-assign wb_we_o = ~cmd[2];   // Status or write (for simpler logic status is allowed)
+assign wb_we_o = cmd_write & dr_go_latched;
 assign wb_cab_o = 1'b0;
 assign wb_stb_o = wb_cyc_o;
 assign wb_cti_o = 3'h0;     // always performing single access

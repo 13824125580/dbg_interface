@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.19  2004/01/08 17:53:12  mohor
+// tmp version.
+//
 // Revision 1.18  2004/01/07 11:59:48  mohor
 // temp4 version.
 //
@@ -369,7 +372,7 @@ begin
   debug_wishbone(`WB_WRITE16, 1'b0, 32'h12344446, 16'h8, 32'hed029606, result, "wr16 len8"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
-  debug_wishbone(`WB_WRITE8, 1'b0, 32'h12344446, 16'h8, 32'h3cfb2e35, result, "wr8 len8"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_WRITE8, 1'b0, 32'h1234010e, 16'h8, 32'h359e2d2a, result, "wr8 len8"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
   debug_wishbone(`WB_GO, 1'b0, 32'h0, 16'h0, 32'h5e9dd377, result, "go 1"); // {command, ready, addr, length, crc, result, text}
@@ -1028,6 +1031,7 @@ begin
 
 
 end
+
 
 
 
