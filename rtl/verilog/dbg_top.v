@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.19  2002/02/05 13:34:51  mohor
+// Stupid bug that was entered by previous update fixed.
+//
 // Revision 1.18  2002/02/05 12:41:01  mohor
 // trst synchronization is not needed and was removed.
 //
@@ -1134,7 +1137,8 @@ assign TDOShifted = (ShiftIR | Exit1IR)? TDOInstruction : TDOData;
 
 // This multiplexer can be expanded with number of user registers
 reg TDOMuxed;
-always @ (JTAG_IR or TDOShifted or TDOBypassed or BS_CHAIN_I)
+//always @ (JTAG_IR or TDOShifted or TDOBypassed or BS_CHAIN_I)
+always @ (LatchedJTAG_IR or TDOShifted or TDOBypassed or BS_CHAIN_I)
 begin
   case(JTAG_IR)
     `IDCODE: // Reading ID code
