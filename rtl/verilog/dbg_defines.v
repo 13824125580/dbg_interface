@@ -45,6 +45,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2001/10/15 09:55:47  mohor
+// Wishbone interface added, few fixes for better performance,
+// hooks for boundary scan testing added.
+//
 // Revision 1.4  2001/09/24 14:06:42  mohor
 // Changes connected to the OpenRISC access (SPR read, SPR write).
 //
@@ -71,7 +75,7 @@
 
 
 // Enable TRACE
-`define TRACE_ENABLED  // Uncomment this define to activate the trace
+//`define TRACE_ENABLED  // Uncomment this define to activate the trace
 
 
 // Define IDCODE Value
