@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.23  2004/01/14 22:59:01  mohor
+// Temp version.
+//
 // Revision 1.22  2004/01/13 11:28:30  mohor
 // tmp version.
 //
@@ -300,7 +303,7 @@ begin
   wb_rst_i = 1'b0;
 
   // Initial values for wishbone slave model
-  wb_slave.cycle_response(`ACK_RESPONSE, 8'h55, 8'h2);   // (`ACK_RESPONSE, wbs_waits, wbs_retries);
+  wb_slave.cycle_response(`ACK_RESPONSE, 9'h55, 8'h2);   // (`ACK_RESPONSE, wbs_waits, wbs_retries);
 end
 
 initial
@@ -357,11 +360,11 @@ begin
   debug_wishbone(`WB_READ32, 1'b1, 32'h12345678, 16'h4, 32'hc9420a40, result, "read32 2"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
-  wb_slave.cycle_response(`ACK_RESPONSE, 8'h55, 8'h2);   // (`ACK_RESPONSE, wbs_waits, wbs_retries);
+  wb_slave.cycle_response(`ACK_RESPONSE, 9'h55, 8'h2);   // (`ACK_RESPONSE, wbs_waits, wbs_retries);
   debug_wishbone(`WB_READ32, 1'b1, 32'h12346668, 16'h4, 32'hc935a962, result, "read32 3"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
-  wb_slave.cycle_response(`ERR_RESPONSE, 8'h03, 8'h2);   // (`ERR_RESPONSE, wbs_waits, wbs_retries);
+  wb_slave.cycle_response(`ERR_RESPONSE, 9'h03, 8'h2);   // (`ERR_RESPONSE, wbs_waits, wbs_retries);
   debug_wishbone(`WB_READ32, 1'b1, 32'h12346668, 16'h4, 32'hc935a962, result, "read32 4"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
@@ -371,7 +374,7 @@ begin
   debug_wishbone(`WB_STATUS, 1'b0, 32'h0, 16'h0, 32'hc7b0424d, result, "status 2"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
-  wb_slave.cycle_response(`ACK_RESPONSE, 8'h0a, 8'h2);   // (`ACK_RESPONSE, wbs_waits, wbs_retries);
+  wb_slave.cycle_response(`ACK_RESPONSE, 9'h012, 8'h2);   // (`ACK_RESPONSE, wbs_waits, wbs_retries);
   debug_wishbone(`WB_READ32, 1'b1, 32'h12347778, 16'hc, 32'hd9ce3bbe, result, "read32 5"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
@@ -388,12 +391,15 @@ begin
 
   #10000;
   debug_wishbone(`WB_READ32, 1'b1, 32'h12340100, 16'hc, 32'h8bbeb90d, result, "read32 6"); // {command, ready, addr, length, crc, result, text}
+//  debug_wishbone(`WB_READ32, 1'b1, 32'h12340100, 16'hfffc, 32'h4cb960cd, result, "read32 6"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
-  debug_wishbone(`WB_READ16, 1'b1, 32'h12340102, 16'he, 32'hcedab37c, result, "read16 7"); // {command, ready, addr, length, crc, result, text}
+//  debug_wishbone(`WB_READ16, 1'b1, 32'h12340102, 16'he, 32'hcedab37c, result, "read16 7"); // {command, ready, addr, length, crc, result, text}
+//  debug_wishbone(`WB_READ16, 1'b1, 32'h12340102, 16'hfffe, 32'h9dd6abc, result, "read16 7"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
-  debug_wishbone(`WB_READ8, 1'b1, 32'h12348804, 16'h6, 32'hbe993245, result, "read8 8"); // {command, ready, addr, length, crc, result, text}
+//  debug_wishbone(`WB_READ8, 1'b1, 32'h12348804, 16'h6, 32'hbe993245, result, "read8 8"); // {command, ready, addr, length, crc, result, text}  
+//  debug_wishbone(`WB_READ8, 1'b1, 32'h12348804, 16'hfffc, 32'h56143d53, result, "read8 8"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
   debug_wishbone(`WB_GO, 1'b0, 32'h0, 16'h0, 32'hd4b43491, result, "go 2"); // {command, ready, addr, length, crc, result, text}
@@ -425,10 +431,15 @@ task initialize_memory;
   integer i;
   reg [31:0] addr;
   begin
+//    for (i=0; i<length; i=i+4)    // inverted address
+//      begin
+//        addr = start_addr + i;
+//        wb_slave.wr_mem(addr, {addr[7:0], addr[15:8], addr[23:16], addr[31:24]}, 4'hf);    // adr, data, sel
+//      end
     for (i=0; i<length; i=i+4)
       begin
         addr = start_addr + i;
-        wb_slave.wr_mem(addr, {addr[7:0], addr[15:8], addr[23:16], addr[31:24]}, 4'hf);    // adr, data, sel
+        wb_slave.wr_mem(addr, {addr[7:0], addr[7:0]+2'd1, addr[7:0]+2'd2, addr[7:0]+2'd3}, 4'hf);    // adr, data, sel
       end
   end
 endtask
@@ -1079,10 +1090,10 @@ endtask
 
 // Printing CRC
 //always @ (posedge dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_end)
-always @ (posedge dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_end or posedge dbg_tb.i_dbg_top.i_dbg_wb.addr_len_cnt_end)
+always @ (dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt or dbg_tb.i_dbg_top.i_dbg_crc32_d1_in.crc)
 begin
   #2;
-  if (dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_end & dbg_tb.i_dbg_top.i_dbg_wb.addr_len_cnt_end)
+  if (dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt == 0)
     tmp_crc = dbg_tb.i_dbg_top.i_dbg_crc32_d1_in.crc;
 end
 

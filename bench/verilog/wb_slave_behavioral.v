@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2003/12/23 14:26:01  mohor
+// New version of the debug interface. Not finished, yet.
+//
 //
 //
 //
@@ -97,7 +100,7 @@ reg     `WB_DATA_TYPE mem_rd_data_in;
 Maximum values for WAIT and RETRY counters and which response !!!
 ------------------------------------------------------------------------------------------------------*/
 reg     [2:0]  a_e_r_resp; // tells with which cycle_termination_signal must wb_slave respond !
-reg     [7:0]  wait_cyc;
+reg     [8:0]  wait_cyc;
 reg     [7:0]  max_retry;
 
 // assign registers to default state while in reset
@@ -113,7 +116,7 @@ reg     [7:0]  max_retry;
 
 task cycle_response;
   input [2:0]  ack_err_rty_resp; // acknowledge, error or retry response input flags
-  input [7:0]  wait_cycles; // if wait cycles before each data termination cycle (ack, err or rty)
+  input [8:0]  wait_cycles; // if wait cycles before each data termination cycle (ack, err or rty)
   input [7:0]  retry_cycles; // noumber of retry cycles before acknowledge cycle
 begin
   // assign values
@@ -203,19 +206,19 @@ begin
   end
 end
 
-reg     [7:0]  wait_cnt;
-reg     [7:0]  wait_num;
+reg     [8:0]  wait_cnt;
+reg     [8:0]  wait_num;
 reg            wait_expired;
 
 // Wait counter
 always@(posedge RST_I or posedge CLK_I)
 begin
   if (RST_I)
-    wait_cnt <= #1 8'h0;
+    wait_cnt <= #1 9'h0;
   else
   begin
     if (wait_expired || ~STB_I)
-      wait_cnt <= #1 8'h0;
+      wait_cnt <= #1 9'h0;
     else
       wait_cnt <= #1 wait_num;
   end
@@ -276,7 +279,7 @@ begin
   else
   if ((wait_cyc == 0) && (STB_I))
   begin
-    wait_num = 8'h0;
+    wait_num = 9'h0;
     wait_expired = 1'b1;
     if (a_e_r_resp == 3'b100)
     begin
@@ -313,7 +316,7 @@ begin
   end
   else
   begin
-    wait_num = 8'h0;
+    wait_num = 9'h0;
     wait_expired = 1'b0;
     calc_ack = 1'b0;
     calc_err = 1'b0;
