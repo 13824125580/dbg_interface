@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2004/01/06 17:15:19  mohor
+// temp3 version.
+//
 // Revision 1.1  2003/12/23 15:09:04  mohor
 // New directory structure. New version of the debug interface.
 //
@@ -63,10 +66,6 @@
 
 // Length of status
 `define STATUS_LEN      4
-`define STATUS_CNT      3
-
-
-
 
 
 
