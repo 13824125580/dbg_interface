@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2004/01/22 10:16:08  mohor
+// cpu_stall_o activated as soon as bp occurs.
+//
 // Revision 1.2  2004/01/17 17:01:14  mohor
 // Almost finished.
 //
@@ -192,13 +195,18 @@ dbg_register #(2, 0)          CPUOP  (.data_in(data_i[2:1]),           .data_out
 dbg_register #(`CPU_NUM, 0)   CPUSEL (.data_in(data_i[`CPU_NUM-1:0]),  .data_out(cpu_sel_out),     .write(cpusel_wr_cpu),  .clk(cpu_clk_i), .reset(rst_i)); // cpu_cli_i
 
 
-always @ (posedge clk_i)
+always @ (posedge clk_i or posedge rst_i)
 begin
-  case (addr_i)         // Synthesis parallel_case
-    `CPU_OP_ADR  : data_o <= #1 {5'h0, cpu_op_out[2:1], stall_reg};
-    `CPU_SEL_ADR : data_o <= #1 {{(8-`CPU_NUM){1'b0}}, cpu_sel_out};
-    default      : data_o <= #1 8'h0;
-  endcase
+  if (rst_i)
+    data_o <= #1 8'h0;
+  else
+    begin
+      case (addr_i)         // Synthesis parallel_case
+        `CPU_OP_ADR  : data_o <= #1 {5'h0, cpu_op_out[2:1], stall_reg};
+        `CPU_SEL_ADR : data_o <= #1 {{(8-`CPU_NUM){1'b0}}, cpu_sel_out};
+        default      : data_o <= #1 8'h0;
+      endcase
+    end
 end
 
 

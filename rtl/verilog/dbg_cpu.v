@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2004/01/22 13:58:53  mohor
+// Port signals are all set to zero after reset.
+//
 // Revision 1.5  2004/01/19 07:32:41  simons
 // Reset values width added because of FV, a good sentence changed because some tools can not handle it.
 //
@@ -275,9 +278,11 @@ end
 
 
 // Upper limit. Address/length counter counts until this value is reached
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (cmd_cnt == 2'h2)
+  if (rst_i)
+    addr_cnt_limit = 6'd0;
+  else if (cmd_cnt == 2'h2)
     begin
       if ((~dr[0])  & (~tdi_i))                                   // (current command is WB_STATUS or WB_GO)
         addr_cnt_limit = 6'd0;
@@ -293,11 +298,20 @@ assign crc_cnt_end  = crc_cnt  == 6'd32;
 assign crc_cnt_31 = crc_cnt  == 6'd31;
 assign data_cnt_end = (data_cnt == data_cnt_limit);
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  crc_cnt_end_q  <= #1 crc_cnt_end;
-  cmd_cnt_end_q  <= #1 cmd_cnt_end;
-  data_cnt_end_q <= #1 data_cnt_end;
+  if (rst_i)
+    begin
+      crc_cnt_end_q  <= #1 1'b0;
+      cmd_cnt_end_q  <= #1 1'b0;
+      data_cnt_end_q <= #1 1'b0;
+    end
+  else
+    begin
+      crc_cnt_end_q  <= #1 crc_cnt_end;
+      cmd_cnt_end_q  <= #1 cmd_cnt_end;
+      data_cnt_end_q <= #1 data_cnt_end;
+    end
 end
 
 
@@ -387,9 +401,19 @@ assign dr_go          = dr[2:0] == `CPU_GO;
 
 
 // Latching instruction
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (update_dr_i)
+  if (rst_i)
+    begin
+      dr_read_reg_latched  <= #1 1'b0;
+      dr_read_cpu8_latched  <= #1 1'b0;
+      dr_read_cpu32_latched  <= #1 1'b0;
+      dr_write_reg_latched  <= #1 1'b0;
+      dr_write_cpu8_latched  <= #1 1'b0;
+      dr_write_cpu32_latched  <= #1 1'b0;
+      dr_go_latched  <= #1 1'b0;
+    end
+  else if (update_dr_i)
     begin
       dr_read_reg_latched  <= #1 1'b0;
       dr_read_cpu8_latched  <= #1 1'b0;
@@ -451,34 +475,48 @@ end
 assign go_prelim = (cmd_cnt == 2'h2) & dr[1] & (~dr[0]) & (~tdi_i); 
 
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (update_dr_i)
+  if (rst_i)
+    read_cycle_reg <= #1 1'b0;
+  else if (update_dr_i)
     read_cycle_reg <= #1 1'b0;
   else if (cmd_read_reg & go_prelim)
     read_cycle_reg <= #1 1'b1;
 end
 
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (update_dr_i)
+  if (rst_i)
+    read_cycle_cpu <= #1 1'b0;
+  else if (update_dr_i)
     read_cycle_cpu <= #1 1'b0;
   else if (cmd_read_cpu & go_prelim)
     read_cycle_cpu <= #1 1'b1;
 end
 
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  read_cycle_reg_q <= #1 read_cycle_reg;
-  read_cycle_cpu_q <= #1 read_cycle_cpu;
+  if (rst_i)
+    begin
+      read_cycle_reg_q <= #1 1'b0;
+      read_cycle_cpu_q <= #1 1'b0;
+    end
+  else
+    begin
+      read_cycle_reg_q <= #1 read_cycle_reg;
+      read_cycle_cpu_q <= #1 read_cycle_cpu;
+    end
 end
 
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (update_dr_i)
+  if (rst_i)
+    write_cycle_reg <= #1 1'b0;
+  else if (update_dr_i)
     write_cycle_reg <= #1 1'b0;
   else if (cmd_write_reg & go_prelim)
     write_cycle_reg <= #1 1'b1;
@@ -502,12 +540,12 @@ assign write_cycle = write_cycle_reg | write_cycle_cpu;
 
 
 // Start register access cycle
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (write_cycle_reg & data_cnt_end & (~data_cnt_end_q) | read_cycle_reg & (~read_cycle_reg_q))
-    begin
-      reg_access <= #1 1'b1;
-    end
+  if (rst_i)
+    reg_access <= #1 1'b0;
+  else if (write_cycle_reg & data_cnt_end & (~data_cnt_end_q) | read_cycle_reg & (~read_cycle_reg_q))
+    reg_access <= #1 1'b1;
   else
     reg_access <= #1 1'b0;
 end
@@ -541,11 +579,20 @@ assign cpu_stall_o = cpu_stb_o | cpu_stall_tmp;
 
 
 // Synchronizing ack signal from cpu
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  cpu_ack_sync      <= #1 cpu_ack_i;
-  cpu_ack_tck       <= #1 cpu_ack_sync;
-  cpu_ack_tck_q     <= #1 cpu_ack_tck;
+  if (rst_i)
+    begin
+      cpu_ack_sync      <= #1 1'b0;
+      cpu_ack_tck       <= #1 1'b0;
+      cpu_ack_tck_q     <= #1 1'b0;
+    end
+  else
+    begin
+      cpu_ack_sync      <= #1 cpu_ack_i;
+      cpu_ack_tck       <= #1 cpu_ack_sync;
+      cpu_ack_tck_q     <= #1 cpu_ack_tck;
+    end
 end
 
 
@@ -564,17 +611,27 @@ end
 
 
 // Synchronizing cpu_stb to cpu_clk_i clock
-always @ (posedge cpu_clk_i)
+always @ (posedge cpu_clk_i or posedge rst_i)
 begin
-  cpu_stb_sync  <= #1 cpu_stb;
-  cpu_stb_o     <= #1 cpu_stb_sync;
+  if (rst_i)
+    begin
+      cpu_stb_sync  <= #1 1'b0;
+      cpu_stb_o     <= #1 1'b0;
+    end
+  else
+    begin
+      cpu_stb_sync  <= #1 cpu_stb;
+      cpu_stb_o     <= #1 cpu_stb_sync;
+    end
 end
 
 
 // Latching crc
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if(crc_cnt_end & (~crc_cnt_end_q))
+  if (rst_i)
+    crc_match_reg <= #1 1'b0;
+  else if(crc_cnt_end & (~crc_cnt_end_q))
     crc_match_reg <= #1 crc_match_i;
 end
 
@@ -584,21 +641,13 @@ end
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    begin
     status <= #1 4'h0;
-    end
   else if(crc_cnt_end & (~crc_cnt_end_q) & (~read_cycle))
-    begin
     status <= #1 {crc_match_i, 1'b0, 1'b1, 1'b0};
-    end
   else if (data_cnt_end & (~data_cnt_end_q) & read_cycle)
-    begin
     status <= #1 {crc_match_reg, 1'b0, 1'b1, 1'b0};
-    end
   else if (shift_dr_i & (~status_cnt_end))
-    begin
     status <= #1 {status[0], status[3:1]};
-    end
 end
 // Following status is shifted out:
 // 1. bit:          1 if crc is OK, else 0

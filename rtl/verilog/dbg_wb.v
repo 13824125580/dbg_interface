@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.17  2004/01/22 13:58:53  mohor
+// Port signals are all set to zero after reset.
+//
 // Revision 1.16  2004/01/19 07:32:41  simons
 // Reset values width added because of FV, a good sentence changed because some tools can not handle it.
 //
@@ -263,9 +266,11 @@ assign shift_crc_o = enable & status_cnt_end;  // Signals dbg module to shift ou
 
 
 // Selecting where to take the data from 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (update_dr_i)
+  if (rst_i)
+    ptr <= #1 2'h0;
+  else if (update_dr_i)
     ptr <= #1 2'h0;
   else if (read_cycle & crc_cnt_31) // first latch
     ptr <= #1 ptr + 1'b1;
@@ -395,14 +400,26 @@ assign half = data_cnt[3:0] == 4'd15;
 assign long = data_cnt[4:0] == 5'd31;
 
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  byte_q <= #1 byte;
-  half_q <= #1 half;
-  long_q <= #1 long;
-  byte_q2 <= #1 byte_q;
-  half_q2 <= #1 half_q;
-  long_q2 <= #1 long_q;
+  if (rst_i)
+    begin
+      byte_q <= #1  1'b0;
+      half_q <= #1  1'b0;
+      long_q <= #1  1'b0;
+      byte_q2 <= #1 1'b0;
+      half_q2 <= #1 1'b0;
+      long_q2 <= #1 1'b0;
+    end
+  else
+    begin
+      byte_q <= #1 byte;
+      half_q <= #1 half;
+      long_q <= #1 long;
+      byte_q2 <= #1 byte_q;
+      half_q2 <= #1 half_q;
+      long_q2 <= #1 long_q;
+    end
 end
 
 
@@ -412,9 +429,16 @@ assign dr_go = dr[2:0] == `WB_GO;
 
 
 // Latching instruction
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (update_dr_i)
+  if (rst_i)
+    begin
+      dr_cmd_latched <= #1 3'h0;
+      dr_read_latched  <= #1 1'b0;
+      dr_write_latched  <= #1 1'b0;
+      dr_go_latched  <= #1 1'b0;
+    end
+  else if (update_dr_i)
     begin
       dr_cmd_latched <= #1 3'h0;
       dr_read_latched  <= #1 1'b0;
@@ -432,9 +456,11 @@ end
 
 
 // Upper limit. Address/length counter counts until this value is reached
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (cmd_cnt == 2'h2)
+  if (rst_i)
+    addr_len_cnt_limit <= #1 6'd0;
+  else if (cmd_cnt == 2'h2)
     begin
       if ((~dr[0])  & (~tdi_i))                                   // (current command is WB_STATUS or WB_GO)
         addr_len_cnt_limit <= #1 6'd0;
@@ -448,9 +474,11 @@ assign go_prelim = (cmd_cnt == 2'h2) & dr[1] & (~dr[0]) & (~tdi_i);
 
 
 // Upper limit. Data counter counts until this value is reached.
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (update_dr_i)
+  if (rst_i)
+    data_cnt_limit <= #1 19'h0;
+  else if (update_dr_i)
     data_cnt_limit <= #1 {len, 3'b000};
 end
 
@@ -475,11 +503,20 @@ assign crc_cnt_end  = crc_cnt  == 6'd32;
 assign crc_cnt_31 = crc_cnt  == 6'd31;
 assign data_cnt_end = (data_cnt == data_cnt_limit);
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  crc_cnt_end_q  <= #1 crc_cnt_end;
-  cmd_cnt_end_q  <= #1 cmd_cnt_end;
-  data_cnt_end_q <= #1 data_cnt_end;
+  if (rst_i)
+    begin
+      crc_cnt_end_q  <= #1 1'b0;
+      cmd_cnt_end_q  <= #1 1'b0;
+      data_cnt_end_q <= #1 1'b0;
+    end
+  else
+    begin
+      crc_cnt_end_q  <= #1 crc_cnt_end;
+      cmd_cnt_end_q  <= #1 cmd_cnt_end;
+      data_cnt_end_q <= #1 data_cnt_end;
+    end
 end
 
 
@@ -583,9 +620,11 @@ end
 
 
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if(crc_cnt_end & (~crc_cnt_end_q))
+  if (rst_i)
+    crc_match_reg <= #1 1'b0;
+  else if(crc_cnt_end & (~crc_cnt_end_q))
     crc_match_reg <= #1 crc_match_i;
 end
 
@@ -613,9 +652,14 @@ end
 
 
 // Latching address
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i)
+  if (rst_i)
+    begin
+      adr      <= #1 32'h0;
+      set_addr <= #1 1'b0;
+    end
+  else if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i)
     begin
       if (dr_write_latched | dr_read_latched)
         begin
@@ -629,9 +673,11 @@ end
 
 
 // Length counter
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i & (dr_write_latched | dr_read_latched))
+  if (rst_i)
+    len <= #1 16'h0;
+  else if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i & (dr_write_latched | dr_read_latched))
     len <= #1 dr[15:0];
   else if (start_rd_tck)
     begin
@@ -648,9 +694,11 @@ assign len_eq_0 = len == 16'h0;
 
 
 // Start wishbone read cycle
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (read_cycle & (~dr_go_latched) & (~len_eq_0))              // First read after cmd is entered
+  if (rst_i)
+    start_rd_tck <= #1 1'b0;
+  else if (read_cycle & (~dr_go_latched) & (~len_eq_0))              // First read after cmd is entered
     start_rd_tck <= #1 1'b1;
   else if ((~start_rd_tck) & read_cycle & (~len_eq_0) & (~fifo_full) & (~rd_tck_started))
     start_rd_tck <= #1 1'b1;
@@ -659,9 +707,11 @@ begin
 end
 
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (update_dr_i)
+  if (rst_i)
+    rd_tck_started <= #1 1'b0;
+  else if (update_dr_i)
     rd_tck_started <= #1 1'b0;
   else if (start_rd_tck)
     rd_tck_started <= #1 1'b1;
@@ -670,9 +720,11 @@ begin
 end
 
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (update_dr_i)
+  if (rst_i)
+    read_cycle <= #1 1'b0;
+  else if (update_dr_i)
     read_cycle <= #1 1'b0;
   else if (cmd_read & go_prelim)
     read_cycle <= #1 1'b1;
@@ -750,19 +802,36 @@ begin
 end
 
 
-always @ (posedge wb_clk_i)
+always @ (posedge wb_clk_i or posedge rst_i)
 begin
-  start_rd_sync1  <= #1 start_rd_tck;
-  start_wb_rd     <= #1 start_rd_sync1;
-  start_wb_rd_q   <= #1 start_wb_rd;
-
-  start_wr_sync1  <= #1 start_wr_tck;
-  start_wb_wr     <= #1 start_wr_sync1;
-  start_wb_wr_q   <= #1 start_wb_wr;
-
-  set_addr_sync   <= #1 set_addr;
-  set_addr_wb     <= #1 set_addr_sync;
-  set_addr_wb_q   <= #1 set_addr_wb;
+  if (rst_i)
+    begin
+      start_rd_sync1  <= #1 1'b0; 
+      start_wb_rd     <= #1 1'b0; 
+      start_wb_rd_q   <= #1 1'b0; 
+    
+      start_wr_sync1  <= #1 1'b0; 
+      start_wb_wr     <= #1 1'b0; 
+      start_wb_wr_q   <= #1 1'b0; 
+    
+      set_addr_sync   <= #1 1'b0; 
+      set_addr_wb     <= #1 1'b0; 
+      set_addr_wb_q   <= #1 1'b0; 
+    end
+  else
+    begin
+      start_rd_sync1  <= #1 start_rd_tck;
+      start_wb_rd     <= #1 start_rd_sync1;
+      start_wb_rd_q   <= #1 start_wb_rd;
+    
+      start_wr_sync1  <= #1 start_wr_tck;
+      start_wb_wr     <= #1 start_wr_sync1;
+      start_wb_wr_q   <= #1 start_wb_wr;
+    
+      set_addr_sync   <= #1 set_addr;
+      set_addr_wb     <= #1 set_addr_sync;
+      set_addr_wb_q   <= #1 set_addr_wb;
+    end
 end
 
 
@@ -881,10 +950,18 @@ begin
 end
 
 
-always @ (posedge wb_clk_i)
+always @ (posedge wb_clk_i or posedge rst_i)
 begin
-  wb_end_rst_sync <= #1 wb_end_tck;
-  wb_end_rst  <= #1 wb_end_rst_sync;
+  if (rst_i)
+    begin
+      wb_end_rst_sync <= #1 1'b0;
+      wb_end_rst      <= #1 1'b0;
+    end
+  else
+    begin
+      wb_end_rst_sync <= #1 wb_end_tck;
+      wb_end_rst  <= #1 wb_end_rst_sync;
+    end
 end
 
 
@@ -900,10 +977,18 @@ begin
 end
 
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  wb_error_sync <= #1 wb_error;
-  wb_error_tck  <= #1 wb_error_sync;
+  if (rst_i)
+    begin
+      wb_error_sync <= #1 1'b0;
+      wb_error_tck  <= #1 1'b0;
+    end
+  else
+    begin
+      wb_error_sync <= #1 wb_error;
+      wb_error_tck  <= #1 wb_error_sync;
+    end
 end
 
 
@@ -918,10 +1003,18 @@ begin
     wb_overrun <= #1 1'b0;
 end
  
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  wb_overrun_sync <= #1 wb_overrun;
-  wb_overrun_tck  <= #1 wb_overrun_sync;
+  if (rst_i)
+    begin
+      wb_overrun_sync <= #1 1'b0;
+      wb_overrun_tck  <= #1 1'b0;
+    end
+  else
+    begin
+      wb_overrun_sync <= #1 wb_overrun;
+      wb_overrun_tck  <= #1 wb_overrun_sync;
+    end
 end
 
 
@@ -950,17 +1043,27 @@ begin
 end
 
 
-always @ (posedge wb_clk_i)
+always @ (posedge wb_clk_i or posedge rst_i)
 begin
-  wishbone_ce_sync <= #1  wishbone_ce_i;
-  wishbone_ce_rst  <= #1 ~wishbone_ce_sync;
+  if (rst_i)
+    begin
+      wishbone_ce_sync <= #1 1'b0;
+      wishbone_ce_rst  <= #1 1'b0;
+    end
+  else
+    begin
+      wishbone_ce_sync <= #1  wishbone_ce_i;
+      wishbone_ce_rst  <= #1 ~wishbone_ce_sync;
+    end
 end
 
 
 // Logic for latching data that is read from wishbone
-always @ (posedge wb_clk_i)
+always @ (posedge wb_clk_i or posedge rst_i)
 begin
-  if(wishbone_ce_rst)
+  if (rst_i)
+    mem_ptr <= #1 3'h0; 
+  else if(wishbone_ce_rst)
     mem_ptr <= #1 3'h0;
   else if (wb_ack_i)
     begin
@@ -1009,9 +1112,11 @@ assign input_data = {mem[0], mem[1], mem[2], mem[3]};
 
 
 // Fifo counter and empty/full detection
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (update_dr_i)
+  if (rst_i)
+    fifo_cnt <= #1 3'h0;
+  else if (update_dr_i)
     fifo_cnt <= #1 3'h0;
   else if (wb_end_tck & (~wb_end_tck_q) & (~latch_data))  // incrementing
     begin

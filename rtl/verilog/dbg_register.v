@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2004/01/16 14:53:33  mohor
+// *** empty log message ***
+//
 //
 //
 
@@ -74,7 +77,6 @@ reg     [WIDTH-1:0] data_out;
 
 
 always @ (posedge clk or posedge reset)
-//always @ (posedge clk)
 begin
   if(reset)
     data_out[WIDTH-1:0] <= #1 RESET_VALUE;

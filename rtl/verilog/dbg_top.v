@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.40  2004/01/20 14:23:47  mohor
+// Define name changed.
+//
 // Revision 1.39  2004/01/19 07:32:41  simons
 // Reset values width added because of FV, a good sentence changed because some tools can not handle it.
 //
@@ -294,8 +297,6 @@ wire data_cnt_end;
 wire crc_cnt_end;
 wire status_cnt_end;
 reg  crc_cnt_end_q;
-reg  crc_cnt_end_q2;
-reg  crc_cnt_end_q3;
 reg  chain_select;
 reg  chain_select_error;
 wire crc_out;
@@ -349,12 +350,13 @@ end
 assign crc_cnt_end = crc_cnt == `CRC_LEN;
 
 
-always @ (posedge tck_i)
-  begin
+always @ (posedge tck_i or posedge wb_rst_i)
+begin
+  if (wb_rst_i)
+    crc_cnt_end_q  <= #1 1'b0;
+  else
     crc_cnt_end_q  <= #1 crc_cnt_end;
-    crc_cnt_end_q2 <= #1 crc_cnt_end_q;
-    crc_cnt_end_q3 <= #1 crc_cnt_end_q2;
-  end
+end
 
 
 // status counter
@@ -414,9 +416,11 @@ end
 assign data_shift_en = shift_dr_i & (~data_cnt_end);
 
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge wb_rst_i)
 begin
-  if (data_shift_en)
+  if (wb_rst_i)
+    chain_dr <= #1 `CHAIN_DATA_LEN'h0;
+  else if (data_shift_en)
     chain_dr[`CHAIN_DATA_LEN -1:0] <= #1 {tdi_i, chain_dr[`CHAIN_DATA_LEN -1:1]};
 end
 
@@ -442,9 +446,11 @@ reg crc_started;
 assign crc_en = crc_en_dbg | crc_en_wb | crc_en_cpu;
 assign crc_en_dbg = shift_dr_i & crc_cnt_end & (~status_cnt_end);
 
-always @ (posedge tck_i)
+always @ (posedge tck_i or posedge wb_rst_i)
 begin
-  if (crc_en)
+  if (wb_rst_i)
+    crc_started <= #1 1'b0;
+  else if (crc_en)
     crc_started <= #1 1'b1;
   else if (update_dr_i)
     crc_started <= #1 1'b0;
