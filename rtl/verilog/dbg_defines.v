@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2002/05/07 14:43:59  mohor
+// mon_cntl_o signals that controls monitor mux added.
+//
 // Revision 1.8  2002/01/25 07:58:34  mohor
 // IDCODE bug fixed, chains reused to decreas size of core. Data is shifted-in
 // not filled-in. Tested in hw.
@@ -87,6 +90,8 @@
 // Enable TRACE
 //`define TRACE_ENABLED  // Uncomment this define to activate the trace
 
+// Define number of cpus supported by the dbg interface
+`define RISC_NUM 8
 
 // Define IDCODE Value
 `define IDCODE_VALUE  32'hdeadbeef
@@ -153,6 +158,7 @@
 `define QSEL_ADR            5'h02
 `define SSEL_ADR            5'h03
 `define RISCOP_ADR          5'h04
+`define RISCSEL_ADR         5'h05
 `define RECSEL_ADR          5'h10
 `define MON_CNTL_ADR        5'h11
 

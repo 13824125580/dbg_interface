@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.28  2002/11/06 14:22:41  mohor
+// Trst signal is not inverted here any more. Inverted on higher layer !!!.
+//
 // Revision 1.27  2002/10/10 02:42:55  mohor
 // WISHBONE Scan Chain is changed to reflect state of the WISHBONE access (WBInProgress bit added). Internal counter is used (counts 256 wb_clk cycles) and when counter exceeds that value, wb_cyc_o is negated.
 //
@@ -153,8 +156,9 @@ module dbg_top(
                 
                 // RISC signals
                 risc_clk_i, risc_addr_o, risc_data_i, risc_data_o, wp_i, 
-                bp_i, opselect_o, lsstatus_i, istatus_i, risc_stall_o, reset_o, 
-                
+                bp_i, opselect_o, lsstatus_i, istatus_i, 
+                risc_stall_o, risc_stall_all_o, risc_sel_o, reset_o,
+
                 // WISHBONE common signals
                 wb_rst_i, wb_clk_i, 
 
@@ -191,8 +195,10 @@ input  [1:0]  istatus_i;                  // Instruction status inputs
 output [31:0] risc_addr_o;                // RISC address output (for adressing registers within RISC)
 output [31:0] risc_data_o;                // RISC data output (data read from risc registers)
 output [`OPSELECTWIDTH-1:0] opselect_o;   // Operation selection (selecting what kind of data is set to the risc_data_i)
-output                      risc_stall_o; // Stalls the RISC
-output                      reset_o;      // Resets the RISC
+output         risc_stall_o;              // Stalls the selected RISC
+output         risc_stall_all_o;          // Stalls all the rest RISCs
+output [`RISC_NUM-1:0] risc_sel_o;        // Stalls all the rest RISCs
+output         reset_o;                   // Resets the RISC
 
 
 // WISHBONE common signals
@@ -250,6 +256,7 @@ reg           RegAccess_q;                  // Delayed signals used for accessin
 reg           RegAccess_q2;                 // Delayed signals used for accessing the registers
 reg           RISCAccess_q;                 // Delayed signals used for accessing the RISC
 reg           RISCAccess_q2;                // Delayed signals used for accessing the RISC
+reg           RISCAccess_q3;                // Delayed signals used for accessing the RISC
 
 reg           wb_AccessTck;                 // Indicates access to the WISHBONE
 reg [31:0]    WBReadLatch;                  // Data latched during WISHBONE read
@@ -647,6 +654,7 @@ begin
       RegAccess_q2  <=#Tp 1'b0;
       RISCAccess_q  <=#Tp 1'b0;
       RISCAccess_q2 <=#Tp 1'b0;
+      RISCAccess_q3 <=#Tp 1'b0;
     end
   else
     begin
@@ -654,13 +662,14 @@ begin
       RegAccess_q2  <=#Tp RegAccess_q;
       RISCAccess_q  <=#Tp RISCAccess;
       RISCAccess_q2 <=#Tp RISCAccess_q;
+      RISCAccess_q3 <=#Tp RISCAccess_q2;
     end
 end
 
 // Chip select and read/write signals for accessing RISC
-assign RiscStall_write_access = RISCAccess & ~RISCAccess_q  &  RW;
+assign RiscStall_write_access = RISCAccess & ~RISCAccess_q2 &  RW;
 assign RiscStall_read_access  = RISCAccess & ~RISCAccess_q2 & ~RW;
-assign RiscStall_access = RiscStall_write_access | RiscStall_read_access;
+assign RiscStall_access = RISCAccess & ~RISCAccess_q3;
 
 
 reg wb_Access_wbClk_q;
@@ -890,7 +899,8 @@ dbg_registers dbgregs(.data_in(DataOut[31:0]), .data_out(RegDataIn[31:0]),
                       .StopOper(StopOper), .WpStopValid(WpStopValid), .BpStopValid(BpStopValid), 
                       .LSSStopValid(LSSStopValid), .IStopValid(IStopValid), 
                       `endif
-                      .risc_stall(RiscStall_reg), .risc_reset(RiscReset_reg), .mon_cntl_o(mon_cntl_o)
+                      .risc_stall(RiscStall_reg), .risc_stall_all(risc_stall_all_o), .risc_sel(risc_sel_o),
+                      .risc_reset(RiscReset_reg), .mon_cntl_o(mon_cntl_o)
 
                      );
 

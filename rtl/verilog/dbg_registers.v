@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2002/10/10 02:42:55  mohor
+// WISHBONE Scan Chain is changed to reflect state of the WISHBONE access (WBInProgress bit added). Internal counter is used (counts 256 wb_clk cycles) and when counter exceeds that value, wb_cyc_o is negated.
+//
 // Revision 1.7  2002/05/07 14:43:59  mohor
 // mon_cntl_o signals that controls monitor mux added.
 //
@@ -96,7 +99,7 @@ module dbg_registers(data_in, data_out, address, rw, access, clk, bp, reset,
                      WpStop, BpStop, LSSStop, IStop, StopOper, WpStopValid, BpStopValid, 
                      LSSStopValid, IStopValid, 
                      `endif
-                     risc_stall, risc_reset, mon_cntl_o
+                     risc_stall, risc_sall_all, risc_sel, risc_reset, mon_cntl_o
                     );
 
 parameter Tp = 1;
@@ -160,11 +163,14 @@ reg    [31:0] data_out;
 `endif
 
   output risc_stall;
+  output risc_stall_all;
+  output [`RISC_NUM-1:0] risc_sel;
   output risc_reset;
   output [3:0] mon_cntl_o;
 
   wire MODER_Acc     = (address == `MODER_ADR)    & access;
   wire RISCOP_Acc    = (address == `RISCOP_ADR)   & access;
+  wire RISCSEL_Acc   = (address == `RISCSEL_ADR)  & access;
   wire MON_CNTL_Acc  = (address == `MON_CNTL_ADR) & access;
 `ifdef TRACE_ENABLED
   wire TSEL_Acc      = (address == `TSEL_ADR)     & access;
@@ -176,6 +182,7 @@ reg    [31:0] data_out;
   
   wire MODER_Wr      = MODER_Acc    &  rw;
   wire RISCOP_Wr     = RISCOP_Acc   &  rw;
+  wire RISCSEL_Wr    = RISCSEL_Acc  &  rw;
   wire MON_CNTL_Wr   = MON_CNTL_Acc &  rw;
 `ifdef TRACE_ENABLED
   wire TSEL_Wr       = TSEL_Acc     &  rw;
@@ -188,6 +195,7 @@ reg    [31:0] data_out;
   
   wire MODER_Rd      = MODER_Acc    & ~rw;
   wire RISCOP_Rd     = RISCOP_Acc   & ~rw;
+  wire RISCSEL_Rd    = RISCSEL_Acc  & ~rw;
   wire MON_CNTL_Rd   = MON_CNTL_Acc & ~rw;
 `ifdef TRACE_ENABLED
   wire TSEL_Rd       = TSEL_Acc     & ~rw;
@@ -197,15 +205,16 @@ reg    [31:0] data_out;
 `endif
 
 
-  wire [31:0] MODEROut;
-  wire [1:1]  RISCOPOut;
-  wire [3:0]  MONCNTLOut;
+  wire [31:0]           MODEROut;
+  wire [2:1]            RISCOPOut;
+  wire [`RISC_NUM-1:0]  RISCSELOut;
+  wire [3:0]            MONCNTLOut;
 
 `ifdef TRACE_ENABLED
-  wire [31:0] TSELOut;
-  wire [31:0] QSELOut;
-  wire [31:0] SSELOut;
-  wire [6:0]  RECSELOut;
+  wire [31:0]           TSELOut;
+  wire [31:0]           QSELOut;
+  wire [31:0]           SSELOut;
+  wire [6:0]            RECSELOut;
 `endif
 
 
@@ -230,7 +239,8 @@ reg    [31:0] data_out;
       RiscStallBp <= data_in[0];
   end
 
-  dbg_register #(1, 0)  RISCOP  (.data_in(data_in[1]),   .data_out(RISCOPOut[1]),    .write(RISCOP_Wr),   .clk(clk), .reset(reset));
+  dbg_register #(2, 0)  RISCOP  (.data_in(data_in[2:1]),   .data_out(RISCOPOut[2:1]),    .write(RISCOP_Wr),   .clk(clk), .reset(reset));
+  dbg_register #(`RISC_NUM, 0)  RISCSEL  (.data_in(data_in[`RISC_NUM-1:0]),   .data_out(RISCSELOut),    .write(RISCSEL_Wr),   .clk(clk), .reset(reset));
   dbg_register #(4, `MON_CNTL_DEF)  MONCNTL (.data_in(data_in[3:0]), .data_out(MONCNTLOut[3:0]), .write(MON_CNTL_Wr), .clk(clk), .reset(reset));
 
 
@@ -248,7 +258,9 @@ always @ (posedge clk)
 begin
   if(MODER_Rd)    data_out<= #Tp MODEROut;
   else
-  if(RISCOP_Rd)   data_out<= #Tp {30'h0, RISCOPOut[1], risc_stall};
+  if(RISCOP_Rd)   data_out<= #Tp {29'h0, RISCOPOut[2:1], risc_stall};
+  else
+  if(RISCSEL_Rd)  data_out<= #Tp {{(32-`RISC_NUM){1'b0}}, RISCSELOut};
   else
   if(MON_CNTL_Rd) data_out<= #Tp {28'h0, MONCNTLOut};
 `ifdef TRACE_ENABLED
@@ -309,6 +321,8 @@ end
 `endif
 
   assign risc_stall          = bp | RiscStallBp;   // bp asynchronously sets the risc_stall, then RiscStallBp (from register) holds it active
+  assign risc_stall_all      = RISCOPOut[2];       // this signal is used to stall all the cpus except the one that is selected in riscsel register
+  assign risc_sel            = RISCSELOut;
   assign risc_reset          = RISCOPOut[1];
   assign mon_cntl_o          = MONCNTLOut;
 
