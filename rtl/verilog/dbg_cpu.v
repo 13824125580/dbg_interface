@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2004/04/01 10:22:45  igorm
+// Signals for easier debugging removed.
+//
 // Revision 1.9  2004/03/31 14:34:09  igorm
 // data_cnt_lim length changed to reduce number of warnings.
 //
@@ -883,9 +886,13 @@ begin
     begin
       tdo_o = ~crc_match_reg;
     end
-  else if ((curr_cmd_rd_comm || curr_cmd_rd_ctrl) && crc_cnt_end && (!addr_len_cnt_end))
+  else if (curr_cmd_rd_comm && crc_cnt_end && (!addr_len_cnt_end))
     begin
       tdo_o = dr[`DBG_CPU_ACC_TYPE_LEN + `DBG_CPU_ADR_LEN + `DBG_CPU_LEN_LEN -1];
+    end
+  else if (curr_cmd_rd_ctrl && crc_cnt_end && (!addr_len_cnt_end))
+    begin
+      tdo_o = 1'b0;
     end
   else if (status_cnt_en)
     begin
