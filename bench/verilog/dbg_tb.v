@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.20  2004/01/09 12:49:23  mohor
+// tmp version.
+//
 // Revision 1.19  2004/01/08 17:53:12  mohor
 // tmp version.
 //
@@ -362,7 +365,7 @@ begin
   debug_wishbone(`WB_STATUS, 1'b0, 32'h0, 16'h0, 32'hc7b0424d, result, "status 2"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
-  wb_slave.cycle_response(`ACK_RESPONSE, 8'h4a, 8'h2);   // (`ACK_RESPONSE, wbs_waits, wbs_retries);
+  wb_slave.cycle_response(`ACK_RESPONSE, 8'h0a, 8'h2);   // (`ACK_RESPONSE, wbs_waits, wbs_retries);
   debug_wishbone(`WB_READ32, 1'b1, 32'h12347778, 16'hc, 32'hd9ce3bbe, result, "read32 5"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
@@ -683,10 +686,10 @@ task debug_wishbone_set_addr;
       gen_clk(1);
     end
 
+    tdi_pad_i<=#1 'hz;
     if (wait_for_wb_ready)
       begin
         gen_clk(`STATUS_LEN -1);   // Generating 4 clocks to read out status. Going to pause_dr at the end
-        tdi_pad_i<=#1 'hz;
         tms_pad_i<=#1 1;
         gen_clk(1);       // to exit1_dr
         tms_pad_i<=#1 0;
@@ -707,15 +710,12 @@ task debug_wishbone_set_addr;
 
     for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
     begin
-      tdi_pad_i<=#1 1'b0;
       gen_clk(1);
     end
 
-    tdi_pad_i<=#1 crc[i]; // last crc
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
 
-    tdi_pad_i<=#1 'hz;  // tri-state
     tms_pad_i<=#1 1;
     gen_clk(1);         // to update_dr
     tms_pad_i<=#1 0;
@@ -755,19 +755,17 @@ task debug_wishbone_status;
       gen_clk(1);
     end
 
+    tdi_pad_i<=#1 1'hz;
     gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
 
     for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
     begin
-      tdi_pad_i<=#1 1'b0;
       gen_clk(1);
     end
 
-    tdi_pad_i<=#1 crc[i]; // last crc
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
 
-    tdi_pad_i<=#1 'hz;  // tri-state
     tms_pad_i<=#1 1;
     gen_clk(1);         // to update_dr
     tms_pad_i<=#1 0;
@@ -825,6 +823,7 @@ task debug_wishbone_go;
       gen_clk(1);
     end
 
+    tdi_pad_i<=#1 1'hz;
 
 
 
@@ -832,10 +831,7 @@ task debug_wishbone_go;
       begin
         $display("\t\tGenerating %0d clocks to read %0d data bytes.", dbg_tb.i_dbg_top.i_dbg_wb.len << 3, dbg_tb.i_dbg_top.i_dbg_wb.len);
         for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_wb.len << 3); i=i+1)
-          begin
-            tdi_pad_i<=#1 1'hz;
-            gen_clk(1);
-          end
+          gen_clk(1);
       end
 
 
@@ -843,15 +839,12 @@ task debug_wishbone_go;
 
     for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
     begin
-      tdi_pad_i<=#1 1'b0;
       gen_clk(1);
     end
 
-    tdi_pad_i<=#1 crc[i]; // last crc
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
 
-    tdi_pad_i<=#1 'hz;  // tri-state
     tms_pad_i<=#1 1;
     gen_clk(1);         // to update_dr
     tms_pad_i<=#1 0;
