@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.41  2004/01/25 14:04:18  mohor
+// All flipflops are reset.
+//
 // Revision 1.40  2004/01/20 14:23:47  mohor
 // Define name changed.
 //
@@ -195,6 +198,7 @@ module dbg_top(
                 tck_i,
                 tdi_i,
                 tdo_o,
+                rst_i,
 
                 // TAP states
                 shift_dr_i,
@@ -202,10 +206,12 @@ module dbg_top(
                 update_dr_i,
 
                 // Instructions
-                debug_select_i,
+                debug_select_i
 
+
+                `ifdef WISHBONE_SUPPORTED
                 // WISHBONE common signals
-                wb_rst_i,
+                ,
                 wb_clk_i,
                                                                                 
                 // WISHBONE master interface
@@ -220,9 +226,12 @@ module dbg_top(
                 wb_cab_o,
                 wb_err_i,
                 wb_cti_o,
-                wb_bte_o,
+                wb_bte_o
+                `endif
 
+                `ifdef CPU_SUPPORTED
                 // CPU signals
+                ,
                 cpu_clk_i, 
                 cpu_addr_o, 
                 cpu_data_i, 
@@ -235,6 +244,7 @@ module dbg_top(
                 cpu_we_o,
                 cpu_ack_i,
                 cpu_rst_o
+                `endif
               );
 
 
@@ -242,6 +252,7 @@ module dbg_top(
 input   tck_i;
 input   tdi_i;
 output  tdo_o;
+input   rst_i;
 
 // TAP states
 input   shift_dr_i;
@@ -251,11 +262,8 @@ input   update_dr_i;
 // Instructions
 input   debug_select_i;
 
-// WISHBONE common signals
-input         wb_rst_i;                   // WISHBONE reset
-input         wb_clk_i;                   // WISHBONE clock
-                                                                                
-// WISHBONE master interface
+`ifdef WISHBONE_SUPPORTED
+input         wb_clk_i;
 output [31:0] wb_adr_o;
 output [31:0] wb_dat_o;
 input  [31:0] wb_dat_i;
@@ -269,6 +277,18 @@ input         wb_err_i;
 output  [2:0] wb_cti_o;
 output  [1:0] wb_bte_o;
 
+reg           wishbone_scan_chain;
+reg           wishbone_ce;
+wire          tdi_wb;
+wire          tdo_wb;
+wire          crc_en_wb;
+wire          shift_crc_wb;
+`else
+wire          crc_en_wb = 1'b0;
+wire          shift_crc_wb = 1'b0;
+`endif
+
+`ifdef CPU_SUPPORTED
 // CPU signals
 input         cpu_clk_i; 
 output [31:0] cpu_addr_o; 
@@ -283,8 +303,17 @@ output        cpu_we_o;
 input         cpu_ack_i;
 output        cpu_rst_o;
 
-reg     cpu_debug_scan_chain;
-reg     wishbone_scan_chain;
+reg           cpu_debug_scan_chain;
+reg           cpu_ce;
+wire          tdi_cpu;
+wire          tdo_cpu;
+wire          crc_en_cpu;
+wire          shift_crc_cpu;
+`else
+wire          crc_en_cpu = 1'b0;
+wire          shift_crc_cpu = 1'b0;
+`endif
+
 
 reg [`DATA_CNT -1:0]        data_cnt;
 reg [`CRC_CNT -1:0]         crc_cnt;
@@ -301,30 +330,21 @@ reg  chain_select;
 reg  chain_select_error;
 wire crc_out;
 wire crc_match;
-wire crc_en_wb;
-wire crc_en_cpu;
-wire shift_crc_wb;
-wire shift_crc_cpu;
 
 wire data_shift_en;
 wire selecting_command;
 
 reg tdo_o;
-reg wishbone_ce;
-reg cpu_ce;
 
-wire tdi_wb;
-wire tdi_cpu;
 
-wire tdo_wb;
-wire tdo_cpu;
+
 
 wire shift_crc;
 
 // data counter
-always @ (posedge tck_i or posedge wb_rst_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (wb_rst_i)
+  if (rst_i)
     data_cnt <= #1 {`DATA_CNT{1'b0}};
   else if(shift_dr_i & (~data_cnt_end))
     data_cnt <= #1 data_cnt + 1'b1;
@@ -337,9 +357,9 @@ assign data_cnt_end = data_cnt == `CHAIN_DATA_LEN;
 
 
 // crc counter
-always @ (posedge tck_i or posedge wb_rst_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (wb_rst_i)
+  if (rst_i)
     crc_cnt <= #1 {`CRC_CNT{1'b0}};
   else if(shift_dr_i & data_cnt_end & (~crc_cnt_end) & chain_select)
     crc_cnt <= #1 crc_cnt + 1'b1;
@@ -350,9 +370,9 @@ end
 assign crc_cnt_end = crc_cnt == `CRC_LEN;
 
 
-always @ (posedge tck_i or posedge wb_rst_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (wb_rst_i)
+  if (rst_i)
     crc_cnt_end_q  <= #1 1'b0;
   else
     crc_cnt_end_q  <= #1 crc_cnt_end;
@@ -360,9 +380,9 @@ end
 
 
 // status counter
-always @ (posedge tck_i or posedge wb_rst_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (wb_rst_i)
+  if (rst_i)
     status_cnt <= #1 {`STATUS_CNT{1'b0}};
   else if(shift_dr_i & crc_cnt_end & (~status_cnt_end))
     status_cnt <= #1 status_cnt + 1'b1;
@@ -376,9 +396,9 @@ assign status_cnt_end = status_cnt == `STATUS_LEN;
 assign selecting_command = shift_dr_i & (data_cnt == `DATA_CNT'h0) & debug_select_i;
 
 
-always @ (posedge tck_i or posedge wb_rst_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (wb_rst_i)
+  if (rst_i)
     chain_select <= #1 1'b0;
   else if(selecting_command & tdi_i)       // Chain select
     chain_select <= #1 1'b1;
@@ -389,14 +409,22 @@ end
 
 always @ (chain)
 begin
+  `ifdef CPU_SUPPORTED
   cpu_debug_scan_chain  <= #1 1'b0;
+  `endif
+  `ifdef WISHBONE_SUPPORTED
   wishbone_scan_chain   <= #1 1'b0;
+  `endif
   chain_select_error    <= #1 1'b0;
   
   case (chain)                /* synthesis parallel_case */
-    `CPU_DEBUG_CHAIN      :   cpu_debug_scan_chain  <= #1 1'b1;
-    `WISHBONE_DEBUG_CHAIN :   wishbone_scan_chain   <= #1 1'b1;
-    default               :   chain_select_error    <= #1 1'b1; 
+    `ifdef CPU_SUPPORTED
+      `CPU_DEBUG_CHAIN      :   cpu_debug_scan_chain  <= #1 1'b1;
+    `endif
+    `ifdef WISHBONE_SUPPORTED
+      `WISHBONE_DEBUG_CHAIN :   wishbone_scan_chain   <= #1 1'b1;
+    `endif
+    default                 :   chain_select_error    <= #1 1'b1; 
   endcase
 end
 
@@ -404,9 +432,9 @@ end
 assign chain_latch_en = chain_select & crc_cnt_end & (~crc_cnt_end_q);
 
 
-always @ (posedge tck_i or posedge wb_rst_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (wb_rst_i)
+  if (rst_i)
     chain <= `CHAIN_ID_LENGTH'b111;
   else if(chain_latch_en & crc_match)
     chain <= #1 chain_dr[`CHAIN_DATA_LEN -1:1];
@@ -416,9 +444,9 @@ end
 assign data_shift_en = shift_dr_i & (~data_cnt_end);
 
 
-always @ (posedge tck_i or posedge wb_rst_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (wb_rst_i)
+  if (rst_i)
     chain_dr <= #1 `CHAIN_DATA_LEN'h0;
   else if (data_shift_en)
     chain_dr[`CHAIN_DATA_LEN -1:0] <= #1 {tdi_i, chain_dr[`CHAIN_DATA_LEN -1:1]};
@@ -431,7 +459,7 @@ dbg_crc32_d1 i_dbg_crc32_d1_in
               .data       (tdi_i),
               .enable     (shift_dr_i),
               .shift      (1'b0),
-              .rst        (wb_rst_i),
+              .rst        (rst_i),
               .sync_rst   (update_dr_i),
               .crc_out    (),
               .clk        (tck_i),
@@ -443,12 +471,14 @@ reg tdo_chain_select;
 wire crc_en;
 wire crc_en_dbg;
 reg crc_started;
+
 assign crc_en = crc_en_dbg | crc_en_wb | crc_en_cpu;
+
 assign crc_en_dbg = shift_dr_i & crc_cnt_end & (~status_cnt_end);
 
-always @ (posedge tck_i or posedge wb_rst_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (wb_rst_i)
+  if (rst_i)
     crc_started <= #1 1'b0;
   else if (crc_en)
     crc_started <= #1 1'b1;
@@ -467,7 +497,7 @@ dbg_crc32_d1 i_dbg_crc32_d1_out
               .enable     (crc_en), // enable has priority
 //              .shift      (1'b0),
               .shift      (shift_dr_i & crc_started & (~crc_en)),
-              .rst        (wb_rst_i),
+              .rst        (rst_i),
               .sync_rst   (update_dr_i),
               .crc_out    (crc_out),
               .clk        (tck_i),
@@ -514,14 +544,25 @@ end
 
 assign shift_crc = shift_crc_wb | shift_crc_cpu;
 
-always @ (shift_crc or crc_out or wishbone_ce or tdo_wb  or tdo_cpu or tdo_chain_select or cpu_ce)
+always @ (shift_crc or crc_out or tdo_chain_select
+`ifdef WISHBONE_SUPPORTED
+ or wishbone_ce or tdo_wb
+`endif
+`ifdef CPU_SUPPORTED
+ or cpu_ce or tdo_cpu
+`endif
+         )
 begin
   if (shift_crc)          // shifting crc
     tdo_tmp = crc_out;
+  `ifdef WISHBONE_SUPPORTED
   else if (wishbone_ce)   //  shifting data from wb
     tdo_tmp = tdo_wb;
+  `endif
+  `ifdef CPU_SUPPORTED
   else if (cpu_ce)        // shifting data from cpu
     tdo_tmp = tdo_cpu;
+  `endif
   else
     tdo_tmp = tdo_chain_select;
 end
@@ -538,32 +579,50 @@ end
 // Signals for WISHBONE module
 
 
-always @ (posedge tck_i or posedge wb_rst_i)
+always @ (posedge tck_i or posedge rst_i)
 begin
-  if (wb_rst_i)
+  if (rst_i)
     begin
+      `ifdef WISHBONE_SUPPORTED
       wishbone_ce <= #1 1'b0;
+      `endif
+      `ifdef CPU_SUPPORTED
       cpu_ce <= #1 1'b0;
+      `endif
     end
   else if(selecting_command & (~tdi_i))
     begin
+      `ifdef WISHBONE_SUPPORTED
       if (wishbone_scan_chain)      // wishbone CE
         wishbone_ce <= #1 1'b1;
+      `endif
+      `ifdef CPU_SUPPORTED
       if (cpu_debug_scan_chain)     // CPU CE
         cpu_ce <= #1 1'b1;
+      `endif
     end
   else if (update_dr_i)   // igor !!! This needs to be changed?
     begin
+      `ifdef WISHBONE_SUPPORTED
       wishbone_ce <= #1 1'b0;
+      `endif
+      `ifdef CPU_SUPPORTED
       cpu_ce <= #1 1'b0;
+      `endif
     end
 end
 
 
+`ifdef WISHBONE_SUPPORTED
 assign tdi_wb  = wishbone_ce & tdi_i;
+`endif
+
+`ifdef CPU_SUPPORTED
 assign tdi_cpu = cpu_ce & tdi_i;
+`endif
 
 
+`ifdef WISHBONE_SUPPORTED
 // Connecting wishbone module
 dbg_wb i_dbg_wb (
                   // JTAG signals
@@ -580,7 +639,7 @@ dbg_wb i_dbg_wb (
                   .crc_match_i      (crc_match),
                   .crc_en_o         (crc_en_wb),
                   .shift_crc_o      (shift_crc_wb),
-                  .rst_i            (wb_rst_i),
+                  .rst_i            (rst_i),
 
                   // WISHBONE common signals
                   .wb_clk_i         (wb_clk_i),
@@ -599,8 +658,10 @@ dbg_wb i_dbg_wb (
                   .wb_cti_o         (wb_cti_o),
                   .wb_bte_o         (wb_bte_o)
             );
+`endif
 
 
+`ifdef CPU_SUPPORTED
 // Connecting cpu module
 dbg_cpu i_dbg_cpu (
                   // JTAG signals
@@ -617,7 +678,7 @@ dbg_cpu i_dbg_cpu (
                   .crc_match_i      (crc_match),
                   .crc_en_o         (crc_en_cpu),
                   .shift_crc_o      (shift_crc_cpu),
-                  .rst_i            (wb_rst_i),
+                  .rst_i            (rst_i),
 
                   // CPU signals
                   .cpu_clk_i        (cpu_clk_i), 
@@ -632,9 +693,9 @@ dbg_cpu i_dbg_cpu (
                   .cpu_we_o         (cpu_we_o),
                   .cpu_ack_i        (cpu_ack_i),
                   .cpu_rst_o        (cpu_rst_o)
-
-
               );
+`endif  //  CPU_SUPPORTED
+
 
 
 endmodule

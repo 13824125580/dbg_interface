@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.37  2004/01/25 14:10:25  mohor
+// Display for VATS added.
+//
 // Revision 1.36  2004/01/22 13:58:51  mohor
 // Port signals are all set to zero after reset.
 //
@@ -193,8 +196,10 @@ wire  sample_preload_select_o;
 wire  mbist_select_o;
 wire  debug_select_o;
 
+reg   rst_i;
+
+`ifdef WISHBONE_SUPPORTED
 // WISHBONE common signals
-reg   wb_rst_i;
 reg   wb_clk_i;
                                                                                                                                                              
 // WISHBONE master interface
@@ -210,7 +215,9 @@ wire        wb_cab_o;
 wire        wb_err_i;
 wire  [2:0] wb_cti_o;
 wire  [1:0] wb_bte_o;
+`endif
 
+`ifdef CPU_SUPPORTED
 // CPU signals
 wire        cpu_clk_i;
 wire [31:0] cpu_addr_o;
@@ -224,6 +231,7 @@ wire  [`CPU_NUM -1:0]  cpu_sel_o;
 wire        cpu_we_o;
 wire        cpu_ack_i;
 wire        cpu_rst_o;
+`endif
 
 // Text used for easier debugging
 reg [199:0] test_text;
@@ -292,6 +300,7 @@ dbg_top i_dbg_top  (
                     .tck_i            (tck_pad_i),
                     .tdi_i            (tdo_o),
                     .tdo_o            (debug_tdi_i),
+                    .rst_i            (rst_i),
     
                     // TAP states
                     .shift_dr_i       (shift_dr_o),
@@ -299,10 +308,11 @@ dbg_top i_dbg_top  (
                     .update_dr_i      (update_dr_o),
     
                     // Instructions
-                    .debug_select_i   (debug_select_o),
+                    .debug_select_i   (debug_select_o)
 
+                    `ifdef WISHBONE_SUPPORTED
                     // WISHBONE common signals
-                    .wb_rst_i         (wb_rst_i),
+                    ,
                     .wb_clk_i         (wb_clk_i),
                                                                                                                                                                
                     // WISHBONE master interface
@@ -317,9 +327,12 @@ dbg_top i_dbg_top  (
                     .wb_cab_o         (wb_cab_o),
                     .wb_err_i         (wb_err_i),
                     .wb_cti_o         (wb_cti_o),
-                    .wb_bte_o         (wb_bte_o),
+                    .wb_bte_o         (wb_bte_o)
+                    `endif
 
+                    `ifdef CPU_SUPPORTED
                     // CPU signals
+                    ,
                     .cpu_clk_i        (cpu_clk_i),
                     .cpu_addr_o       (cpu_addr_o),
                     .cpu_data_i       (cpu_data_i),
@@ -332,18 +345,18 @@ dbg_top i_dbg_top  (
                     .cpu_we_o         (cpu_we_o),
                     .cpu_ack_i        (cpu_ack_i),
                     .cpu_rst_o        (cpu_rst_o)
-
+                    `endif
 
 
 
                    );
 
 
-
+`ifdef WISHBONE_SUPPORTED
 wb_slave_behavioral wb_slave
                    (
                     .CLK_I            (wb_clk_i),
-                    .RST_I            (wb_rst_i),
+                    .RST_I            (rst_i),
                     .ACK_O            (wb_ack_i),
                     .ADR_I            (wb_adr_o),
                     .CYC_I            (wb_cyc_o),
@@ -356,13 +369,14 @@ wb_slave_behavioral wb_slave
                     .WE_I             (wb_we_o),
                     .CAB_I            (1'b0)
                    );
+`endif
 
 
-
+`ifdef CPU_SUPPORTED
 cpu_behavioral i_cpu_behavioral
                    (
                     // CPU signals
-                    .cpu_rst_i        (wb_rst_i),
+                    .cpu_rst_i        (rst_i),
                     .cpu_clk_o        (cpu_clk_i),
                     .cpu_addr_i       (cpu_addr_o),
                     .cpu_data_o       (cpu_data_i),
@@ -376,7 +390,7 @@ cpu_behavioral i_cpu_behavioral
                     .cpu_ack_o        (cpu_ack_i),
                     .cpu_rst_o        (cpu_rst_o)
                    );
-
+`endif
 
 
 
@@ -397,22 +411,26 @@ end
 initial
 begin
   test_enabled = 1'b0;
-  wb_rst_i = 1'b0;
+  rst_i = 1'b0;
   #1000;
-  wb_rst_i = 1'b1;
+  rst_i = 1'b1;
   #1000;
-  wb_rst_i = 1'b0;
+  rst_i = 1'b0;
 
   // Initial values for wishbone slave model
+  `ifdef WISHBONE_SUPPORTED
   wb_slave.cycle_response(`ACK_RESPONSE, 9'h55, 8'h2);   // (`ACK_RESPONSE, wbs_waits, wbs_retries);
+  `endif
   #1 test_enabled<=#1 1'b1;
 end
 
+`ifdef WISHBONE_SUPPORTED
 initial
 begin
   wb_clk_i = 1'b0;
   forever #5 wb_clk_i = ~wb_clk_i;
 end
+`endif
 
 always @ (posedge test_enabled)
 begin
@@ -432,8 +450,10 @@ begin
   #500;
   goto_run_test_idle;
 
+  `ifdef CPU_SUPPORTED
   // Test stall signal
   stall_test;
+  `endif
 
   // Testing read and write to internal registers
   #10000;
@@ -447,10 +467,8 @@ begin
   set_instruction(`DEBUG);
   #10000;
 
+  `ifdef WISHBONE_SUPPORTED
   chain_select(`WISHBONE_DEBUG_CHAIN, 1'b0);   // {chain, gen_crc_err}
-
-//  #10000;
-//  xxx(4'b1001, 32'he579b242);
 
   #10000;
 
@@ -466,7 +484,6 @@ begin
 //  debug_wishbone(`WB_READ16, 1'b0, 32'h12345679, 16'h4, 1'b0, "abc 6"); // {command, ready, addr, length, gen_crc_err, text}
 
   #10000;
-//  xxx(4'b1001, 32'he579b242);
 
   debug_wishbone(`WB_READ32, 1'b1, 32'h12345678, 16'h4, 1'b0, "read32 2"); // {command, ready, addr, length, gen_crc_err, text}
 
@@ -514,7 +531,9 @@ begin
 
   #10000;
   debug_wishbone(`WB_GO, 1'b0, 32'h0, 16'h0, 1'b0, "go 2"); // {command, ready, addr, length, gen_crc_err, text}
+  `endif  // WISHBONE_SUPPORTED
 
+  `ifdef CPU_SUPPORTED
   #10000;
   chain_select(`CPU_DEBUG_CHAIN, 1'b0);   // {chain, gen_crc_err}
 
@@ -569,7 +588,7 @@ begin
 
   #10000;
   debug_cpu(`CPU_GO, 32'h0, 32'hdeadbeef, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
-
+  `endif
 
 
 
@@ -587,6 +606,7 @@ begin
 end
 
 
+`ifdef CPU_SUPPORTED
 task stall_test;
   integer i;
 
@@ -596,10 +616,10 @@ task stall_test;
 
     // Set bp_i active for 1 clock cycle and check is stall is set or not
     check_stall(0); // Should not be set at the beginning
-    @ (posedge wb_clk_i);
+    @ (posedge cpu_clk_i);
     #1 dbg_tb.i_cpu_behavioral.cpu_bp_o = 1'b1;
     #1 check_stall(1); // set?
-    @ (posedge wb_clk_i);
+    @ (posedge cpu_clk_i);
     #1 dbg_tb.i_cpu_behavioral.cpu_bp_o = 1'b0;
     #1 check_stall(1); // set?
 
@@ -647,6 +667,7 @@ task check_stall;
       end
   end
 endtask   // check_stall
+`endif
 
 
 task initialize_memory;
@@ -658,7 +679,9 @@ task initialize_memory;
     for (i=0; i<length; i=i+4)  // This data will be return from wb slave
       begin
         addr = start_addr + i;
+        `ifdef WISHBONE_SUPPORTED
         wb_slave.wr_mem(addr, {addr[7:0], addr[7:0]+2'd1, addr[7:0]+2'd2, addr[7:0]+2'd3}, 4'hf);    // adr, data, sel
+        `endif
       end
     for (i=0; i<4096; i=i+1)  // This data will be written to wb slave
       begin
@@ -842,6 +865,7 @@ endtask   // chain_select
 
 
 
+`ifdef WISHBONE_SUPPORTED
 task debug_wishbone;
   input [2:0]   command;
   input         ready;
@@ -1192,8 +1216,10 @@ task debug_wishbone_go;
 endtask       // debug_wishbone_go
 
 
+`endif // WISHBONE_SUPPORTED
 
 
+`ifdef CPU_SUPPORTED
 task debug_cpu;
   input [2:0]   command;
   input [31:0]  addr;
@@ -1443,6 +1469,7 @@ task debug_cpu_go;
     gen_clk(1);         // to run_test_idle
   end
 endtask       // debug_cpu_go
+`endif  // CPU_SUPPORTED
 
 
 
@@ -1576,7 +1603,17 @@ end
 
 
 // Detecting CRC error
-always @ (posedge dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end or posedge dbg_tb.i_dbg_top.chain_latch_en or posedge dbg_tb.i_dbg_top.i_dbg_cpu.crc_cnt_end)
+always @ (    
+           posedge dbg_tb.i_dbg_top.chain_latch_en
+           `ifdef WISHBONE_SUPPORTED
+           or posedge dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end
+           `endif
+           `ifdef CPU_SUPPORTED
+           or posedge dbg_tb.i_dbg_top.i_dbg_cpu.crc_cnt_end
+           `endif
+         )
+
+
 begin
   #2;
   if (~dbg_tb.i_dbg_top.crc_match)
@@ -1585,46 +1622,6 @@ begin
       $stop;
     end
 end
-
-
-
-// Detecting errors in counters
-always @ (dbg_tb.i_dbg_top.i_dbg_wb.cmd_cnt or 
-          dbg_tb.i_dbg_top.i_dbg_wb.cmd_cnt_end or
-          dbg_tb.i_dbg_top.i_dbg_wb.addr_len_cnt or
-          dbg_tb.i_dbg_top.i_dbg_wb.addr_len_cnt_end or
-          dbg_tb.i_dbg_top.i_dbg_wb.data_cnt or
-          dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_end or
-          dbg_tb.i_dbg_top.i_dbg_wb.cmd_cnt_en or
-          dbg_tb.i_dbg_top.i_dbg_wb.addr_len_cnt_en or
-          dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_en or
-          dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_en or
-          dbg_tb.i_dbg_top.i_dbg_wb.status_cnt1
-          //dbg_tb.i_dbg_top.i_dbg_wb.status_cnt2 or
-          //dbg_tb.i_dbg_top.i_dbg_wb.status_cnt3 or
-          //dbg_tb.i_dbg_top.i_dbg_wb.status_cnt4
-          // dbg_tb.i_dbg_top.i_dbg_wb. or
-         )
-begin
-  if ((~dbg_tb.i_dbg_top.i_dbg_wb.cmd_cnt_end) & (
-                                                  dbg_tb.i_dbg_top.i_dbg_wb.addr_len_cnt_en |
-                                                  dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_en     |
-                                                  dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_en      |
-                                                  dbg_tb.i_dbg_top.i_dbg_wb.status_cnt1
-                                                 )
-     )
-    begin
-      $display("\n\n\t\t(%0t) ERROR in counters !!!", $time);
-      #10000;
-      $stop;
-    end
-
-
-
-end
-
-
-
 
 
 

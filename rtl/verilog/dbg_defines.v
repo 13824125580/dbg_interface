@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2004/01/20 14:23:45  mohor
+// Define name changed.
+//
 // Revision 1.15  2003/12/23 15:07:34  mohor
 // New directory structure. New version of the debug interface.
 // Files that are not needed removed.
@@ -121,4 +124,10 @@
 // Chains
 `define CPU_DEBUG_CHAIN      3'b000
 `define WISHBONE_DEBUG_CHAIN 3'b001
+
+// If WISHBONE debugging is supported uncomment the folowing line
+`define WISHBONE_SUPPORTED
+
+// If CPU_DEBUG is supported uncomment the folowing line
+`define CPU_SUPPORTED
 
