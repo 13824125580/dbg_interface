@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2003/10/23 16:17:02  mohor
+// CRC logic changed.
+//
 // Revision 1.8  2003/10/21 09:48:31  simons
 // Mbist support added.
 //
@@ -609,10 +612,10 @@ begin
         `IDCODE:            tdo_pad_o <=#Tp TDOData_dbg;      // Reading ID code
         `CHAIN_SELECT:      tdo_pad_o <=#Tp TDOData_dbg;      // Selecting the chain
         `DEBUG:             tdo_pad_o <=#Tp TDOData_dbg;      // Debug
-        `SAMPLE_PRELOAD:    tdo_pad_o <=#Tp bs_chain_i;   // Sampling/Preloading
-        `EXTEST:            tdo_pad_o <=#Tp bs_chain_i;   // External test
-        `INTEST:            tdo_pad_o <=#Tp mbist_so_i;   // External test
-        default:            tdo_pad_o <=#Tp TDOBypassed;  // BYPASS instruction
+        `SAMPLE_PRELOAD:    tdo_pad_o <=#Tp bs_chain_i;       // Sampling/Preloading
+        `EXTEST:            tdo_pad_o <=#Tp bs_chain_i;       // External test
+        `MBIST:             tdo_pad_o <=#Tp mbist_so_i;       // Mbist test
+        default:            tdo_pad_o <=#Tp TDOBypassed;      // BYPASS instruction
       endcase
     end
 end
