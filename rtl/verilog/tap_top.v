@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2002/04/22 12:55:56  mohor
+// tdo_padoen_o changed to tdo_padoe_o. Signal is active high.
+//
 // Revision 1.5  2002/03/26 14:23:38  mohor
 // Signal tdo_padoe_o changed back to tdo_padoen_o.
 //
@@ -157,7 +160,7 @@ reg     BYPASSSelected;
 
 reg     BypassRegister;               // Bypass register
 
-wire    trst;                         // trst is active high while trst_pad_i is active low
+wire    trst;
 wire    tck;
 wire    TMS;
 wire    tdi;
@@ -167,7 +170,7 @@ wire    WishboneScanChain;
 wire    RegisterScanChain;
 
 
-assign trst = ~trst_pad_i;                // trst_pad_i is active low
+assign trst = trst_pad_i;                // trst_pad_i is active high !!! Inverted on higher layer 
 assign tck  = tck_pad_i;
 assign TMS  = tms_pad_i;
 assign tdi  = tdi_pad_i;
