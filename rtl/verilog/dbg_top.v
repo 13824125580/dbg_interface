@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2001/11/12 01:11:27  mohor
+// Reset signals are not combined any more.
+//
 // Revision 1.9  2001/10/19 11:40:01  mohor
 // dbg_timescale.v changed to timescale.v This is done for the simulation of
 // few different cores in a single project.
@@ -864,7 +867,7 @@ assign wb_stb_o = wb_cyc_o;
 
 
 // Latching data read from registers
-always @ (posedge risc_clk_i or posedge wb_rst_i)
+always @ (posedge wb_clk_i or posedge wb_rst_i)
 begin
   if(wb_rst_i)
     WBReadLatch[31:0]<=#Tp 32'h0;
