@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.34  2004/01/20 14:24:08  mohor
+// Define name changed.
+//
 // Revision 1.33  2004/01/20 14:05:26  mohor
 // Data latching changed when testing WB.
 //
@@ -374,7 +377,6 @@ cpu_behavioral i_cpu_behavioral
 // Initial values
 initial
 begin
-  test_enabled = 1'b0;
   trst_pad_i = 1'b1;
   tms_pad_i = 1'hz;
   tck_pad_i = 1'hz;
@@ -384,11 +386,11 @@ begin
   trst_pad_i = 1'b0;
   #100;
   trst_pad_i = 1'b1;
-  #1 test_enabled<=#1 1'b1;
 end
 
 initial
 begin
+  test_enabled = 1'b0;
   wb_rst_i = 1'b0;
   #1000;
   wb_rst_i = 1'b1;
@@ -397,6 +399,7 @@ begin
 
   // Initial values for wishbone slave model
   wb_slave.cycle_response(`ACK_RESPONSE, 9'h55, 8'h2);   // (`ACK_RESPONSE, wbs_waits, wbs_retries);
+  #1 test_enabled<=#1 1'b1;
 end
 
 initial
@@ -420,6 +423,9 @@ begin
 
   #500;
   goto_run_test_idle;
+
+  // Test stall signal
+  stall_test;
 
   // Testing read and write to internal registers
   #10000;
@@ -570,6 +576,67 @@ begin
   #1000 $stop;
 
 end
+
+
+task stall_test;
+  integer i;
+
+  begin
+    $display("\n\n(%0t) stall_test started", $time);
+
+    // Set bp_i active for 1 clock cycle and check is stall is set or not
+    check_stall(0); // Should not be set at the beginning
+    @ (posedge wb_clk_i);
+      #1 dbg_tb.i_cpu_behavioral.cpu_bp_o = 1'b1;
+      check_stall(1); // set?
+    @ (posedge wb_clk_i);
+      #1 dbg_tb.i_cpu_behavioral.cpu_bp_o = 1'b0;
+      check_stall(1); // set?
+
+    gen_clk(1);
+    check_stall(1); // set?
+
+    // Unstall with register
+    set_instruction(`DEBUG);
+    chain_select(`CPU_DEBUG_CHAIN, 1'b0);   // {chain, gen_crc_err}
+    check_stall(1); // set?
+    debug_cpu(`CPU_WRITE_REG, `CPU_OP_ADR, 32'h0, 1'b0, result, "clr unstall"); // {command, addr, data, gen_crc_err, result, text}
+    check_stall(1); // set?
+    debug_cpu(`CPU_GO, 32'h0, 32'h0, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
+    check_stall(0); // reset?
+
+    // Set stall with register
+    debug_cpu(`CPU_WRITE_REG, `CPU_OP_ADR, 32'h0, 1'b0, result, "clr stall"); // {command, addr, data, gen_crc_err, result, text}
+    check_stall(0); // reset?
+    debug_cpu(`CPU_GO, 32'h0, 32'h1, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
+    check_stall(1); // set?
+
+    // Unstall with register
+    debug_cpu(`CPU_WRITE_REG, `CPU_OP_ADR, 32'h0, 1'b0, result, "clr unstall"); // {command, addr, data, gen_crc_err, result, text}
+    check_stall(1); // set?
+    debug_cpu(`CPU_GO, 32'h0, 32'h0, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
+    check_stall(0); // reset?
+
+    $display("\n\n(%0t) stall_test passed\n\n", $time);
+  end
+endtask   // stall_test
+
+
+task check_stall;
+  input should_be_set;
+  begin
+    if (should_be_set && (!cpu_stall_o))
+      begin
+        $display ("\t\t(%0t) ERROR: cpu_stall_o is not set but should be.", $time);
+        $stop;
+      end
+    if ((!should_be_set) && cpu_stall_o)
+      begin
+        $display ("\t\t(%0t) ERROR: cpu_stall_o set but shouldn't be.", $time);
+        $stop;
+      end
+  end
+endtask   // check_stall
 
 
 task initialize_memory;

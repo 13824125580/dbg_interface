@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2004/01/17 18:01:31  mohor
+// New version.
+//
 // Revision 1.1  2004/01/17 17:01:25  mohor
 // Almost finished.
 //
@@ -91,6 +94,7 @@ output        cpu_rst_o;
 
 reg           cpu_clk_o;
 reg    [31:0] cpu_data_o;
+reg           cpu_bp_o;
 
 initial
 begin
@@ -99,7 +103,10 @@ begin
 end
 
 
-assign cpu_bp_o = 1'b0;
+initial
+begin
+  cpu_bp_o = 1'b0;
+end
 
 assign #200 cpu_ack_o = cpu_stall_i & cpu_stb_i;
 
