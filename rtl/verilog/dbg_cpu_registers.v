@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2004/01/17 17:01:14  mohor
+// Almost finished.
+//
 // Revision 1.1  2004/01/16 14:53:33  mohor
 // *** empty log message ***
 //
@@ -89,7 +92,6 @@ output                  cpu_stall_all_o;
 output [`CPU_NUM -1:0]  cpu_sel_o;
 output                  cpu_rst_o;
 
-wire                    cpu_stall;
 wire                    cpu_stall_all;
 wire                    cpu_reset;
 wire             [2:1]  cpu_op_out;
@@ -98,16 +100,13 @@ wire   [`CPU_NUM -1:0]  cpu_sel_out;
 wire                    cpuop_wr;
 wire                    cpusel_wr;
 
-reg                     cpusel_wr_sync;
-reg                     cpusel_wr_cpu;
-reg                     cpu_stall_bp;
-reg                     cpu_stall_sync;
-reg                     cpu_stall_o;
+reg                     cpusel_wr_sync, cpusel_wr_cpu;
+reg                     stall_bp, stall_bp_sync, stall_bp_tck;
+reg                     stall_reg, stall_reg_sync, stall_reg_cpu;
 reg                     cpu_stall_all_sync;
 reg                     cpu_stall_all_o;
 reg                     cpu_reset_sync;
 reg                     cpu_rst_o;
-
 
 
 
@@ -116,40 +115,93 @@ assign cpusel_wr     = en_i & we_i & (addr_i == `CPU_SEL_ADR);
 
 
 // Synchronising we for cpu_sel register that works in cpu_clk clock domain
-always @ (posedge cpu_clk_i)
+always @ (posedge cpu_clk_i or posedge rst_i)
 begin
-  cpusel_wr_sync <= #1 cpusel_wr;
-  cpusel_wr_cpu  <= #1 cpusel_wr_sync;
+  if (rst_i)
+    begin
+      cpusel_wr_sync <= #1 1'b0;
+      cpusel_wr_cpu  <= #1 1'b0;
+    end
+  else
+    begin
+      cpusel_wr_sync <= #1 cpusel_wr;
+      cpusel_wr_cpu  <= #1 cpusel_wr_sync;
+    end
 end
 
 
-
-always @(posedge clk_i or posedge rst_i)
+// Breakpoint is latched and synchronized. Stall is set and latched.
+always @ (posedge cpu_clk_i or posedge rst_i)
 begin
   if(rst_i)
-    cpu_stall_bp <= 1'b0;
-  else if(bp_i)                     // Breakpoint sets bit
-    cpu_stall_bp <= 1'b1;
-  else if(cpuop_wr)               // Register access can set or clear bit
-    cpu_stall_bp <= data_i[0];
+    stall_bp <= #1 1'b0;
+  else if(bp_i)
+    stall_bp <= #1 1'b1;
+  else if(stall_reg_cpu)
+    stall_bp <= #1 1'b0;
 end
 
 
-dbg_register #(2, 0)          CPUOP  (.data_in(data_i[2:1]),           .data_out(cpu_op_out[2:1]), .write(cpuop_wr),   .clk(clk_i), .reset(rst_i));
+// Synchronizing
+always @ (posedge clk_i or posedge rst_i)
+begin
+  if (rst_i)
+    begin
+      stall_bp_sync <= #1 1'b0;
+      stall_bp_tck  <= #1 1'b0;
+    end
+  else
+    begin
+      stall_bp_sync <= #1 stall_bp;
+      stall_bp_tck  <= #1 stall_bp_sync;
+    end
+end
+
+
+always @ (posedge clk_i or posedge rst_i)
+begin
+  if (rst_i)
+    stall_reg <= #1 1'b0;
+  else if (stall_bp_tck)
+    stall_reg <= #1 1'b1;
+  else if (cpuop_wr)
+    stall_reg <= #1 data_i[0];
+end
+
+
+always @ (posedge cpu_clk_i or posedge rst_i)
+begin
+  if (rst_i)
+    begin
+      stall_reg_sync <= #1 1'b0;
+      stall_reg_cpu  <= #1 1'b0;
+    end
+  else
+    begin
+      stall_reg_sync <= #1 stall_reg;
+      stall_reg_cpu  <= #1 stall_reg_sync;
+    end
+end
+
+
+assign cpu_stall_o = bp_i | stall_bp | stall_reg_cpu;
+
+
+
+dbg_register #(2, 0)          CPUOP  (.data_in(data_i[2:1]),           .data_out(cpu_op_out[2:1]), .write(cpuop_wr),       .clk(clk_i),     .reset(rst_i));
 dbg_register #(`CPU_NUM, 0)   CPUSEL (.data_in(data_i[`CPU_NUM-1:0]),  .data_out(cpu_sel_out),     .write(cpusel_wr_cpu),  .clk(cpu_clk_i), .reset(rst_i)); // cpu_cli_i
 
 
 always @ (posedge clk_i)
 begin
   case (addr_i)         // Synthesis parallel_case
-    `CPU_OP_ADR  : data_o <= #1 {5'h0, cpu_op_out[2:1], cpu_stall};
+    `CPU_OP_ADR  : data_o <= #1 {5'h0, cpu_op_out[2:1], stall_reg};
     `CPU_SEL_ADR : data_o <= #1 {{(8-`CPU_NUM){1'b0}}, cpu_sel_out};
     default      : data_o <= #1 8'h0;
   endcase
 end
 
 
-assign cpu_stall          = bp_i | cpu_stall_bp;   // bp asynchronously sets the cpu_stall, then cpu_stall_bp (from register) holds it active
 assign cpu_stall_all      = cpu_op_out[2];       // this signal is used to stall all the cpus except the one that is selected in cpusel register
 assign cpu_sel_o          = cpu_sel_out;
 assign cpu_reset          = cpu_op_out[1];
@@ -158,14 +210,22 @@ assign cpu_reset          = cpu_op_out[1];
 
 
 // Synchronizing signals from registers
-always @ (posedge cpu_clk_i)
+always @ (posedge cpu_clk_i or posedge rst_i)
 begin
-  cpu_stall_sync      <= #1 cpu_stall;
-  cpu_stall_o         <= #1 cpu_stall_sync;
-  cpu_stall_all_sync  <= #1 cpu_stall_all;
-  cpu_stall_all_o     <= #1 cpu_stall_all_sync;
-  cpu_reset_sync      <= #1 cpu_reset;
-  cpu_rst_o           <= #1 cpu_reset_sync;
+  if (rst_i)
+    begin
+      cpu_stall_all_sync  <= #1 1'b0; 
+      cpu_stall_all_o     <= #1 1'b0; 
+      cpu_reset_sync      <= #1 1'b0; 
+      cpu_rst_o           <= #1 1'b0; 
+    end
+  else
+    begin
+      cpu_stall_all_sync  <= #1 cpu_stall_all;
+      cpu_stall_all_o     <= #1 cpu_stall_all_sync;
+      cpu_reset_sync      <= #1 cpu_reset;
+      cpu_rst_o           <= #1 cpu_reset_sync;
+    end
 end
 
 
