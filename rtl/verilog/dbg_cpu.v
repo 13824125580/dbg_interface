@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2004/01/17 17:01:14  mohor
+// Almost finished.
+//
 // Revision 1.1  2004/01/16 14:53:31  mohor
 // *** empty log message ***
 //
@@ -123,6 +126,7 @@ output        cpu_rst_o;
 
                                                                                 
 reg           tdo_o;
+reg   [799:0] tdo_text;
 
 wire          cmd_cnt_en;
 reg     [1:0] cmd_cnt;
@@ -144,7 +148,9 @@ reg           data_cnt_end_q;
 wire          status_cnt_end;
 reg           status_cnt1, status_cnt2, status_cnt3, status_cnt4;
 reg     [3:0] status;
+reg   [199:0] status_text;
 
+reg           crc_match_reg;
 wire          enable;
 
 reg           read_cycle_reg;
@@ -560,11 +566,86 @@ end
 
 
 
-always @ (posedge tck_i)
+// Synchronizing cpu_stb to cpu_clk_i clock
+always @ (posedge cpu_clk_i)
 begin
   cpu_stb_sync  <= #1 cpu_stb;
   cpu_stb_o     <= #1 cpu_stb_sync;
 end
+
+
+// Latching crc
+always @ (posedge tck_i)
+begin
+  if(crc_cnt_end & (~crc_cnt_end_q))
+    crc_match_reg <= #1 crc_match_i;
+end
+
+
+
+// Status register
+always @ (posedge tck_i or posedge rst_i)
+begin
+  if (rst_i)
+    begin
+    status <= #1 'h0;
+    status_text <= #1 "reset";
+    end
+  else if(crc_cnt_end & (~crc_cnt_end_q) & (~read_cycle))
+    begin
+    status <= #1 {crc_match_i, 1'b0, 1'b1, 1'b0};
+    status_text <= #1 "!!!READ";
+    end
+  else if (data_cnt_end & (~data_cnt_end_q) & read_cycle)
+    begin
+    status <= #1 {crc_match_reg, 1'b0, 1'b1, 1'b0};
+    status_text <= #1 "READ";
+    end
+  else if (shift_dr_i & (~status_cnt_end))
+    begin
+    status <= #1 {status[0], status[3:1]};
+    status_text <= #1 "shift";
+    end
+end
+// Following status is shifted out:
+// 1. bit:          1 if crc is OK, else 0
+// 2. bit:          1'b0
+// 3. bit:          1'b1
+// 4. bit:          1'b0
+
+
+
+// TDO multiplexer
+always @ (crc_cnt_end or crc_cnt_end_q or crc_match_i or data_cnt_end or data_cnt_end_q or 
+          read_cycle or crc_match_reg or status or dr)
+begin
+  if (crc_cnt_end & (~crc_cnt_end_q) & (~(read_cycle)))
+    begin
+      tdo_o = crc_match_i;
+      tdo_text = "crc_match_i";
+    end
+  else if (read_cycle & crc_cnt_end & (~data_cnt_end))
+    begin
+    tdo_o = dr[31];
+    tdo_text = "read data";
+    end
+  else if (read_cycle & data_cnt_end & (~data_cnt_end_q))     // cmd is already updated
+    begin
+      tdo_o = crc_match_reg;
+      tdo_text = "crc_match_reg";
+    end
+  else if (crc_cnt_end)
+    begin
+      tdo_o = status[0];
+      tdo_text = "status";
+    end
+  else
+    begin
+      tdo_o = 1'b0;
+      tdo_text = "zero while CRC is shifted in";
+    end
+end
+
 
 
 

@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.26  2004/01/17 17:01:25  mohor
+// Almost finished.
+//
 // Revision 1.25  2004/01/16 14:51:24  mohor
 // cpu registers added.
 //
@@ -152,6 +155,7 @@ wire  tdo_padoe_o;
 wire  shift_dr_o;
 wire  pause_dr_o;
 wire  update_dr_o;
+wire  capture_dr_o;
 
 wire  extest_select_o;
 wire  sample_preload_select_o;
@@ -231,6 +235,7 @@ tap_top i_tap_top (
                     .shift_dr_o       (shift_dr_o),
                     .pause_dr_o       (pause_dr_o),
                     .update_dr_o      (update_dr_o),
+                    .capture_dr_o     (capture_dr_o),
                 
                     // Select signals for boundary scan or mbist
                     .extest_select_o  (extest_select_o),
@@ -521,7 +526,7 @@ begin
   #10000;
   debug_cpu(`CPU_GO, 32'h0, 32'hdeadbeef, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
 
-  // write from cpu 32-bit
+  // read from cpu 32-bit
   #10000;
   debug_cpu(`CPU_READ32, 32'h32323232, 32'h0, 1'b0, result, "cpu_read_32"); // {command, addr, data, gen_crc_err, result, text}
 
@@ -535,7 +540,7 @@ begin
   #10000;
   debug_cpu(`CPU_GO, 32'h0, 32'hdeadbeef, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
 
-  // write from cpu 8-bit
+  // read from cpu 8-bit
   #10000;
   debug_cpu(`CPU_READ8, 32'h08080808, 32'h0, 1'b0, result, "cpu_read_8"); // {command, addr, data, gen_crc_err, result, text}
 

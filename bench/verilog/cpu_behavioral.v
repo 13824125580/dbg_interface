@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2004/01/17 17:01:25  mohor
+// Almost finished.
+//
 //
 //
 //
@@ -87,7 +90,7 @@ output        cpu_ack_o;
 output        cpu_rst_o;
 
 reg           cpu_clk_o;
-reg    [31:0] tmp_data;
+reg    [31:0] cpu_data_o;
 
 initial
 begin
@@ -105,11 +108,11 @@ assign #200 cpu_ack_o = cpu_stall_i & cpu_stb_i;
 always @ (posedge cpu_clk_o or posedge cpu_rst_i)
 begin
   if (cpu_rst_i)
-    tmp_data <= #1 32'h11111111;
+    cpu_data_o <= #1 32'h11111111;
   else if ((cpu_addr_i == 32'h32323232) & cpu_we_i & cpu_ack_o)
-    tmp_data <= #1 32'hdeaddead;
+    cpu_data_o <= #1 cpu_data_i + 1'd1;
   else if ((cpu_addr_i == 32'h08080808) & cpu_we_i & cpu_ack_o)
-    tmp_data <= #1 32'hbeefbeef;
+    cpu_data_o <= #1 cpu_data_i + 2'd2;
 end
 
 

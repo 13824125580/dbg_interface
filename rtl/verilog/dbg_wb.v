@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.14  2004/01/16 14:51:33  mohor
+// cpu registers added.
+//
 // Revision 1.13  2004/01/15 12:09:43  mohor
 // Working.
 //
@@ -555,8 +558,8 @@ end
 
 
 // TDO multiplexer
-always @ (pause_dr_i or busy_tck or crc_cnt_end or crc_cnt_end_q or cmd_read or crc_match_i or 
-          data_cnt_end or data_cnt_end_q or read_cycle or crc_match_reg or status or dr or cmd_go)
+always @ (pause_dr_i or busy_tck or crc_cnt_end or crc_cnt_end_q or crc_match_i or 
+          data_cnt_end or data_cnt_end_q or read_cycle or crc_match_reg or status or dr)
 begin
   if (pause_dr_i)
     begin

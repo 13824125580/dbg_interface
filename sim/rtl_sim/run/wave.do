@@ -116,8 +116,8 @@ define variable nofilenames
 define variable nofullpathfilenames
 include bookmark with filenames
 include scope history without filenames
-define waveform window listpane 6.99
-define waveform window namepane 14.29
+define waveform window listpane 5.97
+define waveform window namepane 13.98
 define multivalueindication
 define pattern curpos dot
 define pattern cursor1 dot
@@ -415,6 +415,26 @@ add group \
     cpu_debug \
       dbg_tb.test_text[199:0]'a \
       dbg_tb.i_tap_top.tdi_pad_i \
+      dbg_tb.i_dbg_top.i_dbg_cpu.tdo_o \
+      dbg_tb.i_dbg_top.i_dbg_cpu.tdo_text[799:0]'a \
+      dbg_tb.i_dbg_top.i_dbg_cpu.crc_en_o \
+      dbg_tb.i_dbg_top.i_dbg_cpu.shift_crc_o \
+      dbg_tb.i_dbg_top.i_dbg_cpu.status[3:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.status_text[199:0]'a \
+      dbg_tb.i_dbg_top.i_dbg_cpu.latching_data_text[199:0]'a \
+      dbg_tb.i_dbg_top.i_dbg_cpu.dr[31] \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cpu_stall_o \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cpu_stb_o \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cpu_we_o \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cpu_data_o[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cpu_data_i[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cpu_ack_i \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cpu_stb \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cpu_stb_sync \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cpu_stb_o \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cpu_ack_i \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cpu_ack_sync \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cpu_ack_tck \
       dbg_tb.i_dbg_top.cpu_debug_scan_chain \
       dbg_tb.i_dbg_top.i_dbg_cpu.cpu_ce_i \
       dbg_tb.i_dbg_top.i_dbg_cpu.crc_en_o \
@@ -437,7 +457,6 @@ add group \
       dbg_tb.i_dbg_top.i_dbg_cpu.addr_cnt[5:0]'h \
       dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt[5:0]'h \
       dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt_en \
-      dbg_tb.i_dbg_top.i_dbg_cpu.dr[31] \
       dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt_end \
       dbg_tb.i_dbg_top.i_dbg_cpu.crc_cnt[5:0]'h \
       dbg_tb.i_dbg_top.i_dbg_cpu.addr_cnt_limit[5:0]'h \
@@ -569,4 +588,4 @@ add group \
 
 deselect all
 open window waveform 1 geometry 10 60 1592 1139
-zoom at 491402(0)ns 0.00007691 0.00000000
+zoom at 631005(0)ns 0.00123035 0.00000000
