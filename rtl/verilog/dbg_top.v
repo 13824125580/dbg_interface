@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.35  2004/01/14 22:59:16  mohor
+// Temp version.
+//
 // Revision 1.34  2003/12/23 15:07:34  mohor
 // New directory structure. New version of the debug interface.
 // Files that are not needed removed.
@@ -235,6 +238,7 @@ reg [`STATUS_CNT -1:0]      status_cnt;
 reg [`CHAIN_DATA_LEN -1:0]  chain_dr;
 reg [`CHAIN_ID_LENGTH -1:0] chain; 
 
+wire chain_latch_en;
 wire data_cnt_end;
 wire crc_cnt_end;
 wire status_cnt_end;
@@ -246,13 +250,24 @@ reg  chain_select_error;
 wire crc_out;
 wire crc_match;
 wire crc_en_wb;
+wire crc_en_cpu;
 wire shift_crc_wb;
+wire shift_crc_cpu;
 
 wire data_shift_en;
 wire selecting_command;
 
 reg tdo_o;
 reg wishbone_ce;
+reg cpu_ce;
+
+wire tdi_wb;
+wire tdi_cpu;
+
+wire tdo_wb;
+wire tdo_cpu;
+
+wire shift_crc;
 
 // data counter
 always @ (posedge tck_i or posedge wb_rst_i)
@@ -333,11 +348,14 @@ begin
 end
 
 
+assign chain_latch_en = chain_select & crc_cnt_end & (~crc_cnt_end_q);
+
+
 always @ (posedge tck_i or posedge wb_rst_i)
 begin
   if (wb_rst_i)
     chain <= `CHAIN_ID_LENGTH'b111;
-  else if(chain_select & crc_cnt_end & (~crc_cnt_end_q) & crc_match)
+  else if(chain_latch_en & crc_match)
     chain <= #1 chain_dr[`CHAIN_DATA_LEN -1:1];
 end
 
@@ -370,7 +388,7 @@ reg tdo_chain_select;
 wire crc_en;
 wire crc_en_dbg;
 reg crc_started;
-assign crc_en = crc_en_dbg | crc_en_wb;
+assign crc_en = crc_en_dbg | crc_en_wb | crc_en_cpu;
 assign crc_en_dbg = shift_dr_i & crc_cnt_end & (~status_cnt_end);
 
 always @ (posedge tck_i)
@@ -435,15 +453,18 @@ begin
 end
 
 
-wire tdi_wb;
-wire tdo_wb;
 
-always @ (shift_crc_wb or crc_out or wishbone_ce or tdo_wb or tdo_chain_select)
+
+assign shift_crc = shift_crc_wb | shift_crc_cpu;
+
+always @ (shift_crc or crc_out or wishbone_ce or tdo_wb  or tdo_cpu or tdo_chain_select)
 begin
-  if (shift_crc_wb)       // shifting crc
+  if (shift_crc)          // shifting crc
     tdo_tmp = crc_out;
   else if (wishbone_ce)   //  shifting data from wb
     tdo_tmp = tdo_wb;
+  else if (cpu_ce)        // shifting data from cpu
+    tdo_tmp = tdo_cpu;
   else
     tdo_tmp = tdo_chain_select;
 end
@@ -463,15 +484,28 @@ end
 always @ (posedge tck_i or posedge wb_rst_i)
 begin
   if (wb_rst_i)
-    wishbone_ce <= #1 1'b0;
-  else if(selecting_command & (~tdi_i) & wishbone_scan_chain) // wishbone CE
-    wishbone_ce <= #1 1'b1;
+    begin
+      wishbone_ce <= #1 1'b0;
+      cpu_ce <= #1 1'b0;
+    end
+  else if(selecting_command & (~tdi_i))
+    begin
+      if (wishbone_scan_chain)      // wishbone CE
+        wishbone_ce <= #1 1'b1;
+      if (cpu_debug_scan_chain)     // CPU CE
+        cpu_ce <= #1 1'b1;
+    end
   else if (update_dr_i)   // igor !!! This needs to be changed?
-    wishbone_ce <= #1 1'b0;
+    begin
+      wishbone_ce <= #1 1'b0;
+      cpu_ce <= #1 1'b0;
+    end
 end
 
 
-assign tdi_wb = wishbone_ce & tdi_i;
+assign tdi_wb  = wishbone_ce & tdi_i;
+assign tdi_cpu = cpu_ce & tdi_i;
+
 
 // Connecting wishbone module
 dbg_wb i_dbg_wb (
@@ -507,7 +541,28 @@ dbg_wb i_dbg_wb (
                   .wb_err_i      (wb_err_i),
                   .wb_cti_o      (wb_cti_o),
                   .wb_bte_o      (wb_bte_o)
-
             );
+
+
+// Connecting cpu module
+dbg_cpu i_dbg_cpu (
+                  // JTAG signals
+                  .tck_i         (tck_i),
+                  .tdi_i         (tdi_cpu),
+                  .tdo_o         (tdo_cpu),
+
+                  // TAP states
+                  .shift_dr_i    (shift_dr_i),
+                  .pause_dr_i    (pause_dr_i),
+                  .update_dr_i   (update_dr_i),
+
+                  .cpu_ce_i      (cpu_ce),
+                  .crc_match_i   (crc_match),
+                  .crc_en_o      (crc_en_cpu),
+                  .shift_crc_o   (shift_crc_cpu),
+                  .rst_i         (wb_rst_i),
+                  .clk_i         (wb_clk_i)
+              );
+
 
 endmodule

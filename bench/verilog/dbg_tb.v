@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.24  2004/01/15 10:47:13  mohor
+// Working.
+//
 // Revision 1.23  2004/01/14 22:59:01  mohor
 // Temp version.
 //
@@ -129,6 +132,7 @@
 `include "timescale.v"
 `include "dbg_defines.v"
 `include "dbg_wb_defines.v"
+`include "dbg_cpu_defines.v"
 //`include "dbg_tb_defines.v"
 
 // Test bench
@@ -171,9 +175,9 @@ wire  [2:0] wb_cti_o;
 wire  [1:0] wb_bte_o;
 
 // Text used for easier debugging
-reg  [99:0] test_text;
+reg [199:0] test_text;
 reg   [2:0] last_wb_cmd;
-reg  [99:0] last_wb_cmd_text;
+reg [199:0] last_wb_cmd_text;
 reg  [31:0] wb_data;
 
 
@@ -188,8 +192,11 @@ reg   test_enabled;
 
 reg [31:0] result;
 
-reg [31:0] tmp_crc;
-reg [31:0] shifted_in_crc;
+reg  crc_out_en;
+reg  crc_out_shift;
+wire crc_out;
+
+
 
 wire tdo;
 
@@ -226,6 +233,7 @@ tap_top i_tap_top (
                );
 
 
+// Connecting debug top module
 dbg_top i_dbg_top  (
                     .tck_i(tck_pad_i),
                     .tdi_i(tdo_o),
@@ -259,6 +267,23 @@ dbg_top i_dbg_top  (
                    );
 
 
+
+// Connecting CRC module that calculates CRC that is shifted into debug
+dbg_crc32_d1 crc32_bench_out
+             (
+              .data       (tdi_pad_i),
+              .enable     (crc_out_en),
+              .shift      (crc_out_shift),
+              .rst        (wb_rst_i),
+              .sync_rst   (update_dr_o),
+              .crc_out    (crc_out),
+              .clk        (tck_pad_i),
+              .crc_match  ()
+             );
+
+
+
+
 wb_slave_behavioral wb_slave
                    (
                     .CLK_I(wb_clk_i),
@@ -281,6 +306,8 @@ wb_slave_behavioral wb_slave
 initial
 begin
   test_enabled = 1'b0;
+  crc_out_en = 1'b0;
+  crc_out_shift = 1'b0;
   wb_data = 32'h01234567;
   trst_pad_i = 1'b1;
   tms_pad_i = 1'hz;
@@ -336,75 +363,82 @@ begin
   set_instruction(`DEBUG);
   #10000;
 
-  chain_select(`WISHBONE_SCAN_CHAIN, 32'hf2bcd929);
+  chain_select(`WISHBONE_SCAN_CHAIN, 1'b0);   // {chain, gen_crc_err}
 
 //  #10000;
 //  xxx(4'b1001, 32'he579b242);
 
   #10000;
 
-//  debug_wishbone(`WB_READ8, 1'b0, 32'h12345678, 16'h4, 32'h57ecda62, result, "abc 1"); // {command, ready, addr, length, crc, result, text}
-//  debug_wishbone(`WB_READ8, 1'b0, 32'h12345679, 16'h4, 32'h563476e5, result, "abc 2"); // {command, ready, addr, length, crc, result, text}
-//  debug_wishbone(`WB_READ8, 1'b0, 32'h1234567a, 16'h4, 32'h545d836c, result, "abc 3"); // {command, ready, addr, length, crc, result, text}
+//  debug_wishbone(`WB_READ8, 1'b0, 32'h12345678, 16'h4, 1'b0, result, "abc 1"); // {command, ready, addr, length, gen_crc_err, result, text}
+//  debug_wishbone(`WB_READ8, 1'b0, 32'h12345679, 16'h4, 1'b0, result, "abc 2"); // {command, ready, addr, length, gen_crc_err, result, text}
+//  debug_wishbone(`WB_READ8, 1'b0, 32'h1234567a, 16'h4, 1'b0, result, "abc 3"); // {command, ready, addr, length, gen_crc_err, result, text}
 //
-//  debug_wishbone(`WB_READ16, 1'b0, 32'h12345678, 16'h4, 32'h86156251, result, "abc 4"); // {command, ready, addr, length, crc, result, text}
-//  debug_wishbone(`WB_READ16, 1'b0, 32'h1234567a, 16'h4, 32'h85a43b5f, result, "abc 5"); // {command, ready, addr, length, crc, result, text}
+//  debug_wishbone(`WB_READ16, 1'b0, 32'h12345678, 16'h4, 1'b0, result, "abc 4"); // {command, ready, addr, length, gen_crc_err, result, text}
+//  debug_wishbone(`WB_READ16, 1'b0, 32'h1234567a, 16'h4, 1'b0, result, "abc 5"); // {command, ready, addr, length, gen_crc_err, result, text}
 //
-  debug_wishbone(`WB_READ32, 1'b0, 32'h12345678, 16'h4, 32'hc9420a40, result, "read32 1"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_READ32, 1'b0, 32'h12345678, 16'h4, 1'b0, result, "read32 1"); // {command, ready, addr, length, gen_crc_err, result, text}
 //
-//  debug_wishbone(`WB_READ16, 1'b0, 32'h12345679, 16'h4, 32'h87cdced6, result, "abc 6"); // {command, ready, addr, length, crc, result, text}
+//  debug_wishbone(`WB_READ16, 1'b0, 32'h12345679, 16'h4, 1'b0, result, "abc 6"); // {command, ready, addr, length, gen_crc_err, result, text}
 
   #10000;
 //  xxx(4'b1001, 32'he579b242);
 
-  debug_wishbone(`WB_READ32, 1'b1, 32'h12345678, 16'h4, 32'hc9420a40, result, "read32 2"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_READ32, 1'b1, 32'h12345678, 16'h4, 1'b0, result, "read32 2"); // {command, ready, addr, length, gen_crc_err, result, text}
 
   #10000;
   wb_slave.cycle_response(`ACK_RESPONSE, 9'h55, 8'h2);   // (`ACK_RESPONSE, wbs_waits, wbs_retries);
-  debug_wishbone(`WB_READ32, 1'b1, 32'h12346668, 16'h4, 32'hc935a962, result, "read32 3"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_READ32, 1'b1, 32'h12346668, 16'h4, 1'b0, result, "read32 3"); // {command, ready, addr, length, gen_crc_err, result, text}
 
   #10000;
   wb_slave.cycle_response(`ERR_RESPONSE, 9'h03, 8'h2);   // (`ERR_RESPONSE, wbs_waits, wbs_retries);
-  debug_wishbone(`WB_READ32, 1'b1, 32'h12346668, 16'h4, 32'hc935a962, result, "read32 4"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_READ32, 1'b1, 32'h12346668, 16'h4, 1'b0, result, "read32 4"); // {command, ready, addr, length, gen_crc_err, result, text}
 
   #10000;
-  debug_wishbone(`WB_STATUS, 1'b0, 32'h0, 16'h0, 32'hc7b0424d, result, "status 1"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_STATUS, 1'b0, 32'h0, 16'h0, 1'b0, result, "status 1"); // {command, ready, addr, length, gen_crc_err, result, text}
 
   #10000;
-  debug_wishbone(`WB_STATUS, 1'b0, 32'h0, 16'h0, 32'hc7b0424d, result, "status 2"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_STATUS, 1'b0, 32'h0, 16'h0, 1'b0, result, "status 2"); // {command, ready, addr, length, gen_crc_err, result, text}
 
   #10000;
   wb_slave.cycle_response(`ACK_RESPONSE, 9'h012, 8'h2);   // (`ACK_RESPONSE, wbs_waits, wbs_retries);
-  debug_wishbone(`WB_READ32, 1'b1, 32'h12347778, 16'hc, 32'hd9ce3bbe, result, "read32 5"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_READ32, 1'b1, 32'h12347778, 16'hc, 1'b0, result, "read32 5"); // {command, ready, addr, length, gen_crc_err, result, text}
 
   #10000;
-  debug_wishbone(`WB_WRITE32, 1'b0, 32'h12346668, 16'h8, 32'hc5a58ff5, result, "wr32 len8"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_WRITE32, 1'b0, 32'h12346668, 16'h8, 1'b0, result, "wr32 len8"); // {command, ready, addr, length, gen_crc_err, result, text}
 
   #10000;
-  debug_wishbone(`WB_WRITE16, 1'b0, 32'h12344446, 16'h8, 32'hed029606, result, "wr16 len8"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_WRITE16, 1'b0, 32'h12344446, 16'h8, 1'b0, result, "wr16 len8"); // {command, ready, addr, length, gen_crc_err, result, text}
 
   #10000;
-  debug_wishbone(`WB_WRITE8, 1'b0, 32'h1234010e, 16'h8, 32'h359e2d2a, result, "wr8 len8"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_WRITE8, 1'b0, 32'h1234010e, 16'h8, 1'b0, result, "wr8 len8"); // {command, ready, addr, length, gen_crc_err, result, text}
 
   #10000;
-  debug_wishbone(`WB_GO, 1'b0, 32'h0, 16'h0, 32'h5e9dd377, result, "go 1"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_GO, 1'b0, 32'h0, 16'h0, 1'b0, result, "go 1"); // {command, ready, addr, length, gen_crc_err, result, text}
 
   #10000;
-  debug_wishbone(`WB_READ32, 1'b1, 32'h12340100, 16'hc, 32'h8bbeb90d, result, "read32 6"); // {command, ready, addr, length, crc, result, text}
-//  debug_wishbone(`WB_READ32, 1'b1, 32'h12340100, 16'hfffc, 32'h4cb960cd, result, "read32 6"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_READ32, 1'b1, 32'h12340100, 16'hc, 1'b0, result, "read32 6"); // {command, ready, addr, length, gen_crc_err, result, text}
+//  debug_wishbone(`WB_READ32, 1'b1, 32'h12340100, 16'hfffc, 1'b0, result, "read32 6"); // {command, ready, addr, length, gen_crc_err, result, text}
 
   #10000;
-//  debug_wishbone(`WB_READ16, 1'b1, 32'h12340102, 16'he, 32'hcedab37c, result, "read16 7"); // {command, ready, addr, length, crc, result, text}
-//  debug_wishbone(`WB_READ16, 1'b1, 32'h12340102, 16'hfffe, 32'h9dd6abc, result, "read16 7"); // {command, ready, addr, length, crc, result, text}
+//  debug_wishbone(`WB_READ16, 1'b1, 32'h12340102, 16'he, 1'b0, result, "read16 7"); // {command, ready, addr, length, gen_crc_err, result, text}
+//  debug_wishbone(`WB_READ16, 1'b1, 32'h12340102, 16'hfffe, 1'b0, result, "read16 7"); // {command, ready, addr, length, gen_crc_err, result, text}
 
   #10000;
-//  debug_wishbone(`WB_READ8, 1'b1, 32'h12348804, 16'h6, 32'hbe993245, result, "read8 8"); // {command, ready, addr, length, crc, result, text}  
-//  debug_wishbone(`WB_READ8, 1'b1, 32'h12348804, 16'hfffc, 32'h56143d53, result, "read8 8"); // {command, ready, addr, length, crc, result, text}
+//  debug_wishbone(`WB_READ8, 1'b1, 32'h12348804, 16'h6, 1'b0, result, "read8 8"); // {command, ready, addr, length, gen_crc_err, result, text}  
+//  debug_wishbone(`WB_READ8, 1'b1, 32'h12348804, 16'hfffc, 1'b0, result, "read8 8"); // {command, ready, addr, length, gen_crc_err, result, text}
 
   #10000;
-  debug_wishbone(`WB_GO, 1'b0, 32'h0, 16'h0, 32'hd4b43491, result, "go 2"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_GO, 1'b0, 32'h0, 16'h0, 1'b0, result, "go 2"); // {command, ready, addr, length, gen_crc_err, result, text}
 
+  #10000;
+  chain_select(`CPU_DEBUG_CHAIN, 1'b0);   // {chain, gen_crc_err}
 
+  #10000;
+  debug_cpu(`CPU_WRITE_REG, 32'h00000001, 32'h0, 1'b0, result, "cpu_write_reg"); // {command, addr, data, gen_crc_err, result, text}
+
+  #10000;
+  debug_cpu(`CPU_GO, 32'h0, 32'hff, 1'b0, result, "go cpu"); // {command, addr, data, gen_crc_err, result, text}
 
 
 /*
@@ -535,15 +569,22 @@ endtask
 // sets the selected scan chain and goes to the RunTestIdle state
 task chain_select;
   input [3:0]  data;
-  input [31:0] crc;
+  input        gen_crc_err;
   integer i;
   
   begin
-    $display("(%0t) Task chain_select", $time);
+    case (data)
+      `CPU_DEBUG_CHAIN      : $display("(%0t) Task chain_select (CPU_DEBUG_CHAIN, gen_crc_err=%0d)", $time, gen_crc_err);
+      `WISHBONE_SCAN_CHAIN  : $display("(%0t) Task chain_select (WISHBONE_SCAN_CHAIN gen_crc_err=%0d)", $time, gen_crc_err);
+      default               : $display("(%0t) Task chain_select (ERROR!!! Unknown chain selected)", $time);
+    endcase
+
     tms_pad_i<=#1 1;
     gen_clk(1);
     tms_pad_i<=#1 0;
     gen_clk(2);  // we are in shiftDR
+
+    crc_out_en = 1; // Enable CRC calculation
 
     tdi_pad_i<=#1 1'b1; // chain_select bit
     gen_clk(1);
@@ -554,22 +595,29 @@ task chain_select;
       gen_clk(1);
     end
 
-    for(i=0; i<`CRC_LEN; i=i+1)
+    crc_out_en = 0;     // Disable CRC calculation
+    crc_out_shift = 1;  // Enable CRC shifting
+
+    for(i=31; i>=0; i=i-1)
     begin
-      tdi_pad_i<=#1 crc[`CRC_LEN -1-i];
+      if (gen_crc_err & (i==0))  // Generate crc error at last crc bit
+        tdi_pad_i<=#1 ~crc_out;   // error crc
+      else
+        tdi_pad_i<=#1 crc_out;    // ok crc
+
       gen_clk(1);
     end
+
+    crc_out_shift = 0;  // Disable CRC shifting
+
+    tdi_pad_i<=#1 'hz;  // tri-state
 
     gen_clk(`STATUS_LEN);   // Generating 5 clocks to read out status.
 
 
     for(i=0; i<`CRC_LEN -1; i=i+1)
-    begin
-      tdi_pad_i<=#1 1'b0;
       gen_clk(1);
-    end
 
-    tdi_pad_i<=#1 crc[i]; // last crc
     tms_pad_i<=#1 1;
     gen_clk(1);         // to exit1_dr
 
@@ -579,7 +627,7 @@ task chain_select;
     tms_pad_i<=#1 0;
     gen_clk(1);         // to run_test_idle
   end
-endtask
+endtask   // chain_select
 
 
 
@@ -592,7 +640,7 @@ task debug_wishbone;
   input         ready;
   input [31:0]  addr;
   input [15:0]  length;
-  input [31:0]  crc;
+  input         gen_crc_err;
   output [31:0] result;
   input [99:0]  text;
   integer i;
@@ -601,56 +649,55 @@ task debug_wishbone;
    $write("(%0t) Task debug_wishbone: ", $time);
 
     test_text = text;
-    shifted_in_crc = crc;
 
     case (command)
       `WB_STATUS   : 
         begin
-          $display("wb_status (crc=0x%0x (%0s))", crc, text);
-          debug_wishbone_status(command, crc);
+          $display("wb_status (gen_crc_err=%0d (%0s))", gen_crc_err, text);
+          debug_wishbone_status(command, gen_crc_err);
           last_wb_cmd = `WB_STATUS;  last_wb_cmd_text = "WB_STATUS";
         end 
       `WB_READ8    :  
         begin
-          $display("wb_read8 (ready=%0d, adr=0x%0x, length=0x%0x, crc=0x%0x (%0s))", ready, addr, length, crc, text);
-          debug_wishbone_set_addr(command, ready, addr, length, crc);
+          $display("wb_read8 (ready=%0d, adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", ready, addr, length, gen_crc_err, text);
+          debug_wishbone_set_addr(command, ready, addr, length, gen_crc_err);
           last_wb_cmd = `WB_READ8;  last_wb_cmd_text = "WB_READ8";
         end
       `WB_READ16   :  
         begin
-          $display("wb_read16 (ready=%0d, adr=0x%0x, length=0x%0x, crc=0x%0x (%0s))", ready, addr, length, crc, text);
-          debug_wishbone_set_addr(command, ready, addr, length, crc);
+          $display("wb_read16 (ready=%0d, adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", ready, addr, length, gen_crc_err, text);
+          debug_wishbone_set_addr(command, ready, addr, length, gen_crc_err);
           last_wb_cmd = `WB_READ16;  last_wb_cmd_text = "WB_READ16";
         end
       `WB_READ32   :  
         begin
-          $display("wb_read32 (ready=%0d, adr=0x%0x, length=0x%0x, crc=0x%0x (%0s))", ready, addr, length, crc, text);
-          debug_wishbone_set_addr(command, ready, addr, length, crc);
+          $display("wb_read32 (ready=%0d, adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", ready, addr, length, gen_crc_err, text);
+          debug_wishbone_set_addr(command, ready, addr, length, gen_crc_err);
           last_wb_cmd = `WB_READ32;  last_wb_cmd_text = "WB_READ32";
         end
       `WB_WRITE8   :  
         begin
-          $display("wb_write8 (adr=0x%0x, length=0x%0x, crc=0x%0x (%0s))", addr, length, crc, text);
-          debug_wishbone_set_addr(command, ready, addr, length, crc);
+          $display("wb_write8 (adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", addr, length, gen_crc_err, text);
+          debug_wishbone_set_addr(command, ready, addr, length, gen_crc_err);
           last_wb_cmd = `WB_WRITE8;  last_wb_cmd_text = "WB_WRITE8";
         end
       `WB_WRITE16  :  
         begin
-          $display("wb_write16 (adr=0x%0x, length=0x%0x, crc=0x%0x (%0s))", addr, length, crc, text);
-          debug_wishbone_set_addr(command, ready, addr, length, crc);
+          $display("wb_write16 (adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", addr, length, gen_crc_err, text);
+          debug_wishbone_set_addr(command, ready, addr, length, gen_crc_err);
           last_wb_cmd = `WB_WRITE16;  last_wb_cmd_text = "WB_WRITE16";
         end
       `WB_WRITE32  :  
         begin
-          $display("wb_write32 (adr=0x%0x, length=0x%0x, crc=0x%0x (%0s))", addr, length, crc, text);
-          debug_wishbone_set_addr(command, ready, addr, length, crc);
+          $display("wb_write32 (adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", addr, length, gen_crc_err, text);
+          debug_wishbone_set_addr(command, ready, addr, length, gen_crc_err);
           last_wb_cmd = `WB_WRITE32;  last_wb_cmd_text = "WB_WRITE32";
         end
       `WB_GO       :  
         begin
-          $display("wb_go, crc=0x%0x (%0s))", crc, text);
-          debug_wishbone_go(command, crc);
-//          $display("wb_go_tmp, crc=0x%0x (%0s))", crc, text);
+          $display("wb_go, gen_crc_err=%0d (%0s))", gen_crc_err, text);
+          debug_wishbone_go(command, gen_crc_err);
+//          $display("wb_go_tmp, gen_crc_err=0x%0x (%0s))", gen_crc_err, text);
 //          debug_wishbone_go_tmp(command, crc);
           last_wb_cmd = `WB_GO;  last_wb_cmd_text = "WB_GO";
         end
@@ -665,10 +712,10 @@ endtask       // debug_wishbone
 
 task debug_wishbone_set_addr;
   input [2:0]   command;
-  input         wait_for_wb_ready;
+  input         wait_for_wb_ready;    // igor !!! Change this since access only occurs in the "go" stage. Add condition "fifo_empty".
   input [31:0]  addr;
   input [15:0]  length;
-  input [31:0]  crc;
+  input         gen_crc_err;
   integer i;
   
   begin
@@ -678,6 +725,8 @@ task debug_wishbone_set_addr;
     gen_clk(1);
     tms_pad_i<=#1 0;
     gen_clk(2);  // we are in shiftDR
+
+    crc_out_en = 1; // Enable CRC calculation
 
     tdi_pad_i<=#1 1'b0; // chain_select bit = 0
     gen_clk(1);
@@ -700,11 +749,20 @@ task debug_wishbone_set_addr;
       gen_clk(1);
     end
 
+    crc_out_en = 0;     // Disable CRC calculation
+    crc_out_shift = 1;  // Enable CRC shifting
+
     for(i=31; i>=0; i=i-1)
     begin
-      tdi_pad_i<=#1 crc[i];
+      if (gen_crc_err & (i==0))  // Generate crc error at last crc bit
+        tdi_pad_i<=#1 ~crc_out;   // error crc
+      else
+        tdi_pad_i<=#1 crc_out;    // ok crc
+
       gen_clk(1);
     end
+
+    crc_out_shift = 0;  // Disable CRC shifting
 
     tdi_pad_i<=#1 'hz;
     if (wait_for_wb_ready)
@@ -749,7 +807,7 @@ endtask       // debug_wishbone_set_addr
 
 task debug_wishbone_status;
   input [2:0]   command;
-  input [31:0]  crc;
+  input         gen_crc_err;
   integer i;
   
   begin
@@ -760,6 +818,8 @@ task debug_wishbone_status;
     tms_pad_i<=#1 0;
     gen_clk(2);  // we are in shiftDR
 
+    crc_out_en = 1; // Enable CRC calculation
+
     tdi_pad_i<=#1 1'b0; // chain_select bit = 0
     gen_clk(1);
 
@@ -769,11 +829,20 @@ task debug_wishbone_status;
       gen_clk(1);
     end
 
-    for(i=31; i>=0; i=i-1)      // crc
+    crc_out_en = 0;     // Disable CRC calculation
+    crc_out_shift = 1;  // Enable CRC shifting
+
+    for(i=31; i>=0; i=i-1)
     begin
-      tdi_pad_i<=#1 crc[i];
+      if (gen_crc_err & (i==0))  // Generate crc error at last crc bit
+        tdi_pad_i<=#1 ~crc_out;   // error crc
+      else
+        tdi_pad_i<=#1 crc_out;    // ok crc
+
       gen_clk(1);
     end
+
+    crc_out_shift = 0;  // Disable CRC shifting
 
     tdi_pad_i<=#1 1'hz;
     gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
@@ -798,7 +867,7 @@ endtask       // debug_wishbone_status
 
 task debug_wishbone_go;
   input [2:0]   command;
-  input [31:0]  crc;
+  input         gen_crc_err;
   integer i;
   reg   [4:0]   pointer; 
  
@@ -809,6 +878,8 @@ task debug_wishbone_go;
     gen_clk(1);
     tms_pad_i<=#1 0;
     gen_clk(2);  // we are in shiftDR
+
+    crc_out_en = 1; // Enable CRC calculation
 
     tdi_pad_i<=#1 1'b0; // chain_select bit = 0
     gen_clk(1);
@@ -836,12 +907,20 @@ task debug_wishbone_go;
           end
       end
 
+    crc_out_en = 0;     // Disable CRC calculation
+    crc_out_shift = 1;  // Enable CRC shifting
 
-    for(i=31; i>=0; i=i-1)      // crc
+    for(i=31; i>=0; i=i-1)
     begin
-      tdi_pad_i<=#1 crc[i];
+      if (gen_crc_err & (i==0))  // Generate crc error at last crc bit
+        tdi_pad_i<=#1 ~crc_out;   // error crc
+      else
+        tdi_pad_i<=#1 crc_out;    // ok crc
+
       gen_clk(1);
     end
+
+    crc_out_shift = 0;  // Disable CRC shifting
 
     tdi_pad_i<=#1 1'hz;
 
@@ -875,20 +954,163 @@ endtask       // debug_wishbone_go
 
 
 
-
-task debug_wishbone_go_tmp;
+task debug_cpu;
   input [2:0]   command;
-  input [31:0]  crc;
+  input [31:0]  addr;
+  input [31:0]  data;
+  input         gen_crc_err;
+  output [31:0] result;
+  input [199:0]  text;
   integer i;
-  reg   [4:0]   pointer; 
- 
+  
   begin
-    $display("(%0t) Task debug_wishbone_go_tmp (previous command was %0s): ", $time, last_wb_cmd_text);
+   $write("(%0t) Task debug_cpu: ", $time);
+
+    test_text = text;
+
+    case (command)
+//      `WB_STATUS   : 
+//        begin
+//          $display("wb_status (gen_crc_err=%0d (%0s))", gen_crc_err, text);
+//          debug_wishbone_status(command, gen_crc_err);
+//          last_wb_cmd = `WB_STATUS;  last_wb_cmd_text = "WB_STATUS";
+//        end 
+      `CPU_READ_REG   :  
+        begin
+          $display("cpu_read_reg (adr=0x%0x, gen_crc_err=%0d (%0s))", addr, gen_crc_err, text);
+          debug_cpu_set_addr(command, addr, gen_crc_err);
+          last_wb_cmd = `CPU_READ_REG;  last_wb_cmd_text = "CPU_READ_REG";
+        end
+      `CPU_WRITE_REG  :  
+        begin
+          $display("cpu_write_reg (adr=0x%0x, gen_crc_err=%0d (%0s))", addr, gen_crc_err, text);
+          debug_cpu_set_addr(command, addr, gen_crc_err);
+          last_wb_cmd = `CPU_WRITE_REG;  last_wb_cmd_text = "CPU_WRITE_REG";
+        end
+      `CPU_READ8      :
+        begin
+          $display("cpu_read8 (adr=0x%0x, gen_crc_err=%0d (%0s))", addr, gen_crc_err, text);
+          debug_cpu_set_addr(command, addr, gen_crc_err);
+          last_wb_cmd = `CPU_READ8;  last_wb_cmd_text = "CPU_READ8";
+        end
+      `CPU_READ32     :
+        begin
+          $display("cpu_read32 (adr=0x%0x, gen_crc_err=%0d (%0s))", addr, gen_crc_err, text);
+          debug_cpu_set_addr(command, addr, gen_crc_err);
+          last_wb_cmd = `CPU_READ32;  last_wb_cmd_text = "CPU_READ32";
+        end
+      `CPU_WRITE8     :
+        begin
+          $display("cpu_write8 (adr=0x%0x, gen_crc_err=%0d (%0s))", addr, gen_crc_err, text);
+          debug_cpu_set_addr(command, addr, gen_crc_err);
+          last_wb_cmd = `CPU_WRITE8;  last_wb_cmd_text = "CPU_WRITE8";
+        end
+      `CPU_WRITE32    :
+        begin
+          $display("cpu_write32 (adr=0x%0x, gen_crc_err=%0d (%0s))", addr, gen_crc_err, text);
+          debug_cpu_set_addr(command, addr, gen_crc_err);
+          last_wb_cmd = `CPU_WRITE32;  last_wb_cmd_text = "CPU_WRITE32";
+        end
+      `CPU_GO         :
+        begin
+          $display("cpu_go, data = 0x%0x, gen_crc_err=%0d (%0s))", data, gen_crc_err, text);
+          debug_cpu_go(command, data, gen_crc_err);
+          last_wb_cmd = `CPU_GO;  last_wb_cmd_text = "CPU_GO";
+        end
+      default     :
+        begin
+          $display("\t\tERROR: Non-existing command while debugging %0s", gen_crc_err, text);
+          $stop;
+        end
+    endcase
+  end
+endtask       // debug_cpu
+
+
+
+task debug_cpu_set_addr;
+  input [2:0]   command;
+  input [31:0]  addr;
+  input         gen_crc_err;
+  integer i;
+  
+  begin
+    $display("(%0t) Task debug_cpu_set_addr: ", $time);
 
     tms_pad_i<=#1 1;
     gen_clk(1);
     tms_pad_i<=#1 0;
     gen_clk(2);  // we are in shiftDR
+
+    crc_out_en = 1; // Enable CRC calculation
+
+    tdi_pad_i<=#1 1'b0; // chain_select bit = 0
+    gen_clk(1);
+
+    for(i=2; i>=0; i=i-1)
+    begin
+      tdi_pad_i<=#1 command[i]; // command
+      gen_clk(1);
+    end
+
+    for(i=31; i>=0; i=i-1)       // address
+    begin
+      tdi_pad_i<=#1 addr[i];
+      gen_clk(1);
+    end
+ 
+    crc_out_en = 0;     // Disable CRC calculation
+    crc_out_shift = 1;  // Enable CRC shifting
+
+    for(i=31; i>=0; i=i-1)
+    begin
+      if (gen_crc_err & (i==0))  // Generate crc error at last crc bit
+        tdi_pad_i<=#1 ~crc_out;   // error crc
+      else
+        tdi_pad_i<=#1 crc_out;    // ok crc
+
+      gen_clk(1);
+    end
+
+    crc_out_shift = 0;  // Disable CRC shifting
+
+    tdi_pad_i<=#1 'hz;
+    gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
+
+    for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
+    begin
+      gen_clk(1);
+    end
+
+    tms_pad_i<=#1 1;
+    gen_clk(1);         // to exit1_dr
+
+    tms_pad_i<=#1 1;
+    gen_clk(1);         // to update_dr
+    tms_pad_i<=#1 0;
+    gen_clk(1);         // to run_test_idle
+  end
+endtask       // debug_cpu_set_addr
+
+
+
+
+task debug_cpu_go;
+  input [2:0]   command;
+  input [31:0]  data;
+  input         gen_crc_err;
+  integer i, len;
+
+ 
+  begin
+    $display("(%0t) Task debug_cpu_go (previous command was %0s): ", $time, last_wb_cmd_text);
+
+    tms_pad_i<=#1 1;
+    gen_clk(1);
+    tms_pad_i<=#1 0;
+    gen_clk(2);  // we are in shiftDR
+
+    crc_out_en = 1; // Enable CRC calculation
 
     tdi_pad_i<=#1 1'b0; // chain_select bit = 0
     gen_clk(1);
@@ -900,60 +1122,58 @@ task debug_wishbone_go_tmp;
     end
 
 
-    if ((last_wb_cmd == `WB_WRITE8) | (last_wb_cmd == `WB_WRITE16) | (last_wb_cmd == `WB_WRITE32))  // When WB_WRITEx was previously activated, data needs to be shifted.
+    if (last_wb_cmd == `CPU_WRITE32)
       begin
-        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_wb.len << 3); i=i+1)
-          begin
-            if (!(i%32))
-              begin
-                wb_data = wb_data + 32'h11111111;
-                $display("\t\twb_data = 0x%x", wb_data);
-              end
-            pointer = 31-i[4:0];
-            tdi_pad_i<=#1 wb_data[pointer];
-            gen_clk(1);
+        len = 31;
+        $display("\t\tdata = 0x%x", data);
+      end
+    else if ((last_wb_cmd == `CPU_WRITE8) | (last_wb_cmd == `CPU_WRITE_REG))
+      begin
+        len = 7;
+        $display("\t\tdata = 0x%x", data[7:0]);
+      end
+    else
+      len = 0;
 
+    if (len>0)  // When CPU_WRITEx was previously activated, data needs to be shifted.
+      begin
+        for (i=len; i>=0; i=i-1)
+          begin
+            tdi_pad_i<=#1 data[i];
+            gen_clk(1);
           end
       end
 
+    crc_out_en = 0;     // Disable CRC calculation
+    crc_out_shift = 1;  // Enable CRC shifting
 
-    for(i=31; i>=0; i=i-1)      // crc
+    for(i=31; i>=0; i=i-1)
     begin
-      tdi_pad_i<=#1 crc[i];
+      if (gen_crc_err & (i==0))  // Generate crc error at last crc bit
+        tdi_pad_i<=#1 ~crc_out;   // error crc
+      else
+        tdi_pad_i<=#1 crc_out;    // ok crc
+
       gen_clk(1);
     end
+
+    crc_out_shift = 0;  // Disable CRC shifting
 
     tdi_pad_i<=#1 1'hz;
 
 
+    if (last_wb_cmd == `CPU_READ32)
+      len = 32;
+    else if ((last_wb_cmd == `CPU_READ8) | (last_wb_cmd == `CPU_READ_REG))
+      len = 8;
+    else
+      len = 0;
 
-    if ((last_wb_cmd == `WB_READ8) | (last_wb_cmd == `WB_READ16) | (last_wb_cmd == `WB_READ32))  // When WB_WRITEx was previously activated, data needs to be shifted.
+    if (len>0)    // When CPU_WRITEx was previously activated, data needs to be shifted.
       begin
-        $display("\t\tGenerating %0d clocks to read %0d data bytes.", dbg_tb.i_dbg_top.i_dbg_wb.len << 3, dbg_tb.i_dbg_top.i_dbg_wb.len);
-        $display("\t\tFirst half");
-//        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_wb.len << 3); i=i+1)
-
-        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_wb.len << 3)/2; i=i+1)
-          begin
+        $display("\t\tGenerating %0d clocks to read out the data.", len);
+        for (i=0; i<len; i=i+1)
           gen_clk(1);
-          end
-
-        tms_pad_i<=#1 1;
-        gen_clk(1);         // to exit1_dr
-        tms_pad_i<=#1 0;
-        gen_clk(1);         // to pause_dr
-        gen_clk(1000);      // wait in pause_dr
-        tms_pad_i<=#1 1;
-        gen_clk(1);         // to exit2_dr
-        tms_pad_i<=#1 0;    // to shift_dr
-        gen_clk(1);
-
-        $display("\t\tSecond half");
-        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_wb.len << 3)/2; i=i+1)
-          begin
-          gen_clk(1);
-          end
-
       end
 
 
@@ -972,7 +1192,8 @@ task debug_wishbone_go_tmp;
     tms_pad_i<=#1 0;
     gen_clk(1);         // to run_test_idle
   end
-endtask       // debug_wishbone_go_tmp
+endtask       // debug_cpu_go
+
 
 
 
@@ -1088,24 +1309,14 @@ task xxx;
 endtask
 
 
-// Printing CRC
-//always @ (posedge dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_end)
-always @ (dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt or dbg_tb.i_dbg_top.i_dbg_crc32_d1_in.crc)
-begin
-  #2;
-  if (dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt == 0)
-    tmp_crc = dbg_tb.i_dbg_top.i_dbg_crc32_d1_in.crc;
-end
-
 
 // Detecting CRC error
-always @ (posedge dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end)
+always @ (posedge dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end or posedge dbg_tb.i_dbg_top.chain_latch_en)
 begin
   #2;
   if (~dbg_tb.i_dbg_top.crc_match)
     begin
       $display("\t\tCRC ERROR !!!");
-      $display("\t\tCRC needed (%0s) = 0x%0x , shifted_in = 0x%0x", test_text, tmp_crc, shifted_in_crc);
       $stop;
     end
 end

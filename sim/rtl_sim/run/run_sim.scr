@@ -43,6 +43,9 @@ echo "-LOGFILE ../log/ncvlog.log"     >> ncvlog.args
 # RTL files
 echo "../../../rtl/verilog/dbg_crc32_d1.v" >> ncvlog.args
 echo "../../../rtl/verilog/dbg_wb.v" >> ncvlog.args
+echo "../../../rtl/verilog/dbg_register.v" >> ncvlog.args
+echo "../../../rtl/verilog/dbg_cpu_registers.v" >> ncvlog.args
+echo "../../../rtl/verilog/dbg_cpu.v" >> ncvlog.args
 echo "../../../rtl/verilog/dbg_top.v" >> ncvlog.args
 echo "../../../../jtag/tap/rtl/verilog/tap_top.v" >> ncvlog.args
 

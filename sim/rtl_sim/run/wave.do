@@ -117,7 +117,7 @@ define variable nofullpathfilenames
 include bookmark with filenames
 include scope history without filenames
 define waveform window listpane 5.97
-define waveform window namepane 13.47
+define waveform window namepane 13.21
 define multivalueindication
 define pattern curpos dot
 define pattern cursor1 dot
@@ -256,8 +256,6 @@ add group \
     wishbone \
       dbg_tb.i_dbg_top.tdi_i \
       dbg_tb.test_text[99:0]'a \
-      dbg_tb.i_dbg_top.i_dbg_wb.TDO_WISHBONE[799:0]'a \
-      dbg_tb.i_dbg_top.i_dbg_wb.latching_data[399:0]'a \
       dbg_tb.i_dbg_top.i_dbg_wb.len[15:0]'d \
       dbg_tb.i_dbg_top.i_dbg_wb.adr[31:0]'h \
       dbg_tb.i_dbg_top.i_dbg_wb.cmd[2:0]'h \
@@ -346,8 +344,16 @@ add group \
       dbg_tb.i_dbg_top.i_dbg_wb.data_cnt[18:0]'d \
       dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_end \
       dbg_tb.i_dbg_top.i_dbg_wb.crc_en_o \
-      dbg_tb.i_dbg_top.i_dbg_wb.TDO_WISHBONE[799:0]'a \
-      dbg_tb.i_dbg_top.i_dbg_wb.latching_data[399:0]'a \
+      dbg_tb.test_text[99:0]'a \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd_write \
+      dbg_tb.i_dbg_top.i_dbg_wb.dr_go_latched \
+      dbg_tb.i_dbg_top.i_dbg_wb.read_cycle \
+      dbg_tb.i_dbg_top.i_dbg_wb.len[15:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.write_cycle \
+      dbg_tb.i_dbg_top.i_dbg_wb.byte \
+      dbg_tb.i_dbg_top.i_dbg_wb.half \
+      dbg_tb.i_dbg_top.i_dbg_wb.long \
+      dbg_tb.i_dbg_top.i_dbg_wb.input_data[31:0]'h \
       { \
         dr[31:0] descendingorder \
           dbg_tb.i_dbg_top.i_dbg_wb.dr[31] \
@@ -383,21 +389,88 @@ add group \
           dbg_tb.i_dbg_top.i_dbg_wb.dr[1] \
           dbg_tb.i_dbg_top.i_dbg_wb.dr[0] \
       }'h \
-      dbg_tb.i_dbg_top.i_dbg_wb.cmd_write \
-      dbg_tb.i_dbg_top.i_dbg_wb.dr_go_latched \
-      dbg_tb.i_dbg_top.i_dbg_wb.read_cycle \
-      dbg_tb.i_dbg_top.i_dbg_wb.len[15:0]'h \
-      dbg_tb.i_dbg_top.i_dbg_wb.write_cycle \
-      dbg_tb.i_dbg_top.i_dbg_wb.byte \
-      dbg_tb.i_dbg_top.i_dbg_wb.byte \
-      dbg_tb.i_dbg_top.i_dbg_wb.byte_q \
-      dbg_tb.i_dbg_top.i_dbg_wb.input_data[31:0]'h \
       dbg_tb.i_dbg_top.i_dbg_wb.ptr[1:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_cyc_o \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_ack_i \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_sel_o[3:0]'h \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_dat_i[31:0]'h \
       dbg_tb.i_dbg_top.i_dbg_wb.start_rd_tck \
+      dbg_tb.i_dbg_top.i_dbg_wb.rd_tck_started \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_end_tck \
       dbg_tb.i_dbg_top.i_dbg_wb.rw_type[2:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.read_cycle \
+      dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_31 \
+      dbg_tb.i_dbg_top.i_dbg_wb.rw_type[2:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.fifo_cnt[2:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.fifo_empty \
+      dbg_tb.i_dbg_top.i_dbg_wb.fifo_full \
+      dbg_tb.i_dbg_top.i_dbg_wb.latch_data \
+      dbg_tb.i_dbg_top.i_dbg_wb.underrun_tck \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_end_tck \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_end_tck_q \
+      dbg_tb.i_dbg_top.i_dbg_wb.latch_data \
+      dbg_tb.i_dbg_top.i_dbg_wb.len[15:0]'h \
+
+add group \
+    cpu_debug \
+      dbg_tb.test_text[199:0]'a \
+      dbg_tb.i_tap_top.tdi_pad_i \
+      dbg_tb.i_dbg_top.cpu_debug_scan_chain \
+      dbg_tb.i_dbg_top.i_dbg_cpu.clk_i \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cpu_ce_i \
+      dbg_tb.i_dbg_top.i_dbg_cpu.crc_en_o \
+      dbg_tb.i_dbg_top.i_dbg_cpu.crc_match_i \
+      dbg_tb.i_dbg_top.i_dbg_cpu.pause_dr_i \
+      dbg_tb.i_dbg_top.i_dbg_cpu.rst_i \
+      dbg_tb.i_dbg_top.i_dbg_cpu.shift_crc_o \
+      dbg_tb.i_dbg_top.i_dbg_cpu.shift_dr_i \
+      dbg_tb.i_dbg_top.i_dbg_cpu.tck_i \
+      dbg_tb.i_dbg_top.i_dbg_cpu.tdi_i \
+      dbg_tb.i_dbg_top.i_dbg_cpu.tdo_o \
+      dbg_tb.i_dbg_top.i_dbg_cpu.update_dr_i \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cmd_cnt_en \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cmd_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_cpu.addr_cnt_en \
+      dbg_tb.i_dbg_top.i_dbg_cpu.addr_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_cpu.crc_cnt_en \
+      dbg_tb.i_dbg_top.i_dbg_cpu.crc_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_cpu.cmd_cnt[1:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.addr_cnt[5:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt[5:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt_en \
+      dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_cpu.crc_cnt[5:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.addr_cnt_limit[5:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.data_cnt_limit[5:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.status_cnt1 \
+      dbg_tb.i_dbg_top.i_dbg_cpu.status_cnt2 \
+      dbg_tb.i_dbg_top.i_dbg_cpu.status_cnt3 \
+      dbg_tb.i_dbg_top.i_dbg_cpu.status_cnt4 \
+      dbg_tb.i_dbg_top.i_dbg_cpu.status_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_cpu.adr[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.set_addr \
+      dbg_tb.i_dbg_top.i_dbg_cpu.reg_access \
+      dbg_tb.i_dbg_top.i_dbg_cpu.dr[34:0]'h \
+
+add group \
+    registers \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.access \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.address[1:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.bp \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.clk \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.cpu_op_out[2:1]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.cpu_reset \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.cpu_sel[1:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.cpu_sel_out[1:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.cpu_stall \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.cpu_stall_all \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.cpu_stall_bp \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.cpuop_wr \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.cpusel_wr \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.data_in[7:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.data_out[7:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.reset \
+      dbg_tb.i_dbg_top.i_dbg_cpu.i_dbg_cpu_registers.rw \
 
 add group \
     tmp \
@@ -456,4 +529,4 @@ add group \
 
 deselect all
 open window waveform 1 geometry 10 60 1592 1139
-zoom at 357036.34ns 0.00199090 0.00000000
+zoom at 359559.21(0)ns 0.00025477 0.00000000

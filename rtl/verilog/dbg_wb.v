@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2004/01/15 12:09:43  mohor
+// Working.
+//
 // Revision 1.12  2004/01/14 22:59:18  mohor
 // Temp version.
 //
@@ -272,7 +275,7 @@ begin
     begin
       dr[31:0] <= #1 input_data[31:0];
       latch_data <= #1 1'b1;
-      latching_data_text = "First latch";
+      latching_data_text <= #1 "First latch";
     end
   else if (read_cycle & crc_cnt_end)
     begin
@@ -287,13 +290,13 @@ begin
                             2'b11 : dr[31:24] <= #1 input_data[7:0];
                           endcase
                           latch_data <= #1 1'b1;
-                          latching_data_text = "8 bit latched";
+                          latching_data_text <= #1 "8 bit latched";
                         end
                       else
                         begin
                           dr[31:24] <= #1 {dr[30:24], 1'b0};
                           latch_data <= #1 1'b0;
-                          latching_data_text = "8 bit shifted";
+                          latching_data_text <= #1 "8 bit shifted";
                         end
                     end
         `WB_READ16: begin
@@ -303,14 +306,14 @@ begin
                             dr[31:16] <= #1 input_data[15:0];
                           else
                             dr[31:16] <= #1 input_data[31:16];
-                          latching_data_text = "16 bit latched";
+                          latching_data_text <= #1 "16 bit latched";
                           latch_data <= #1 1'b1;
                         end
                       else
                         begin
                           dr[31:16] <= #1 {dr[30:16], 1'b0};
                           latch_data <= #1 1'b0;
-                          latching_data_text = "16 bit shifted";
+                          latching_data_text <= #1 "16 bit shifted";
                         end
                     end
         `WB_READ32: begin
@@ -318,25 +321,25 @@ begin
                         begin
                           dr[31:0] <= #1 input_data[31:0];
                           latch_data <= #1 1'b1;
-                          latching_data_text = "32 bit latched";
+                          latching_data_text <= #1 "32 bit latched";
                         end
                       else
                         begin
                           dr[31:0] <= #1 {dr[30:0], 1'b0};
                           latch_data <= #1 1'b0;
-                          latching_data_text = "32 bit shifted";
+                          latching_data_text <= #1 "32 bit shifted";
                         end
                     end
       endcase
     end
   else if (enable & ((~addr_len_cnt_end) | (~cmd_cnt_end) | ((~data_cnt_end) & write_cycle)))
     begin
-    dr <= #1 {dr[49:0], tdi_i};
-    latch_data <= #1 1'b0;
-    latching_data_text = "tdi shifted in";
+      dr <= #1 {dr[49:0], tdi_i};
+      latch_data <= #1 1'b0;
+      latching_data_text <= #1 "tdi shifted in";
     end
   else
-    latching_data_text = "nothing";
+    latching_data_text <= #1 "nothing";
 end
 
 
@@ -412,14 +415,14 @@ always @ (posedge tck_i)
 begin
   if (update_dr_i)
     begin
-      dr_cmd_latched = 3'h0;
+      dr_cmd_latched <= #1 3'h0;
       dr_read_latched  <= #1 1'b0;
       dr_write_latched  <= #1 1'b0;
       dr_go_latched  <= #1 1'b0;
     end
   else if (cmd_cnt_end & (~cmd_cnt_end_q))
     begin
-      dr_cmd_latched = dr[2:0];
+      dr_cmd_latched <= #1 dr[2:0];
       dr_read_latched <= #1 dr_read;
       dr_write_latched <= #1 dr_write;
       dr_go_latched <= #1 dr_go;
@@ -433,9 +436,9 @@ begin
   if (cmd_cnt == 2'h2)
     begin
       if ((~dr[0])  & (~tdi_i))                                   // (current command is WB_STATUS or WB_GO)
-        addr_len_cnt_limit = 6'd0;
+        addr_len_cnt_limit <= #1 6'd0;
       else                                                        // (current command is WB_WRITEx or WB_READx)
-        addr_len_cnt_limit = 6'd48;
+        addr_len_cnt_limit <= #1 6'd48;
     end
 end
     
@@ -447,7 +450,7 @@ assign go_prelim = (cmd_cnt == 2'h2) & dr[1] & (~dr[0]) & (~tdi_i);
 always @ (posedge tck_i)
 begin
   if (update_dr_i)
-    data_cnt_limit = {len, 3'b000};
+    data_cnt_limit <= #1 {len, 3'b000};
 end
 
 
