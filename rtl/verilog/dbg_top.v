@@ -45,6 +45,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+//
+// Revision 1.6  2001/10/15 09:55:47  mohor
+// Wishbone interface added, few fixes for better performance,
+// hooks for boundary scan testing added.
+//
 // Revision 1.5  2001/09/24 14:06:42  mohor
 // Changes connected to the OpenRISC access (SPR read, SPR write).
 //
@@ -80,7 +85,7 @@ module dbg_top(
                 tms_pad_i, tck_pad_i, trst_pad_i, tdi_pad_i, tdo_pad_o, 
 
                 // Boundary Scan signals
-                CaptureDR, ShiftDR, UpdateDR, EXTESTSelected, BS_CHAIN_I,
+                capture_dr_o, shift_dr_o, update_dr_o, extest_selected_o, bs_chain_i,
                 
                 // RISC signals
                 risc_clk_i, risc_addr_o, risc_data_i, risc_data_o, wp_i, 
@@ -107,11 +112,11 @@ output        tdo_pad_o;                  // JTAG test data output pad
 
 
 // Boundary Scan signals
-output CaptureDR;
-output ShiftDR;
-output UpdateDR;
-output EXTESTSelected;
-input  BS_CHAIN_I;
+output capture_dr_o;
+output shift_dr_o;
+output update_dr_o;
+output extest_selected_o;
+input  bs_chain_i;
 
 
 // RISC signals
@@ -227,6 +232,11 @@ wire RiscStall_write_access;              // Stalling RISC because of the write 
 wire RiscStall_access;                    // Stalling RISC because of the read or write access
 
            
+assign capture_dr_o       = CaptureDR;
+assign shift_dr_o         = ShiftDR;
+assign update_dr_o        = UpdateDR;
+assign extest_selected_o  = EXTESTSelected;
+wire   BS_CHAIN_I         = bs_chain_i;
             
 // This signals are used only when TRACE is used in the design
 `ifdef TRACE_ENABLED

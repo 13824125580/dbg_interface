@@ -45,6 +45,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2001/10/15 09:52:50  mohor
+// Wishbone interface added, few fixes for better performance,
+// hooks for boundary scan testing added.
+//
 // Revision 1.5  2001/09/24 14:06:12  mohor
 // Changes connected to the OpenRISC access (SPR read, SPR write).
 //
@@ -117,7 +121,8 @@ reg         wb_err_o;
 // Connecting TAP module
 dbg_top dbgTAP1(.tms_pad_i(P_TMS), .tck_pad_i(P_TCK), .trst_pad_i(P_TRST), .tdi_pad_i(P_TDI), 
                 .tdo_pad_o(P_TDO), 
-                .CaptureDR(), .ShiftDR(), .UpdateDR(), .EXTESTSelected(), .BS_CHAIN_I(1'b0),
+                .capture_dr_o(), .shift_dr_o(), .update_dr_o(), .extest_selected_o(), 
+                .bs_chain_i(1'b0),
 
                 
                 .wb_rst_i(wb_rst_i), .risc_clk_i(Mclk), 
