@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1.1.1  2001/09/13 13:49:19  mohor
+// Initial official release.
+//
 // Revision 1.3  2001/06/01 22:22:36  mohor
 // This is a backup. It is not a fully working version. Not for use, yet.
 //
@@ -81,14 +84,15 @@
 `include "dbg_defines.v"
 
 
-module dbg_crc8_d1 (Data, EnableCrc, ResetCrc, CrcOut, Clk);
+module dbg_crc8_d1 (Data, EnableCrc, Reset, SyncResetCrc, CrcOut, Clk);
 
 parameter Tp = 1;
 
 
 input Data;
 input EnableCrc;
-input ResetCrc;
+input Reset;
+input SyncResetCrc;
 input Clk;
 
 
@@ -96,9 +100,12 @@ output [7:0] CrcOut;
 reg    [7:0] CrcOut;
 
 
-always @ (posedge Clk or posedge ResetCrc)
+always @ (posedge Clk or posedge Reset)
 begin
-  if(ResetCrc)
+  if(Reset)
+    CrcOut[7:0] <= #Tp 0;
+  else
+  if(SyncResetCrc)
     CrcOut[7:0] <= #Tp 0;
   else
   if(EnableCrc)
@@ -135,6 +142,3 @@ function [7:0] nextCRC8_D1;
 endfunction
 
 endmodule
-
-
-

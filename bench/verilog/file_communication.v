@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1.1.1  2001/09/13 13:49:19  mohor
+// Initial official release.
+//
 //
 //
 //
@@ -61,7 +64,7 @@ parameter Tp = 1;
 integer handle1, handle2;
 reg [3:0] memory[0:0];
 reg Mclk;
-reg P_PowerONReset;
+reg wb_rst_i;
 
 reg StartTesting;
 wire P_TCK;
@@ -74,22 +77,13 @@ wire P_TDO;
 initial
 begin
   StartTesting = 0;
-  P_PowerONReset = 1;
+  wb_rst_i = 0;
   #500;
-  P_PowerONReset = 0;
+  wb_rst_i = 1;
   #500;
-  P_PowerONReset = 1;
+  wb_rst_i = 0;
   
-//  handle2 = $fopen("file1.out");
-  #1000;
-//  $fdisplay(handle2 | 1, "\n\nDa vidimo, ce ta shit dela OK.");
-  #1000;
-//  $fclose(handle2);
-//  $display("Memory = 0x%0x", memory[0]);
-//  handle1 = $fopen("file1.in");
-//  $fdisplay(handle2 | 1, "\n\nDa vidimo, ce dela shit od pisanja nazaj v prvi file OK.");
-//  $fclose(handle1);
-//  $fclose(handle2);
+  #2000;
   StartTesting = 1;
   $display("StartTesting = 1");
 
@@ -103,16 +97,7 @@ begin
   begin
     #1000;
     $readmemh("E:\\tmp\\out.txt", memory);
-//    handle2 = $fopen("E:\\tmp\\in.txt");
-//    $fdisplay(handle2 | 1, "%b", P_TDO);  // Vpisem TDO v file
-//    $fclose(handle2);
     #1000;
-//    handle1 = $fopen("E:\\tmp\\out.txt");
-//    handle2 = $fopen("E:\\tmp\\in.txt");
-//    handle1 = $fopen("E:\\tmp\\out.txt");
-//    $display("TDO = 0x%0x", P_TDO);
-//    $fdisplay(handle1 | 1, " ");          // zbrisem Markov podatek
-//    $fclose(handle1);
   end
 end
 
@@ -120,21 +105,17 @@ end
 always @ (posedge P_TCK)
 begin
   handle2 = $fopen("E:\\tmp\\in.txt");
-//  $fdisplay(handle2 | 1, "%b, %t", P_TDO, $time);  // Vpisem TDO v file
-  $fdisplay(handle2 | 1, "%b", P_TDO);  // Vpisem TDO v file
-//  $fdisplay(handle2 | 1, "%t", $time);  // Vpisem TDO v file
+  $fdisplay(handle2 | 1, "%b", P_TDO);  // Vriting output data to file (TDO)
   $fclose(handle2);
 end
 
 
+wire [3:0]Temp = memory[0];
 
-
-  wire [3:0]Temp = memory[0];
-
-  assign P_TCK = Temp[0];
-  assign P_TRST = Temp[1];
-  assign P_TDI = Temp[2];
-  assign P_TMS = Temp[3];
+assign P_TCK  = Temp[0];
+assign P_TRST = Temp[1];
+assign P_TDI  = Temp[2];
+assign P_TMS  = Temp[3];
 
 
 
@@ -147,9 +128,9 @@ end
 
 // Generating random number for use in DATAOUT_RISC[31:0]
 reg [31:0] RandNumb;
-always @ (posedge Mclk or negedge P_PowerONReset) // PowerONReset is active low
+always @ (posedge Mclk or posedge wb_rst_i)
 begin
-  if(~P_PowerONReset)
+  if(wb_rst_i)
     RandNumb[31:0]<=#Tp 0;
   else
     RandNumb[31:0]<=#Tp RandNumb[31:0] + 1;
@@ -158,10 +139,11 @@ end
 wire [31:0] DataIn = RandNumb;
 
 // Connecting dbgTAP module
-dbg_top dbg1  (.P_TMS(P_TMS), .P_TCK(P_TCK), .P_TRST(P_TRST), .P_TDI(P_TDI), .P_TDO(P_TDO), 
-               .P_PowerONReset(P_PowerONReset), .Mclk(Mclk), .RISC_ADDR(), .RISC_DATA_IN(DataIn),
-               .RISC_DATA_OUT(), .RISC_CS(), .RISC_RW(), .Wp(11'h0), .Bp(1'b0), 
-               .OpSelect(), .LsStatus(4'h0), .IStatus(2'h0)
+dbg_top dbg1  (.tms_pad_i(P_TMS), .tck_pad_i(P_TCK), .trst_pad_i(P_TRST), .tdi_pad_i(P_TDI), .tdo_pad_o(P_TDO), 
+               .wb_rst_i(wb_rst_i), .mclk(Mclk), .risc_addr_o(), .risc_data_i(DataIn),
+               .risc_data_o(), .risc_cs_o(), .risc_rw_o(), .wp_i(11'h0), .bp_i(1'b0), 
+               .opselect_o(), .lsstatus_i(4'h0), .istatus_i(2'h0), 
+               . risc_stall_o(), . risc_reset_o() 
               );
 
 

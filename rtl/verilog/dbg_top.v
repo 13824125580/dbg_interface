@@ -1,7 +1,3 @@
-
-// Potrebno racunati crc kadar je izbran trace. Ko delamo read iz bufferja
-
-
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
 ////  dbg_top.v                                                   ////
@@ -49,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2001/09/19 11:55:13  mohor
+// Asynchronous set/reset not used in trace any more.
+//
 // Revision 1.2  2001/09/18 14:13:47  mohor
 // Trace fixed. Some registers changed, trace simplified.
 //
@@ -70,44 +69,49 @@
 `include "dbg_defines.v"
 
 // Top module
-module dbg_top(P_TMS, P_TCK, P_TRST, P_TDI, P_TDO, P_PowerONReset, Mclk, RISC_ADDR, RISC_DATA_IN,
-               RISC_DATA_OUT, RISC_CS, RISC_RW, Wp, Bp, OpSelect, LsStatus, IStatus,
-               RISC_STALL_O, RISC_RESET_O, BS_CHAIN_I
+module dbg_top(
+                // JTAG pins
+                tms_pad_i, tck_pad_i, trst_pad_i, tdi_pad_i, tdo_pad_o, 
+                
+                // RISC signals
+                mclk, risc_addr_o, risc_data_i, risc_data_o, risc_cs_o, risc_rw_o, wp_i, 
+                bp_i, opselect_o, lsstatus_i, istatus_i, risc_stall_o, risc_reset_o, 
+                
+                // WISHBONE signals
+                wb_rst_i
               );
 
 parameter Tp = 1;
 
-input P_TMS, P_TCK;
-input P_TRST, P_TDI;
-input P_PowerONReset;
-input Mclk;           // High speed clock (RISC clock)
-input [31:0] RISC_DATA_IN;
-input [10:0] Wp;
-input Bp;
-input [3:0] LsStatus;
-input [1:0] IStatus;
-input BS_CHAIN_I;
+// JTAG pins
+input         tms_pad_i;                  // JTAG test mode select pad
+input         tck_pad_i;                  // JTAG test clock pad
+input         trst_pad_i;                 // JTAG test reset pad
+input         tdi_pad_i;                  // JTAG test data input pad
+output        tdo_pad_o;                  // JTAG test data output pad
 
-output P_TDO;
-output [31:0] RISC_ADDR;
-output [31:0] RISC_DATA_OUT;
-output [`OPSELECTWIDTH-1:0] OpSelect;
-output RISC_CS;              // CS for accessing RISC registers
-output RISC_RW;              // RW for accessing RISC registers
-output RISC_STALL_O;         // Stalls the RISC
-output RISC_RESET_O;         // Resets the RISC
 
-reg    [31:0] RISC_ADDR;
-reg    [31:0] ADDR;
-reg    [31:0] RISC_DATA_OUT;
-reg    [31:0] DataOut;
+// RISC signals
+input         mclk;                       // Master clock (RISC clock)
+input  [31:0] risc_data_i;                // RISC data inputs (data that is written to the RISC registers)
+input  [10:0] wp_i;                       // Watchpoint inputs
+input         bp_i;                       // Breakpoint input
+input  [3:0]  lsstatus_i;                 // Load/store status inputs
+input  [1:0]  istatus_i;                  // Instruction status inputs
+output [31:0] risc_addr_o;                // RISC address output (for adressing registers within RISC)
+output [31:0] risc_data_o;                // RISC data output (data read from risc registers)
+output [`OPSELECTWIDTH-1:0] opselect_o;   // Operation selection (selecting what kind of data is set to the risc_data_i)
+output                      risc_cs_o;    // Chip select for accessing RISC registers
+output                      risc_rw_o;    // Read/write for accessing RISC registers
+output                      risc_stall_o; // Stalls the RISC
+output                      risc_reset_o; // Resets the RISC
 
-wire TCK = P_TCK;
-wire TMS = P_TMS;
-wire TDI = P_TDI;
-wire TRST= ~P_TRST;                   // P_TRST is active low
-wire PowerONReset = ~P_PowerONReset;  // PowerOnReset is active low
 
+// WISHBONE signals
+input         wb_rst_i;                   // WISHBONE reset
+
+
+// TAP states
 reg TestLogicReset;
 reg RunTestIdle;
 reg SelectDRScan;
@@ -126,6 +130,8 @@ reg PauseIR;
 reg Exit2IR;
 reg UpdateIR;
 
+
+// Defining which instruction is selected
 reg EXTESTSelected;
 reg SAMPLE_PRELOADSelected;
 reg IDCODESelected;
@@ -137,90 +143,108 @@ reg HIGHZSelected;
 reg DEBUGSelected;
 reg BYPASSSelected;
 
+reg [31:0]  risc_addr_o;
+reg [31:0]  ADDR;
+reg [31:0]  risc_data_o;
+reg [31:0]  DataOut;
+
 reg [`CHAIN_ID_LENGTH-1:0] Chain;         // Selected chain
-reg [31:0] RISC_DATAINLatch;              // Data from DataIn is latched one Mclk clock cycle after RISC register is
+reg [31:0]  RISC_DATAINLatch;             // Data from DataIn is latched one mclk clock cycle after RISC register is
                                           // accessed for reading
-reg [31:0] RegisterReadLatch;             // Data when reading register is latched one TCK clock after the register is read.
+reg [31:0]  RegisterReadLatch;            // Data when reading register is latched one TCK clock after the register is read.
+reg         RegAccessTck;                 // Indicates access to the registers (read or write)
+reg         RISCAccessTck;                // Indicates access to the RISC (read or write)
+reg [7:0]   BitCounter;                   // Counting bits in the ShiftDR and Exit1DR stages
+reg         RW;                           // Read/Write bit
+reg         CrcMatch;                     // The crc that is shifted in and the internaly calculated crc are equal
+reg [31:0]  RISC_DATA_IN_TEMP;            // Temporary data storage for the data from the RISC
 
-wire[31:0] RegDataIn;                     // Data from registers (read data)
-reg        RegAccessTck;                  // Indicates access to the registers (read or write)
-reg        RISCAccessTck;                 // Indicates access to the RISC (read or write)
-
-wire[`CRC_LENGTH-1:0] CalculatedCrcOut;   // CRC calculated in this module. This CRC is apended at the end of the TDO.
-
-reg [7:0] BitCounter;                     // Counting bits in the ShiftDR and Exit1DR stages
-reg RW;                                   // Read/Write bit
-
-reg  CrcMatch;                            // The crc that is shifted in and the internaly calculated crc are equal
-
-
+reg         RegAccess_q;                  // Delayed signals used for accessing the registers
+reg         RegAccess_q2;                 // Delayed signals used for accessing the registers
+reg         RISCAccess_q;                 // Delayed signals used for accessing the RISC
+reg         RISCAccess_q2;                // Delayed signals used for accessing the RISC
 
 
+
+wire TCK = tck_pad_i;
+wire TMS = tms_pad_i;
+wire TDI = tdi_pad_i;
+wire RESET = ~trst_pad_i;                 // trst_pad_i is active low
+
+wire [31:0]             RegDataIn;        // Data from registers (read data)
+wire [`CRC_LENGTH-1:0]  CalculatedCrcOut; // CRC calculated in this module. This CRC is apended at the end of the TDO.
+
+wire RiscStall_reg;                       // RISC is stalled by setting the register bit
+wire RiscReset_reg;                       // RISC is reset by setting the register bit
+wire RiscStall_trace;                     // RISC is stalled by trace module
+       
+       
+wire RegisterScanChain;                   // Register Scan chain selected
+wire RiscDebugScanChain;                  // Risc Debug Scan chain selected
+          
+integer ii, jj, kk;                       // Counters for relocating bits bacuse of the RISC big endian mode of operation
+           
+            
+// This signals are used only when TRACE is used in the design
 `ifdef TRACE_ENABLED
-  wire [39:0] TraceChain;                   // Chain that comes from trace module
-  reg  ReadBuffer_Tck;                      // Command for incrementing the trace read pointer (synchr with TCK)
-  reg  ReadBuffer_Mclk;                     // Command for incrementing the trace read pointer (synchr with MClk)
-  reg  DisableReadBuffer_Mclk;              // Incrementing trace read buffer can be active for one MClk clock. Then it is disabled.
+  wire [39:0] TraceChain;                 // Chain that comes from trace module
+  reg  ReadBuffer_Tck;                    // Command for incrementing the trace read pointer (synchr with TCK)
+  wire ReadTraceBuffer;                   // Command for incrementing the trace read pointer (synchr with MClk)
+  reg  ReadTraceBuffer_q;                 // Delayed command for incrementing the trace read pointer (synchr with MClk)
+  wire ReadTraceBufferPulse;              // Pulse for reading the trace buffer (valid for only one Mclk command)
 
   // Outputs from registers
-  wire ContinMode;
-  wire TraceEnable;
+  wire ContinMode;                        // Trace working in continous mode
+  wire TraceEnable;                       // Trace enabled
   
-  wire [10:0] WpTrigger;
-  wire        BpTrigger;
-  wire [3:0]  LSSTrigger;
-  wire [1:0]  ITrigger;
-  wire [1:0]  TriggerOper;
+  wire [10:0] WpTrigger;                  // Watchpoint starts trigger
+  wire        BpTrigger;                  // Breakpoint starts trigger
+  wire [3:0]  LSSTrigger;                 // Load/store status starts trigger
+  wire [1:0]  ITrigger;                   // Instruction status starts trigger
+  wire [1:0]  TriggerOper;                // Trigger operation
   
-  wire        WpTriggerValid;
-  wire        BpTriggerValid;
-  wire        LSSTriggerValid;
-  wire        ITriggerValid;
+  wire        WpTriggerValid;             // Watchpoint trigger is valid
+  wire        BpTriggerValid;             // Breakpoint trigger is valid
+  wire        LSSTriggerValid;            // Load/store status trigger is valid
+  wire        ITriggerValid;              // Instruction status trigger is valid
   
-  wire [10:0] WpQualif;
-  wire        BpQualif;
-  wire [3:0]  LSSQualif;
-  wire [1:0]  IQualif;
-  wire [1:0]  QualifOper;
+  wire [10:0] WpQualif;                   // Watchpoint starts qualifier
+  wire        BpQualif;                   // Breakpoint starts qualifier
+  wire [3:0]  LSSQualif;                  // Load/store status starts qualifier
+  wire [1:0]  IQualif;                    // Instruction status starts qualifier
+  wire [1:0]  QualifOper;                 // Qualifier operation
   
-  wire        WpQualifValid;
-  wire        BpQualifValid;
-  wire        LSSQualifValid;
-  wire        IQualifValid;
+  wire        WpQualifValid;              // Watchpoint qualifier is valid
+  wire        BpQualifValid;              // Breakpoint qualifier is valid
+  wire        LSSQualifValid;             // Load/store status qualifier is valid
+  wire        IQualifValid;               // Instruction status qualifier is valid
   
-  wire [10:0] WpStop;
-  wire        BpStop;
-  wire [3:0]  LSSStop;
-  wire [1:0]  IStop;
-  wire [1:0]  StopOper;
+  wire [10:0] WpStop;                     // Watchpoint stops recording of the trace
+  wire        BpStop;                     // Breakpoint stops recording of the trace
+  wire [3:0]  LSSStop;                    // Load/store status stops recording of the trace
+  wire [1:0]  IStop;                      // Instruction status stops recording of the trace
+  wire [1:0]  StopOper;                   // Stop operation
   
-  wire WpStopValid;
-  wire BpStopValid;
-  wire LSSStopValid;
-  wire IStopValid;
+  wire WpStopValid;                       // Watchpoint stop is valid
+  wire BpStopValid;                       // Breakpoint stop is valid
+  wire LSSStopValid;                      // Load/store status stop is valid
+  wire IStopValid;                        // Instruction status stop is valid
   
-  wire RecordPC;
-  wire RecordLSEA;
-  wire RecordLDATA;
-  wire RecordSDATA;
-  wire RecordReadSPR;
-  wire RecordWriteSPR;
-  wire RecordINSTR;
+  wire RecordPC;                          // Recording program counter
+  wire RecordLSEA;                        // Recording load/store effective address
+  wire RecordLDATA;                       // Recording load data
+  wire RecordSDATA;                       // Recording store data
+  wire RecordReadSPR;                     // Recording read SPR
+  wire RecordWriteSPR;                    // Recording write SPR
+  wire RecordINSTR;                       // Recording instruction
   
   // End: Outputs from registers
 
-  wire TraceTestScanChain;    // Trace Test Scan chain selected
-  wire [47:0] Trace_Data;
+  wire TraceTestScanChain;                // Trace Test Scan chain selected
+  wire [47:0] Trace_Data;                 // Trace data
 
 `endif
 
-wire RiscStall_reg;
-wire RiscReset_reg;
-wire RiscStall_trace;
-
-
-wire RegisterScanChain;     // Register Scan chain selected
-wire RiscDebugScanChain;    // Risc Debug Scan chain selected
 
 
 /**********************************************************************************
@@ -228,7 +252,6 @@ wire RiscDebugScanChain;    // Risc Debug Scan chain selected
 *   TAP State Machine: Fully JTAG compliant                                       *
 *                                                                                 *
 **********************************************************************************/
-wire RESET = TRST | PowerONReset;
 
 // TestLogicReset state
 always @ (posedge TCK or posedge RESET)
@@ -356,6 +379,7 @@ begin
     end
 end
 
+// Delayed UpdateDR state
 reg UpdateDR_q;
 always @ (posedge TCK)
 begin
@@ -474,9 +498,11 @@ end
 *   JTAG_IR:  JTAG Instruction Register                                           *
 *                                                                                 *
 **********************************************************************************/
-wire [1:0]Status = 2'b10;   // Holds current chip status. Core should return this status. For now a constant is used.
+wire [1:0]Status = 2'b10;     // Holds current chip status. Core should return this status. For now a constant is used.
 
-reg [`IR_LENGTH-1:0]JTAG_IR;   // Instruction register
+reg [`IR_LENGTH-1:0]JTAG_IR;  // Instruction register
+reg [`IR_LENGTH-1:0]LatchedJTAG_IR;
+
 reg TDOInstruction;
 
 always @ (posedge TCK or posedge RESET)
@@ -507,7 +533,7 @@ begin
   if(ShiftIR)
     TDOInstruction <= #Tp JTAG_IR[0];
 end
-  
+
 /**********************************************************************************
 *                                                                                 *
 *   End: JTAG_IR                                                                  *
@@ -560,8 +586,8 @@ begin
     begin
       TDOData <= #Tp CrcMatch;
       `ifdef TRACE_ENABLED
-      if(DEBUGSelected & TraceTestScanChain & TraceChain[0])  // Sample is valid
-        ReadBuffer_Tck<=#Tp 1;    // Increment read pointer
+      if(DEBUGSelected & TraceTestScanChain & TraceChain[0])  // Sample in the trace buffer is valid
+        ReadBuffer_Tck<=#Tp 1;                                // Increment read pointer
       `endif
     end
   else
@@ -569,7 +595,7 @@ begin
       if(ShiftDR)
         begin
           if(IDCODESelected)
-            TDOData <= #Tp IDCodeValue[BitCounter];
+            TDOData <= #Tp IDCodeValue[BitCounter];           // IDCODE is shifted out
           else
           if(CHAIN_SELECTSelected)
             TDOData <= #Tp 0;
@@ -577,14 +603,14 @@ begin
           if(DEBUGSelected)
             begin
               if(RiscDebugScanChain)
-                TDOData <= #Tp RISC_Data[BitCounter];
+                TDOData <= #Tp RISC_Data[BitCounter];         // Data read from RISC in the previous cycle is shifted out
               else
               if(RegisterScanChain)
-                TDOData <= #Tp Register_Data[BitCounter];
+                TDOData <= #Tp Register_Data[BitCounter];     // Data read from register in the previous cycle is shifted out
               `ifdef TRACE_ENABLED
               else
               if(TraceTestScanChain)
-                TDOData <= #Tp Trace_Data[BitCounter];
+                TDOData <= #Tp Trace_Data[BitCounter];        // Data from the trace buffer is shifted out
               `endif
             end
         end
@@ -614,10 +640,10 @@ end
 always @ (posedge TCK or posedge RESET)
 begin
   if(RESET)
-    Chain[`CHAIN_ID_LENGTH-1:0]<=#Tp `GLOBAL_BS_CHAIN;
+    Chain[`CHAIN_ID_LENGTH-1:0]<=#Tp `GLOBAL_BS_CHAIN;  // Global BS chain is selected after reset
   else
   if(UpdateDR & CHAIN_SELECTSelected & CrcMatch)
-    Chain[`CHAIN_ID_LENGTH-1:0]<=#Tp JTAG_DR_IN[3:0];
+    Chain[`CHAIN_ID_LENGTH-1:0]<=#Tp JTAG_DR_IN[3:0];   // New chain is selected
 end
 
 
@@ -628,7 +654,6 @@ end
 *   RISC registers read/write logic                                               *
 *                                                                                 *
 **********************************************************************************/
-
 always @ (posedge TCK or posedge RESET)
 begin
   if(RESET)
@@ -665,12 +690,12 @@ begin
     end
 end
 
-integer ii, jj, kk;
+
 // Relocating bits because RISC works in big endian mode
 always @(ADDR)
 begin
   for(ii=0; ii<32; ii=ii+1)
-    RISC_ADDR[ii] = ADDR[31-ii];
+    risc_addr_o[ii] = ADDR[31-ii];
 end
 
 
@@ -678,25 +703,31 @@ end
 always @(DataOut)
 begin
   for(jj=0; jj<32; jj=jj+1)
-    RISC_DATA_OUT[jj] = DataOut[31-jj];
+    risc_data_o[jj] = DataOut[31-jj];
 end
 
-// Synchronizing the RegAccess signal to Mclk clock
-dbg_sync_clk1_clk2 syn1 (.clk1(Mclk),         .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
+
+// Relocating bits because RISC works in big endian mode
+always @(risc_data_i)
+begin
+  for(kk=0; kk<32; kk=kk+1)
+    RISC_DATA_IN_TEMP[kk] = risc_data_i[31-kk];
+end
+
+
+// Synchronizing the RegAccess signal to mclk clock
+dbg_sync_clk1_clk2 syn1 (.clk1(mclk),         .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
                          .set2(RegAccessTck), .sync_out(RegAccess)
                         );
 
-// Synchronizing the RISCAccess signal to Mclk clock
-dbg_sync_clk1_clk2 syn2 (.clk1(Mclk),         .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
+// Synchronizing the RISCAccess signal to mclk clock
+dbg_sync_clk1_clk2 syn2 (.clk1(mclk),         .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
                          .set2(RISCAccessTck), .sync_out(RISCAccess)
                         );
 
-reg RegAccess_q;
-reg RegAccess_q2;
-reg RISCAccess_q;
-reg RISCAccess_q2;
 
-always @ (posedge Mclk or posedge RESET)
+// Delayed signals used for accessing registers and RISC
+always @ (posedge mclk or posedge RESET)
 begin
   if(RESET)
     begin
@@ -714,8 +745,9 @@ begin
     end
 end
 
+
 // Latching data read from registers
-always @ (posedge Mclk or posedge RESET)
+always @ (posedge mclk or posedge RESET)
 begin
   if(RESET)
     RegisterReadLatch[31:0]<=#Tp 0;
@@ -725,22 +757,24 @@ begin
 end
 
 
-assign RISC_CS = RISCAccess & ~RISCAccess_q;
-assign RISC_RW = RW;
+// Chip select and read/write signals for accessing RISC
+assign risc_cs_o = RISCAccess & ~RISCAccess_q;
+assign risc_rw_o = RW;
 
 
+// Whan enabled, TRACE stalls RISC while saving data to the trace buffer.
 `ifdef TRACE_ENABLED
-  assign RISC_STALL_O = RISC_CS | RiscStall_reg | RiscStall_trace ;
+  assign  risc_stall_o = risc_cs_o | RiscStall_reg | RiscStall_trace ;
 `else
-  assign RISC_STALL_O = RISC_CS | RiscStall_reg;
+  assign  risc_stall_o = risc_cs_o | RiscStall_reg;
 `endif
 
-assign RISC_RESET_O = RiscReset_reg;
+assign  risc_reset_o = RiscReset_reg;
 
 
-reg [31:0] RISC_DATA_IN_TEMP;
+
 // Latching data read from RISC
-always @ (posedge Mclk or posedge RESET)
+always @ (posedge mclk or posedge RESET)
 begin
   if(RESET)
     RISC_DATAINLatch[31:0]<=#Tp 0;
@@ -750,12 +784,6 @@ begin
 end
 
 
-// Relocating bits because RISC works in big endian mode
-always @(RISC_DATA_IN)
-begin
-  for(kk=0; kk<32; kk=kk+1)
-    RISC_DATA_IN_TEMP[kk] = RISC_DATA_IN[31-kk];
-end
 
 
 
@@ -765,25 +793,25 @@ end
 *                                                                                 *
 **********************************************************************************/
 `ifdef TRACE_ENABLED
-  wire Reset_ReadBuffer_Mclk = ReadBuffer_Mclk | DisableReadBuffer_Mclk | RESET;
   
-  always @(posedge Mclk)
+
+// Synchronizing the trace read buffer signal to mclk clock
+dbg_sync_clk1_clk2 syn3 (.clk1(mclk),         .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
+                         .set2(ReadBuffer_Tck), .sync_out(ReadTraceBuffer)
+                        );
+
+
+
+  always @(posedge mclk or posedge RESET)
   begin
-    if(Reset_ReadBuffer_Mclk)
-      ReadBuffer_Mclk<=#Tp 0;
+    if(RESET)
+      ReadTraceBuffer_q <=#Tp 0;
     else
-    if(ReadBuffer_Tck)
-      ReadBuffer_Mclk<=#Tp 1;
+      ReadTraceBuffer_q <=#Tp ReadTraceBuffer;
   end
-  
-  always @(posedge Mclk)
-  begin
-    if(ReadBuffer_Mclk)
-      DisableReadBuffer_Mclk<=#Tp 1;
-    else
-    if(~ReadBuffer_Tck)
-      DisableReadBuffer_Mclk<=#Tp 0;
-  end
+
+  assign ReadTraceBufferPulse = ReadTraceBuffer & ~ReadTraceBuffer_q;
+
 `endif
 
 /**********************************************************************************
@@ -831,188 +859,60 @@ end
 always @ (posedge TCK or posedge RESET)
 begin
   if(RESET)
-    begin
-      EXTESTSelected<=#Tp 0;
-      SAMPLE_PRELOADSelected<=#Tp 0;
-      IDCODESelected<=#Tp 1;          // After reset IDCODE is selected
-      CHAIN_SELECTSelected<=#Tp 0;
-      INTESTSelected<=#Tp 0;
-      CLAMPSelected<=#Tp 0;
-      CLAMPZSelected<=#Tp 0;
-      HIGHZSelected<=#Tp 0;
-      DEBUGSelected<=#Tp 0;
-      BYPASSSelected<=#Tp 0;
-    end
+    LatchedJTAG_IR <=#Tp `IDCODE;   // IDCODE selected after reset
   else
-  begin
-    if(UpdateIR)
-      begin
-        case(JTAG_IR)
-          `EXTEST: // External test
-            begin
-              EXTESTSelected<=#Tp 1;
-              SAMPLE_PRELOADSelected<=#Tp 0;
-              IDCODESelected<=#Tp 0;
-              CHAIN_SELECTSelected<=#Tp 0;
-              INTESTSelected<=#Tp 0;
-              CLAMPSelected<=#Tp 0;
-              CLAMPZSelected<=#Tp 0;
-              HIGHZSelected<=#Tp 0;
-              DEBUGSelected<=#Tp 0;
-              BYPASSSelected<=#Tp 0;
-            end
-          `SAMPLE_PRELOAD: // Sample preload
-            begin
-              EXTESTSelected<=#Tp 0;
-              SAMPLE_PRELOADSelected<=#Tp 1;
-              IDCODESelected<=#Tp 0;
-              CHAIN_SELECTSelected<=#Tp 0;
-              INTESTSelected<=#Tp 0;
-              CLAMPSelected<=#Tp 0;
-              CLAMPZSelected<=#Tp 0;
-              HIGHZSelected<=#Tp 0;
-              DEBUGSelected<=#Tp 0;
-              BYPASSSelected<=#Tp 0;
-            end
-          `IDCODE:  // ID Code
-            begin
-              EXTESTSelected<=#Tp 0;
-              SAMPLE_PRELOADSelected<=#Tp 0;
-              IDCODESelected<=#Tp 1;
-              CHAIN_SELECTSelected<=#Tp 0;
-              INTESTSelected<=#Tp 0;
-              CLAMPSelected<=#Tp 0;
-              CLAMPZSelected<=#Tp 0;
-              HIGHZSelected<=#Tp 0;
-              DEBUGSelected<=#Tp 0;
-              BYPASSSelected<=#Tp 0;
-            end          
-          `CHAIN_SELECT: // Chain select
-            begin
-              EXTESTSelected<=#Tp 0;
-              SAMPLE_PRELOADSelected<=#Tp 0;
-              IDCODESelected<=#Tp 0;
-              CHAIN_SELECTSelected<=#Tp 1;
-              INTESTSelected<=#Tp 0;
-              CLAMPSelected<=#Tp 0;
-              CLAMPZSelected<=#Tp 0;
-              HIGHZSelected<=#Tp 0;
-              DEBUGSelected<=#Tp 0;
-              BYPASSSelected<=#Tp 0;
-            end
-          `INTEST: // Internal test
-            begin
-              EXTESTSelected<=#Tp 0;
-              SAMPLE_PRELOADSelected<=#Tp 0;
-              IDCODESelected<=#Tp 0;
-              CHAIN_SELECTSelected<=#Tp 0;
-              INTESTSelected<=#Tp 1;
-              CLAMPSelected<=#Tp 0;
-              CLAMPZSelected<=#Tp 0;
-              HIGHZSelected<=#Tp 0;
-              DEBUGSelected<=#Tp 0;
-              BYPASSSelected<=#Tp 0;
-            end
-          `CLAMP: // Clamp
-            begin
-              EXTESTSelected<=#Tp 0;
-              SAMPLE_PRELOADSelected<=#Tp 0;
-              IDCODESelected<=#Tp 0;
-              CHAIN_SELECTSelected<=#Tp 0;
-              INTESTSelected<=#Tp 0;
-              CLAMPSelected<=#Tp 1;
-              CLAMPZSelected<=#Tp 0;
-              HIGHZSelected<=#Tp 0;
-              DEBUGSelected<=#Tp 0;
-              BYPASSSelected<=#Tp 0;
-            end
-          `CLAMPZ: // ClampZ
-            begin
-              EXTESTSelected<=#Tp 0;
-              SAMPLE_PRELOADSelected<=#Tp 0;
-              IDCODESelected<=#Tp 0;
-              CHAIN_SELECTSelected<=#Tp 0;
-              INTESTSelected<=#Tp 0;
-              CLAMPSelected<=#Tp 0;
-              CLAMPZSelected<=#Tp 1;
-              HIGHZSelected<=#Tp 0;
-              DEBUGSelected<=#Tp 0;
-              BYPASSSelected<=#Tp 0;
-            end
-          `HIGHZ: // High Z
-            begin
-              EXTESTSelected<=#Tp 0;
-              SAMPLE_PRELOADSelected<=#Tp 0;
-              IDCODESelected<=#Tp 0;
-              CHAIN_SELECTSelected<=#Tp 0;
-              INTESTSelected<=#Tp 0;
-              CLAMPSelected<=#Tp 0;
-              CLAMPZSelected<=#Tp 0;
-              HIGHZSelected<=#Tp 1;
-              DEBUGSelected<=#Tp 0;
-              BYPASSSelected<=#Tp 0;
-            end
-          `DEBUG: // Debug
-            begin
-              EXTESTSelected<=#Tp 0;
-              SAMPLE_PRELOADSelected<=#Tp 0;
-              IDCODESelected<=#Tp 0;
-              CHAIN_SELECTSelected<=#Tp 0;
-              INTESTSelected<=#Tp 0;
-              CLAMPSelected<=#Tp 0;
-              CLAMPZSelected<=#Tp 0;
-              HIGHZSelected<=#Tp 0;
-              DEBUGSelected<=#Tp 1;
-              BYPASSSelected<=#Tp 0;
-            end
-          `BYPASS: // BYPASS
-            begin
-              EXTESTSelected<=#Tp 0;
-              SAMPLE_PRELOADSelected<=#Tp 0;
-              IDCODESelected<=#Tp 0;
-              CHAIN_SELECTSelected<=#Tp 0;
-              INTESTSelected<=#Tp 0;
-              CLAMPSelected<=#Tp 0;
-              CLAMPZSelected<=#Tp 0;
-              HIGHZSelected<=#Tp 0;
-              DEBUGSelected<=#Tp 0;
-              BYPASSSelected<=#Tp 1;
-            end
-          default:  // BYPASS
-            begin
-              EXTESTSelected<=#Tp 0;
-              SAMPLE_PRELOADSelected<=#Tp 0;
-              IDCODESelected<=#Tp 0;
-              CHAIN_SELECTSelected<=#Tp 0;
-              INTESTSelected<=#Tp 0;
-              CLAMPSelected<=#Tp 0;
-              CLAMPZSelected<=#Tp 0;
-              HIGHZSelected<=#Tp 0;
-              DEBUGSelected<=#Tp 0;
-              BYPASSSelected<=#Tp 1;
-            end
-        endcase
-      end
-  end
+  if(UpdateIR)
+    LatchedJTAG_IR <=#Tp JTAG_IR;
+end
+
+
+
+// Updating JTAG_IR (Instruction Register)
+always @ (LatchedJTAG_IR)
+begin
+  EXTESTSelected          = 0;
+  SAMPLE_PRELOADSelected  = 0;
+  IDCODESelected          = 0;
+  CHAIN_SELECTSelected    = 0;
+  INTESTSelected          = 0;
+  CLAMPSelected           = 0;
+  CLAMPZSelected          = 0;
+  HIGHZSelected           = 0;
+  DEBUGSelected           = 0;
+  BYPASSSelected          = 0;
+
+  case(LatchedJTAG_IR)
+    `EXTEST:            EXTESTSelected          = 1;    // External test
+    `SAMPLE_PRELOAD:    SAMPLE_PRELOADSelected  = 1;    // Sample preload
+    `IDCODE:            IDCODESelected          = 1;    // ID Code
+    `CHAIN_SELECT:      CHAIN_SELECTSelected    = 1;    // Chain select
+    `INTEST:            INTESTSelected          = 1;    // Internal test
+    `CLAMP:             CLAMPSelected           = 1;    // Clamp
+    `CLAMPZ:            CLAMPZSelected          = 1;    // ClampZ
+    `HIGHZ:             HIGHZSelected           = 1;    // High Z
+    `DEBUG:             DEBUGSelected           = 1;    // Debug
+    `BYPASS:            BYPASSSelected          = 1;    // BYPASS
+    default:            BYPASSSelected          = 1;    // BYPASS
+  endcase
 end
 
 
 /**********************************************************************************
-*																																									*
-*		Multiplexing TDO and Tristate control																					*
-*																																									*
+*                                                                                 *
+*   Multiplexing TDO and Tristate control                                         *
+*                                                                                 *
 **********************************************************************************/
 wire TDOShifted;
 assign TDOShifted = (ShiftIR | Exit1IR)? TDOInstruction : TDOData;
 /**********************************************************************************
-*																																									*
-*		End:	Multiplexing TDO and Tristate control																		*
-*																																									*
+*                                                                                 *
+*   End:  Multiplexing TDO and Tristate control                                   *
+*                                                                                 *
 **********************************************************************************/
 
 
 
-// This multiplexing can be expanded with number of user registers
+// This multiplexer can be expanded with number of user registers
 reg TDOMuxed;
 always @ (JTAG_IR or TDOShifted or TDOBypassed)
 begin
@@ -1029,14 +929,14 @@ begin
       begin
         TDOMuxed<=#Tp TDOShifted;
       end
-		`SAMPLE_PRELOAD:	// Sampling/Preloading
-			begin
-				TDOMuxed<=#Tp BS_CHAIN_I;
-			end
-		`EXTEST:	// External test
-			begin
-				TDOMuxed<=#Tp BS_CHAIN_I;
-			end
+//    `SAMPLE_PRELOAD:  // Sampling/Preloading
+//      begin
+//        TDOMuxed<=#Tp BS_CHAIN_I;
+//      end
+//    `EXTEST:  // External test
+//      begin
+//        TDOMuxed<=#Tp BS_CHAIN_I;
+//      end
     default:  // BYPASS instruction
       begin
         TDOMuxed<=#Tp TDOBypassed;
@@ -1044,8 +944,8 @@ begin
   endcase
 end
 
-// Tristate control for P_TDO pin
-assign P_TDO = (ShiftIR | ShiftDR | Exit1IR | Exit1DR | UpdateDR)? TDOMuxed : 1'bz;
+// Tristate control for tdo_pad_o pin
+assign tdo_pad_o = (ShiftIR | ShiftDR | Exit1IR | Exit1DR | UpdateDR)? TDOMuxed : 1'bz;
 
 /**********************************************************************************
 *                                                                                 *
@@ -1088,8 +988,8 @@ end
 *                                                                                 *
 **********************************************************************************/
 dbg_registers dbgregs(.DataIn(DataOut[31:0]), .DataOut(RegDataIn[31:0]), 
-                      .Address(ADDR[4:0]), .RW(RW), .Access(RegAccess & ~RegAccess_q), .Clk(Mclk), 
-                      .Reset(PowerONReset), 
+                      .Address(ADDR[4:0]), .RW(RW), .Access(RegAccess & ~RegAccess_q), .Clk(mclk), 
+                      .Reset(wb_rst_i), 
                       `ifdef TRACE_ENABLED
                       .ContinMode(ContinMode), .TraceEnable(TraceEnable), 
                       .WpTrigger(WpTrigger), .BpTrigger(BpTrigger), .LSSTrigger(LSSTrigger),
@@ -1124,32 +1024,32 @@ dbg_registers dbgregs(.DataIn(DataOut[31:0]), .DataOut(RegDataIn[31:0]),
 *   Connecting CRC module                                                         *
 *                                                                                 *
 **********************************************************************************/
-wire ResetCrc = RESET | UpdateDR_q;   // igor !!! Ta asinhroni reset popraviti
+wire AsyncResetCrc = RESET;
+wire SyncResetCrc = UpdateDR_q;
 wire [7:0] CalculatedCrcIn;     // crc calculated from the input data (shifted in)
 
 wire EnableCrcIn = ShiftDR & 
-                 (  (CHAIN_SELECTSelected                 & (BitCounter<4))  |
+                  ( (CHAIN_SELECTSelected                 & (BitCounter<4))  |
                     ((DEBUGSelected & RegisterScanChain)  & (BitCounter<38)) | 
                     ((DEBUGSelected & RiscDebugScanChain) & (BitCounter<65)) 
-                 );
+                  );
 
 wire EnableCrcOut= ShiftDR & 
-//                 (  (CHAIN_SELECTSelected                 & (BitCounter<4))  |  Crc is not generated because crc of data that is equal to 0 is 0.
-                 (
+                   (
                     ((DEBUGSelected & RegisterScanChain)  & (BitCounter<38)) | 
                     ((DEBUGSelected & RiscDebugScanChain) & (BitCounter<65)) 
                     `ifdef TRACE_ENABLED
                                                                              |
                     ((DEBUGSelected & TraceTestScanChain) & (BitCounter<40)) 
                     `endif
-                 );
+                   );
 
 // Calculating crc for input data
-dbg_crc8_d1 crc1 (.Data(TDI), .EnableCrc(EnableCrcIn), .ResetCrc(ResetCrc), 
+dbg_crc8_d1 crc1 (.Data(TDI), .EnableCrc(EnableCrcIn), .Reset(AsyncResetCrc), .SyncResetCrc(SyncResetCrc), 
                   .CrcOut(CalculatedCrcIn), .Clk(TCK));
 
 // Calculating crc for output data
-dbg_crc8_d1 crc2 (.Data(TDOData), .EnableCrc(EnableCrcOut), .ResetCrc(ResetCrc), 
+dbg_crc8_d1 crc2 (.Data(TDOData), .EnableCrc(EnableCrcOut), .Reset(AsyncResetCrc), .SyncResetCrc(SyncResetCrc), 
                   .CrcOut(CalculatedCrcOut), .Clk(TCK));
 
 
@@ -1193,9 +1093,9 @@ assign RiscDebugScanChain  = Chain == `RISC_DEBUG_CHAIN;
 *                                                                                 *
 **********************************************************************************/
 `ifdef TRACE_ENABLED
-  dbg_trace dbgTrace1(.Wp(Wp), .Bp(Bp), .DataIn(RISC_DATA_IN), .OpSelect(OpSelect), 
-                      .LsStatus(LsStatus), .IStatus(IStatus), .RiscStall_O(RiscStall_trace), 
-                      .Mclk(Mclk), .Reset(RESET), .TraceChain(TraceChain), 
+  dbg_trace dbgTrace1(.Wp(wp_i), .Bp(bp_i), .DataIn(risc_data_i), .OpSelect(opselect_o), 
+                      .LsStatus(lsstatus_i), .IStatus(istatus_i), .RiscStall_O(RiscStall_trace), 
+                      .Mclk(mclk), .Reset(RESET), .TraceChain(TraceChain), 
                       .ContinMode(ContinMode), .TraceEnable_reg(TraceEnable), 
                       .WpTrigger(WpTrigger), 
                       .BpTrigger(BpTrigger), .LSSTrigger(LSSTrigger), .ITrigger(ITrigger), 
@@ -1209,7 +1109,7 @@ assign RiscDebugScanChain  = Chain == `RISC_DEBUG_CHAIN;
                       .LSSTriggerValid(LSSTriggerValid), .ITriggerValid(ITriggerValid), 
                       .WpQualifValid(WpQualifValid), .BpQualifValid(BpQualifValid), 
                       .LSSQualifValid(LSSQualifValid), .IQualifValid(IQualifValid),
-                      .ReadBuffer(ReadBuffer_Mclk),
+                      .ReadBuffer(ReadTraceBufferPulse),
                       .WpStop(WpStop), .BpStop(BpStop), .LSSStop(LSSStop), .IStop(IStop), 
                       .StopOper(StopOper), .WpStopValid(WpStopValid), .BpStopValid(BpStopValid), 
                       .LSSStopValid(LSSStopValid), .IStopValid(IStopValid) 
@@ -1223,4 +1123,4 @@ assign RiscDebugScanChain  = Chain == `RISC_DEBUG_CHAIN;
 
 
 
-endmodule // TAP
+endmodule

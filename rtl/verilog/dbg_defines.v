@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/09/18 14:13:47  mohor
+// Trace fixed. Some registers changed, trace simplified.
+//
 // Revision 1.1.1.1  2001/09/13 13:49:19  mohor
 // Initial official release.
 //
@@ -84,9 +87,10 @@
 // Length of the CRC
 `define	CRC_LENGTH	8
 
-// Trace buffer size and counter and write/read pointer width
-`define TRACECOUNTERWIDTH        5 //10
-`define TRACEBUFFERLENGTH        32 // 2^5 1024 //2^10
+// Trace buffer size and counter and write/read pointer width. This can be expanded when more RAM is avaliable
+`define TRACECOUNTERWIDTH        5  
+`define TRACEBUFFERLENGTH        32 // 2^5
+
 `define TRACESAMPLEWIDTH         36
 
 // OpSelect width
@@ -94,16 +98,16 @@
 `define OPSELECTIONCOUNTER       8    //2^3
 
 // Supported Instructions
-`define EXTEST          4'b0000
-`define SAMPLE_PRELOAD  4'b0001
-`define IDCODE          4'b0010
-`define CHAIN_SELECT    4'b0011
-`define INTEST          4'b0100
-`define CLAMP           4'b0101
-`define CLAMPZ          4'b0110
-`define HIGHZ           4'b0111
-`define DEBUG           4'b1000
-`define BYPASS          4'b1111
+`define EXTEST          5'b00000
+`define SAMPLE_PRELOAD  5'b00001
+`define IDCODE          5'b00010
+`define CHAIN_SELECT    5'b00011
+`define INTEST          5'b00100
+`define CLAMP           5'b00101
+`define CLAMPZ          5'b00110
+`define HIGHZ           5'b00111
+`define DEBUG           5'b01000
+`define BYPASS          5'b01111
 
 // Chains
 `define GLOBAL_BS_CHAIN     4'b0000
@@ -128,12 +132,4 @@
 `define QSEL_DEF            32'h00000000
 `define SSEL_DEF            32'h00000000
 `define RISCOP_DEF          2'h0
-`define RECSEL_DEF          7'h00
-
-
-
-
-
-
-
-
+`define RECSEL_DEF          7'h0

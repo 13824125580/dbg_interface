@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2001/09/19 11:55:13  mohor
+// Asynchronous set/reset not used in trace any more.
+//
 // Revision 1.2  2001/09/18 14:13:47  mohor
 // Trace fixed. Some registers changed, trace simplified.
 //
@@ -82,66 +85,66 @@ module dbg_trace (Wp, Bp, DataIn, OpSelect, LsStatus, IStatus, RiscStall_O,
 parameter Tp = 1;
 
 
-input [10:0] Wp;        // Watchpoints
-input        Bp;        // Breakpoint
-input [31:0] DataIn;    // Data from the RISC
-input [3:0]  LsStatus;  // Load/Store status
-input [1:0]  IStatus;   // Instruction status
+input [10:0] Wp;              // Watchpoints
+input        Bp;              // Breakpoint
+input [31:0] DataIn;          // Data from the RISC
+input [3:0]  LsStatus;        // Load/Store status
+input [1:0]  IStatus;         // Instruction status
 
-input        Mclk;      // Master clock (RISC clock)
-input        Reset;     // Reset
-input        ReadBuffer;// Instruction for reading a sample from the Buffer
+input        Mclk;            // Master clock (RISC clock)
+input        Reset;           // Reset
+input        ReadBuffer;      // Instruction for reading a sample from the Buffer
 
 // from registers
-input ContinMode;
-input TraceEnable_reg;
+input ContinMode;             // Continous mode of the trace
+input TraceEnable_reg;        // Trace is enabled (enabled by writing a bit in the register)
 
-input [10:0] WpTrigger;
-input        BpTrigger;
-input [3:0]  LSSTrigger;
-input [1:0]  ITrigger;
-input [1:0]  TriggerOper;
+input [10:0] WpTrigger;       // Signals that come from registers to set the trigger
+input        BpTrigger;       // Signals that come from registers to set the trigger
+input [3:0]  LSSTrigger;      // Signals that come from registers to set the trigger
+input [1:0]  ITrigger;        // Signals that come from registers to set the trigger
+input [1:0]  TriggerOper;     // Signals that come from registers to set the trigger
 
-input [10:0] WpQualif;
-input        BpQualif;
-input [3:0]  LSSQualif;
-input [1:0]  IQualif;
-input [1:0]  QualifOper;
+input [10:0] WpQualif;        // Signals that come from registers to set the qualifier
+input        BpQualif;        // Signals that come from registers to set the qualifier
+input [3:0]  LSSQualif;       // Signals that come from registers to set the qualifier
+input [1:0]  IQualif;         // Signals that come from registers to set the qualifier
+input [1:0]  QualifOper;      // Signals that come from registers to set the qualifier
 
-input [10:0] WpStop;
-input        BpStop;
-input [3:0]  LSSStop;
-input [1:0]  IStop;
-input [1:0]  StopOper;
+input [10:0] WpStop;          // Signals that come from registers to set the stop condition
+input        BpStop;          // Signals that come from registers to set the stop condition
+input [3:0]  LSSStop;         // Signals that come from registers to set the stop condition
+input [1:0]  IStop;           // Signals that come from registers to set the stop condition
+input [1:0]  StopOper;        // Signals that come from registers to set the stop condition
 
-input RecordPC;
-input RecordLSEA;
-input RecordLDATA;
-input RecordSDATA;
-input RecordReadSPR;
-input RecordWriteSPR;
-input RecordINSTR;
+input RecordPC;               // Signals that come from registers for defining the sample for recording
+input RecordLSEA;             // Signals that come from registers for defining the sample for recording
+input RecordLDATA;            // Signals that come from registers for defining the sample for recording
+input RecordSDATA;            // Signals that come from registers for defining the sample for recording
+input RecordReadSPR;          // Signals that come from registers for defining the sample for recording
+input RecordWriteSPR;         // Signals that come from registers for defining the sample for recording
+input RecordINSTR;            // Signals that come from registers for defining the sample for recording
 
-input WpTriggerValid;
-input BpTriggerValid;
-input LSSTriggerValid;
-input ITriggerValid;
+input WpTriggerValid;         // Signals that come from registers and indicate which trigger conditions are valid
+input BpTriggerValid;         // Signals that come from registers and indicate which trigger conditions are valid
+input LSSTriggerValid;        // Signals that come from registers and indicate which trigger conditions are valid
+input ITriggerValid;          // Signals that come from registers and indicate which trigger conditions are valid
 
-input WpQualifValid;
-input BpQualifValid;
-input LSSQualifValid;
-input IQualifValid;
+input WpQualifValid;          // Signals that come from registers and indicate which qualifier conditions are valid
+input BpQualifValid;          // Signals that come from registers and indicate which qualifier conditions are valid
+input LSSQualifValid;         // Signals that come from registers and indicate which qualifier conditions are valid
+input IQualifValid;           // Signals that come from registers and indicate which qualifier conditions are valid
 
-input WpStopValid;
-input BpStopValid;
-input LSSStopValid;
-input IStopValid;
+input WpStopValid;            // Signals that come from registers and indicate which stop conditions are valid
+input BpStopValid;            // Signals that come from registers and indicate which stop conditions are valid
+input LSSStopValid;           // Signals that come from registers and indicate which stop conditions are valid
+input IStopValid;             // Signals that come from registers and indicate which stop conditions are valid
 // end: from registers
 
 
-output [`OPSELECTWIDTH-1:0]  OpSelect; // Operation select (what kind of information is avaliable on the DataIn)
-output        RiscStall_O;  // CPU stall (stalls the RISC)
-output [39:0] TraceChain; // Scan shain from the trace module
+output [`OPSELECTWIDTH-1:0]  OpSelect;  // Operation select (what kind of information is avaliable on the DataIn)
+output        RiscStall_O;              // CPU stall (stalls the RISC)
+output [39:0] TraceChain;               // Scan shain from the trace module
 
 reg TraceEnable_d;
 reg TraceEnable;
@@ -455,4 +458,4 @@ assign OpSelect[`OPSELECTWIDTH-1:0] = StallCounter[`OPSELECTWIDTH-1:0];
 assign RecEnable = {1'b0, RecordINSTR,  RecordWriteSPR,  RecordReadSPR,  RecordSDATA,  RecordLDATA,  RecordLSEA,  RecordPC};
 
 
-endmodule // Trace
+endmodule

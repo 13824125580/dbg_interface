@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2001/09/19 11:54:03  mohor
+// Minor changes for simulation.
+//
 // Revision 1.2  2001/09/18 14:12:43  mohor
 // Trace fixed. Some registers changed, trace simplified.
 //
@@ -76,7 +79,7 @@ parameter Tclk = 50;   // Clock half period (Clok period = 100 ns => 10 MHz)
 
 reg  P_TMS, P_TCK;
 reg  P_TRST, P_TDI;
-reg  P_PowerONReset;
+reg  wb_rst_i;
 reg  Mclk;
 
 reg [10:0] Wp;
@@ -90,25 +93,22 @@ wire [31:0] ADDR_RISC;
 wire [31:0] DATAIN_RISC;     // DATAIN_RISC is connect to DATAOUT
 wire RISC_CS;
 wire RISC_RW;
-wire RISC_STALL_O;
-wire RISC_RESET_O;
 
 wire  [31:0] DATAOUT_RISC;   // DATAOUT_RISC is connect to DATAIN
 
 wire   [`OPSELECTWIDTH-1:0] OpSelect;
 
 // Connecting TAP module
-dbg_top dbgTAP1(.P_TMS(P_TMS), .P_TCK(P_TCK), .P_TRST(P_TRST), .P_TDI(P_TDI), 
-                .P_TDO(P_TDO), .P_PowerONReset(P_PowerONReset), .Mclk(Mclk), 
-                .RISC_ADDR(ADDR_RISC), .RISC_DATA_IN(DATAOUT_RISC), .RISC_DATA_OUT(DATAIN_RISC), 
-                .RISC_CS(RISC_CS), .RISC_RW(RISC_RW), .Wp(Wp), .Bp(Bp), 
-                .OpSelect(OpSelect), .LsStatus(LsStatus), .IStatus(IStatus), 
-                .RISC_STALL_O(RISC_STALL_O), .RISC_RESET_O(RISC_RESET_O), .BS_CHAIN_I(BS_CHAIN_I)
+dbg_top dbgTAP1(.tms_pad_i(P_TMS), .tck_pad_i(P_TCK), .trst_pad_i(P_TRST), .tdi_pad_i(P_TDI), 
+                .tdo_pad_o(P_TDO), .wb_rst_i(wb_rst_i), .mclk(Mclk), 
+                .risc_addr_o(ADDR_RISC), .risc_data_i(DATAOUT_RISC), .risc_data_o(DATAIN_RISC), 
+                .risc_cs_o(RISC_CS), .risc_rw_o(RISC_RW), .wp_i(Wp), .bp_i(Bp), 
+                .opselect_o(OpSelect), .lsstatus_i(LsStatus), .istatus_i(IStatus), 
+                . risc_stall_o(), . risc_reset_o() 
                 );
 
 
 reg TestEnabled;
-//integer i;
 
 
 
@@ -118,16 +118,18 @@ begin
   P_TMS<=#Tp 0;
   P_TCK<=#Tp 0;
   P_TDI<=#Tp 0;
-  P_TRST<=#Tp 1;
 
   Wp<=#Tp 0;
   Bp<=#Tp 0;
   LsStatus<=#Tp 0;
   IStatus<=#Tp 0;
 
-  P_PowerONReset<=#Tp 1;
-  #100 P_PowerONReset<=#Tp 0;    // PowerONReset is active low
-  #100 P_PowerONReset<=#Tp 1;
+  wb_rst_i<=#Tp 0;
+  P_TRST<=#Tp 1;
+  #100 wb_rst_i<=#Tp 1;
+  P_TRST<=#Tp 0;
+  #100 wb_rst_i<=#Tp 0;
+  P_TRST<=#Tp 1;
   #Tp TestEnabled<=#Tp 1;
 end
 
@@ -142,9 +144,9 @@ end
 
 // Generating random number for use in DATAOUT_RISC[31:0]
 reg [31:0] RandNumb;
-always @ (posedge Mclk or negedge P_PowerONReset) // PowerONReset is active low
+always @ (posedge Mclk or posedge wb_rst_i)
 begin
-  if(~P_PowerONReset)
+  if(wb_rst_i)
     RandNumb[31:0]<=#Tp 0;
   else
     RandNumb[31:0]<=#Tp RandNumb[31:0] + 1;
@@ -179,7 +181,7 @@ begin
   SetInstruction(`DEBUG);
 
 
-/*
+//
 //  Testing internal registers
     ReadRegister(`MODER_ADR, 8'h00);           // {addr, crc}
     ReadRegister(`TSEL_ADR, 8'h64);            // {addr, crc}
@@ -202,7 +204,7 @@ begin
     ReadRegister(`RECSEL_ADR, 8'hc4);          // {addr, crc}
     ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
     ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
-*/
+//
 
 
 // testing trigger and qualifier
@@ -222,6 +224,7 @@ begin
 
 
 /* Anything starts trigger, breakpoint starts qualifier
+// Uncomment this part when you want to test it.
     #1000 WriteRegister(`QUALIFOP_OR | `BPQUALIFVALID | `BPQUALIF, `QSEL_ADR,   8'had);    // Any qualifier
     #1000 WriteRegister(32'h00000000, `TSEL_ADR,   8'h06);    // Any trigger
     #1000 WriteRegister(32'h0000000c, `RECSEL_ADR,   8'h0f);  // Two samples are selected for recording (RECSDATA and RECLDATA)
@@ -237,6 +240,7 @@ begin
 
 
 /* Anything starts qualifier, breakpoint starts trigger
+// Uncomment this part when you want to test it.
     #1000 WriteRegister(32'h00000000, `QSEL_ADR,   8'h50);    // Any qualifier
     #1000 WriteRegister(`LSSTRIG_0 | `LSSTRIG_2 | `LSSTRIGVALID | `WPTRIG_4 | `WPTRIGVALID | `TRIGOP_AND, `TSEL_ADR,   8'had);    // Trigger is AND of Watchpoint4 and LSSTRIG[0] and LSSTRIG[2]
     #1000 WriteRegister(32'h00000003, `RECSEL_ADR,   8'h0c);  // Two samples are selected for recording (RECPC and RECLSEA)
@@ -256,6 +260,7 @@ begin
 
 
 
+// Reading data from the trace buffer
   SetInstruction(`CHAIN_SELECT);
   ChainSelect(`TRACE_TEST_CHAIN, 8'h24);  // {chain, crc}
   SetInstruction(`DEBUG);
@@ -272,8 +277,6 @@ begin
   ReadTraceBuffer;
   ReadTraceBuffer;
 
-//  for(i=0;i<1500;i=i+1)
-//    ReadTraceBuffer;
 
 `endif  // TRACE_ENABLED
 
@@ -604,7 +607,7 @@ task WriteRegister;
     P_TMS<=#Tp 0;
     GenClk(1);       // we are in RunTestIdle
 
-    GenClk(5);       // Igor !!!! To mora iti ven. Tu je le zato, da se tisti write-i naredijo
+    GenClk(5);       // Extra clocks needed for operations to finish 
 
   end
 endtask
@@ -671,14 +674,14 @@ end
 // print RISC registers read/write
 always @ (posedge Mclk)
 begin
-  if(dbg_tb.dbgTAP1.RISC_CS)
-    if(dbg_tb.dbgTAP1.RISC_RW)
+  if(dbg_tb.dbgTAP1.risc_cs_o)
+    if(dbg_tb.dbgTAP1.risc_rw_o)
       begin
         $write("\n\t\tWrite to RISC Register (addr=0x%h, data=0x%h)", dbg_tb.dbgTAP1.ADDR[31:0], dbg_tb.dbgTAP1.DataOut[31:0]);
       end
     else
       begin
-        $write("\n\t\tRead from RISC Register (addr=0x%h, data=0x%h)", dbg_tb.dbgTAP1.ADDR[31:0], dbg_tb.dbgTAP1.RISC_DATA_IN[31:0]);
+        $write("\n\t\tRead from RISC Register (addr=0x%h, data=0x%h)", dbg_tb.dbgTAP1.ADDR[31:0], dbg_tb.dbgTAP1.risc_data_i[31:0]);
       end
 end
 
@@ -691,7 +694,7 @@ begin
       if(dbg_tb.dbgTAP1.RW)
         $write("\n\t\tWrite to Register (addr=0x%h, data=0x%h)", dbg_tb.dbgTAP1.ADDR[4:0], dbg_tb.dbgTAP1.DataOut[31:0]);
       else
-        $write("\n\t\tRead from Register (addr=0x%h, data=0x%h)", dbg_tb.dbgTAP1.ADDR[4:0], dbg_tb.dbgTAP1.RegDataIn[31:0]);
+        $write("\n\t\tRead from Register (addr=0x%h, data=0x%h). This data will be shifted out on next read request.", dbg_tb.dbgTAP1.ADDR[4:0], dbg_tb.dbgTAP1.RegDataIn[31:0]);
     end
 end
 

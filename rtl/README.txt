@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1.1.1  2001/09/13 13:49:19  mohor
+// Initial official release.
+//
 // Revision 1.2  2001/06/01 22:22:35  mohor
 // This is a backup. It is not a fully working version. Not for use, yet.
 //
@@ -69,7 +72,7 @@ http://www.opencores.org/cores/DebugInterface/
 Documentation can also be found there. For direct download of the
 documentation go to:
 
-http://www.opencores.org/cgi-bin/cvsget.cgi/DebugInterface/Doc/DbgSupp.pdf
+http://www.opencores.org/cgi-bin/cvsget.cgi/dbg_interface/doc/DbgSupp.pdf
 
 
 
@@ -83,7 +86,12 @@ debugger/emulator or BS testing device. The external
 debugger or BS tester connects to the core via JTAG port.   
 The Development Port also contains a trace and support for  
 tracing the program flow, execution coverage and profiling  
-the code.                                                   
+the code. 
+
+dbg_tb.v is a testbench file.
+file_communication.v is used for simulating the whole design together with the 
+  debugger through two files that make a JTAG interface
+dbg_top.v is top level module of the development interface design
 
 
 
@@ -101,7 +109,6 @@ Mclk clock signal. Simulation should do the same.
 
 
 TO DO:
-- Add reset and cpu stall signals that are related to the RISCOP register
-- Add a WISHBONE master support
+- Add a WISHBONE master support if needed
 - Add support for boundary scan (This is already done, but not yet incorporated in the design)
-- Signal RecSelDepend is not connected anywhere, yet. Read the pdf for details on that.
+
