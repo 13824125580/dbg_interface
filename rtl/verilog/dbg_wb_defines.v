@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2003/12/23 15:09:04  mohor
+// New directory structure. New version of the debug interface.
+//
 //
 //
 
@@ -57,9 +60,6 @@
 `define WB_READ16     3'h6
 `define WB_READ32     3'h7
 
-
-// Defining max. WB chain
-`define WB_DR_LEN     51
 
 // Length of status
 `define STATUS_LEN      4
