@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2001/10/16 10:09:56  mohor
+// Signal names changed to lowercase.
+//
 //
 // Revision 1.6  2001/10/15 09:55:47  mohor
 // Wishbone interface added, few fixes for better performance,
@@ -85,7 +88,7 @@ module dbg_top(
                 tms_pad_i, tck_pad_i, trst_pad_i, tdi_pad_i, tdo_pad_o, 
 
                 // Boundary Scan signals
-                capture_dr_o, shift_dr_o, update_dr_o, extest_selected_o, bs_chain_i,
+                capture_dr_o, shift_dr_o, update_dr_o, extest_selected_o, bs_chain_i, bs_chain_o, 
                 
                 // RISC signals
                 risc_clk_i, risc_addr_o, risc_data_i, risc_data_o, wp_i, 
@@ -117,7 +120,7 @@ output shift_dr_o;
 output update_dr_o;
 output extest_selected_o;
 input  bs_chain_i;
-
+output bs_chain_o;
 
 // RISC signals
 input         risc_clk_i;                 // Master clock (RISC clock)
@@ -237,7 +240,9 @@ assign shift_dr_o         = ShiftDR;
 assign update_dr_o        = UpdateDR;
 assign extest_selected_o  = EXTESTSelected;
 wire   BS_CHAIN_I         = bs_chain_i;
-            
+assign bs_chain_o         = tdi_pad_i;
+
+
 // This signals are used only when TRACE is used in the design
 `ifdef TRACE_ENABLED
   wire [39:0] TraceChain;                 // Chain that comes from trace module

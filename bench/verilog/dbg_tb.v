@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2001/10/16 10:10:18  mohor
+// Signal names changed to lowercase.
+//
 // Revision 1.6  2001/10/15 09:52:50  mohor
 // Wishbone interface added, few fixes for better performance,
 // hooks for boundary scan testing added.
@@ -122,7 +125,7 @@ reg         wb_err_o;
 dbg_top dbgTAP1(.tms_pad_i(P_TMS), .tck_pad_i(P_TCK), .trst_pad_i(P_TRST), .tdi_pad_i(P_TDI), 
                 .tdo_pad_o(P_TDO), 
                 .capture_dr_o(), .shift_dr_o(), .update_dr_o(), .extest_selected_o(), 
-                .bs_chain_i(1'b0),
+                .bs_chain_i(1'b0), .bs_chain_o(), 
 
                 
                 .wb_rst_i(wb_rst_i), .risc_clk_i(Mclk), 
