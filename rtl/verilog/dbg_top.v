@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.29  2003/07/31 12:19:49  simons
+// Multiple cpu support added.
+//
 // Revision 1.28  2002/11/06 14:22:41  mohor
 // Trst signal is not inverted here any more. Inverted on higher layer !!!.
 //
@@ -247,7 +250,10 @@ reg [`OPSELECTWIDTH-1:0] opselect_o;        // Operation selection (selecting wh
 reg [`CHAIN_ID_LENGTH-1:0] Chain;           // Selected chain
 reg [31:0]    DataReadLatch;                // Data when reading register or RISC is latched one risc_clk_i clock after the data is read.
 reg           RegAccessTck;                 // Indicates access to the registers (read or write)
-reg           RISCAccessTck;                // Indicates access to the RISC (read or write)
+reg           RISCAccessTck0;               // Indicates access to the RISC (read or write)
+reg           RISCAccessTck1;               // Indicates access to the RISC (read or write)
+reg           RISCAccessTck2;               // Indicates access to the RISC (read or write)
+reg           RISCAccessTck3;               // Indicates access to the RISC (read or write)
 reg [7:0]     BitCounter;                   // Counting bits in the ShiftDR and Exit1DR stages
 reg           RW;                           // Read/Write bit
 reg           CrcMatch;                     // The crc that is shifted in and the internaly calculated crc are equal
@@ -279,11 +285,20 @@ wire RiscStall_trace;                     // RISC is stalled by trace module
        
        
 wire RegisterScanChain;                   // Register Scan chain selected
-wire RiscDebugScanChain;                  // Risc Debug Scan chain selected
+wire RiscDebugScanChain0;                 // Risc Debug Scan chain selected
+wire RiscDebugScanChain1;                 // Risc Debug Scan chain selected
+wire RiscDebugScanChain2;                 // Risc Debug Scan chain selected
+wire RiscDebugScanChain3;                 // Risc Debug Scan chain selected
 wire WishboneScanChain;                   // WISHBONE Scan chain selected
 
-wire RiscStall_read_access;               // Stalling RISC because of the read access (SPR read)
-wire RiscStall_write_access;              // Stalling RISC because of the write access (SPR write)
+wire RiscStall_read_access_0;             // Stalling RISC because of the read access (SPR read)
+wire RiscStall_read_access_1;             // Stalling RISC because of the read access (SPR read)
+wire RiscStall_read_access_2;             // Stalling RISC because of the read access (SPR read)
+wire RiscStall_read_access_3;             // Stalling RISC because of the read access (SPR read)
+wire RiscStall_write_access_0;            // Stalling RISC because of the write access (SPR write)
+wire RiscStall_write_access_1;            // Stalling RISC because of the write access (SPR write)
+wire RiscStall_write_access_2;            // Stalling RISC because of the write access (SPR write)
+wire RiscStall_write_access_3;            // Stalling RISC because of the write access (SPR write)
 wire RiscStall_access;                    // Stalling RISC because of the read or write access
 
 wire BitCounter_Lt4;
@@ -389,7 +404,8 @@ begin
   else
   if(DEBUGSelected & ShiftDR)
     begin
-      if(RiscDebugScanChain | WishboneScanChain)
+      if(RiscDebugScanChain0 | RiscDebugScanChain1 |
+         RiscDebugScanChain2 | RiscDebugScanChain3 | WishboneScanChain)
         JTAG_DR_IN[73:0] <= #Tp {tdi, JTAG_DR_IN[73:1]};
       else
       if(RegisterScanChain)
@@ -410,9 +426,12 @@ begin
   if(trst)
     select_crc_out <= 0;
   else
-  if( RegisterScanChain  & BitCounter_Eq5  |
-      RiscDebugScanChain & BitCounter_Eq32 |
-      WishboneScanChain  & BitCounter_Eq32 )
+  if( RegisterScanChain   & BitCounter_Eq5  |
+      RiscDebugScanChain0 & BitCounter_Eq32 |
+      RiscDebugScanChain1 & BitCounter_Eq32 |
+      RiscDebugScanChain2 & BitCounter_Eq32 |
+      RiscDebugScanChain3 & BitCounter_Eq32 |
+      WishboneScanChain   & BitCounter_Eq32 )
     select_crc_out <=#Tp tdi;
   else
   if(CHAIN_SELECTSelected)
@@ -468,7 +487,7 @@ begin
           else
           if(DEBUGSelected)
             begin
-              if(RiscDebugScanChain)
+              if(RiscDebugScanChain0 | RiscDebugScanChain1 | RiscDebugScanChain2 | RiscDebugScanChain3)
                 TDOData <= #Tp RISC_Data[BitCounter];         // Data read from RISC in the previous cycle is shifted out
               else
               if(RegisterScanChain)
@@ -505,7 +524,7 @@ begin
   else
   if(ShiftDR & DEBUGSelected)
     begin
-      if(RiscDebugScanChain & BitCounter > 73)
+      if((RiscDebugScanChain0 | RiscDebugScanChain1 | RiscDebugScanChain2 | RiscDebugScanChain3) & BitCounter > 73)
         begin
           $display("\n%m Error: BitCounter is bigger then RISC_Data bits width[73:0]. BitCounter=%d\n",BitCounter);
           $stop;
@@ -579,7 +598,10 @@ begin
       DataOut[31:0]     <=#Tp 32'h0;
       RW                <=#Tp 1'b0;
       RegAccessTck      <=#Tp 1'b0;
-      RISCAccessTck     <=#Tp 1'b0;
+      RISCAccessTck0    <=#Tp 1'b0;
+      RISCAccessTck1    <=#Tp 1'b0;
+      RISCAccessTck2    <=#Tp 1'b0;
+      RISCAccessTck3    <=#Tp 1'b0;
       wb_AccessTck      <=#Tp 1'h0;
     end
   else
@@ -593,14 +615,6 @@ begin
           RegAccessTck      <=#Tp 1'b1;
         end
       else
-      if(RiscDebugScanChain)
-        begin
-          ADDR[31:0]        <=#Tp JTAG_DR_IN[31:0];   // Latching address for RISC register access
-          RW                <=#Tp JTAG_DR_IN[32];     // latch R/W bit
-          DataOut[31:0]     <=#Tp JTAG_DR_IN[64:33];  // latch data for write
-          RISCAccessTck     <=#Tp 1'b1;
-        end
-      else
       if(WishboneScanChain & (!WBInProgress_tck))
         begin
           ADDR              <=#Tp JTAG_DR_IN[31:0];   // Latching address for WISHBONE slave access
@@ -608,12 +622,47 @@ begin
           DataOut           <=#Tp JTAG_DR_IN[64:33];  // latch data for write
           wb_AccessTck      <=#Tp 1'b1;               // 
         end
+      else
+      if(RiscDebugScanChain0)
+        begin
+          ADDR[31:0]        <=#Tp JTAG_DR_IN[31:0];   // Latching address for RISC register access
+          RW                <=#Tp JTAG_DR_IN[32];     // latch R/W bit
+          DataOut[31:0]     <=#Tp JTAG_DR_IN[64:33];  // latch data for write
+          RISCAccessTck0    <=#Tp 1'b1;
+        end
+      else
+      if(RiscDebugScanChain1)
+        begin
+          ADDR[31:0]        <=#Tp JTAG_DR_IN[31:0];   // Latching address for RISC register access
+          RW                <=#Tp JTAG_DR_IN[32];     // latch R/W bit
+          DataOut[31:0]     <=#Tp JTAG_DR_IN[64:33];  // latch data for write
+          RISCAccessTck1    <=#Tp 1'b1;
+        end
+      else
+      if(RiscDebugScanChain2)
+        begin
+          ADDR[31:0]        <=#Tp JTAG_DR_IN[31:0];   // Latching address for RISC register access
+          RW                <=#Tp JTAG_DR_IN[32];     // latch R/W bit
+          DataOut[31:0]     <=#Tp JTAG_DR_IN[64:33];  // latch data for write
+          RISCAccessTck2    <=#Tp 1'b1;
+        end
+      else
+      if(RiscDebugScanChain3)
+        begin
+          ADDR[31:0]        <=#Tp JTAG_DR_IN[31:0];   // Latching address for RISC register access
+          RW                <=#Tp JTAG_DR_IN[32];     // latch R/W bit
+          DataOut[31:0]     <=#Tp JTAG_DR_IN[64:33];  // latch data for write
+          RISCAccessTck3    <=#Tp 1'b1;
+        end
     end
   else
     begin
       RegAccessTck      <=#Tp 1'b0;       // This signals are valid for one tck clock period only
-      RISCAccessTck     <=#Tp 1'b0;
       wb_AccessTck      <=#Tp 1'b0;
+      RISCAccessTck0    <=#Tp 1'b0;
+      RISCAccessTck1    <=#Tp 1'b0;
+      RISCAccessTck2    <=#Tp 1'b0;
+      RISCAccessTck3    <=#Tp 1'b0;
     end
 end
 
@@ -630,15 +679,29 @@ dbg_sync_clk1_clk2 syn1 (.clk1(risc_clk_i),   .clk2(tck),           .reset1(wb_r
                          .set2(RegAccessTck), .sync_out(RegAccess)
                         );
 
-// Synchronizing the RISCAccess signal to risc_clk_i clock
-dbg_sync_clk1_clk2 syn2 (.clk1(risc_clk_i),    .clk2(tck),          .reset1(wb_rst_i),  .reset2(trst), 
-                         .set2(RISCAccessTck), .sync_out(RISCAccess)
+// Synchronizing the wb_Access signal to wishbone clock
+dbg_sync_clk1_clk2 syn2 (.clk1(wb_clk_i),     .clk2(tck),           .reset1(wb_rst_i),  .reset2(trst), 
+                         .set2(wb_AccessTck), .sync_out(wb_Access_wbClk)
                         );
 
+// Synchronizing the RISCAccess0 signal to risc_clk_i clock
+dbg_sync_clk1_clk2 syn3 (.clk1(risc_clk_i),    .clk2(tck),          .reset1(wb_rst_i),  .reset2(trst), 
+                         .set2(RISCAccessTck0), .sync_out(RISCAccess0)
+                        );
 
-// Synchronizing the wb_Access signal to wishbone clock
-dbg_sync_clk1_clk2 syn3 (.clk1(wb_clk_i),     .clk2(tck),           .reset1(wb_rst_i),  .reset2(trst), 
-                         .set2(wb_AccessTck), .sync_out(wb_Access_wbClk)
+// Synchronizing the RISCAccess1 signal to risc_clk_i clock
+dbg_sync_clk1_clk2 syn4 (.clk1(risc_clk_i),    .clk2(tck),          .reset1(wb_rst_i),  .reset2(trst), 
+                         .set2(RISCAccessTck1), .sync_out(RISCAccess1)
+                        );
+
+// Synchronizing the RISCAccess2 signal to risc_clk_i clock
+dbg_sync_clk1_clk2 syn5 (.clk1(risc_clk_i),    .clk2(tck),          .reset1(wb_rst_i),  .reset2(trst), 
+                         .set2(RISCAccessTck2), .sync_out(RISCAccess2)
+                        );
+
+// Synchronizing the RISCAccess3 signal to risc_clk_i clock
+dbg_sync_clk1_clk2 syn6 (.clk1(risc_clk_i),    .clk2(tck),          .reset1(wb_rst_i),  .reset2(trst), 
+                         .set2(RISCAccessTck3), .sync_out(RISCAccess3)
                         );
 
 
@@ -660,16 +723,22 @@ begin
     begin
       RegAccess_q   <=#Tp RegAccess;
       RegAccess_q2  <=#Tp RegAccess_q;
-      RISCAccess_q  <=#Tp RISCAccess;
+      RISCAccess_q  <=#Tp RISCAccess0 | RISCAccess1 | RISCAccess2 | RISCAccess3;
       RISCAccess_q2 <=#Tp RISCAccess_q;
       RISCAccess_q3 <=#Tp RISCAccess_q2;
     end
 end
 
 // Chip select and read/write signals for accessing RISC
-assign RiscStall_write_access = RISCAccess & ~RISCAccess_q2 &  RW;
-assign RiscStall_read_access  = RISCAccess & ~RISCAccess_q2 & ~RW;
-assign RiscStall_access = RISCAccess & ~RISCAccess_q3;
+assign RiscStall_write_access_0 = RISCAccess0 & ~RISCAccess_q2 &  RW;
+assign RiscStall_read_access_0  = RISCAccess0 & ~RISCAccess_q2 & ~RW;
+assign RiscStall_write_access_1 = RISCAccess1 & ~RISCAccess_q2 &  RW;
+assign RiscStall_read_access_1  = RISCAccess1 & ~RISCAccess_q2 & ~RW;
+assign RiscStall_write_access_2 = RISCAccess2 & ~RISCAccess_q2 &  RW;
+assign RiscStall_read_access_2  = RISCAccess2 & ~RISCAccess_q2 & ~RW;
+assign RiscStall_write_access_3 = RISCAccess3 & ~RISCAccess_q2 &  RW;
+assign RiscStall_read_access_3  = RISCAccess3 & ~RISCAccess_q2 & ~RW;
+assign RiscStall_access = (RISCAccess0 | RISCAccess1 | RISCAccess2 | RISCAccess3) & ~RISCAccess_q3;
 
 
 reg wb_Access_wbClk_q;
@@ -770,16 +839,40 @@ assign  reset_o = RiscReset_reg;
 
 
 `ifdef TRACE_ENABLED
-always @ (RiscStall_write_access or RiscStall_read_access or opselect_trace)
+always @ (RiscStall_write_access_0 or RiscStall_write_access_1 or 
+          RiscStall_write_access_2 or RiscStall_write_access_2 or 
+          RiscStall_read_access_0  or RiscStall_read_access_1  or
+          RiscStall_read_access_2  or RiscStall_read_access_3  or opselect_trace)
 `else
-always @ (RiscStall_write_access or RiscStall_read_access)
+always @ (RiscStall_write_access_0 or RiscStall_write_access_1 or 
+          RiscStall_write_access_2 or RiscStall_write_access_3 or 
+          RiscStall_read_access_0  or RiscStall_read_access_1  or
+          RiscStall_read_access_2  or RiscStall_read_access_3)
 `endif
 begin
-  if(RiscStall_write_access)
-    opselect_o = `DEBUG_WRITE_SPR;  // Write spr
+  if(RiscStall_write_access_0)
+    opselect_o = `DEBUG_WRITE_0;
   else
-  if(RiscStall_read_access)
-    opselect_o = `DEBUG_READ_SPR;   // Read spr
+  if(RiscStall_read_access_0)
+    opselect_o = `DEBUG_READ_0;
+  else
+  if(RiscStall_write_access_1)
+    opselect_o = `DEBUG_WRITE_1;
+  else
+  if(RiscStall_read_access_1)
+    opselect_o = `DEBUG_READ_1;
+  else
+  if(RiscStall_write_access_2)
+    opselect_o = `DEBUG_WRITE_2;
+  else
+  if(RiscStall_read_access_2)
+    opselect_o = `DEBUG_READ_2;
+  else
+  if(RiscStall_write_access_3)
+    opselect_o = `DEBUG_WRITE_3;
+  else
+  if(RiscStall_read_access_3)
+    opselect_o = `DEBUG_READ_3;
   else
 `ifdef TRACE_ENABLED
     opselect_o = opselect_trace;
@@ -932,17 +1025,23 @@ assign BitCounter_Lt65  = BitCounter<65;
 
 
 wire EnableCrcIn = ShiftDR & 
-                  ( (CHAIN_SELECTSelected                 & BitCounter_Lt4) |
-                    ((DEBUGSelected & RegisterScanChain)  & BitCounter_Lt38)| 
-                    ((DEBUGSelected & RiscDebugScanChain) & BitCounter_Lt65)|
-                    ((DEBUGSelected & WishboneScanChain)  & BitCounter_Lt65)  
+                  ( (CHAIN_SELECTSelected                  & BitCounter_Lt4) |
+                    ((DEBUGSelected & RegisterScanChain)   & BitCounter_Lt38)| 
+                    ((DEBUGSelected & RiscDebugScanChain0) & BitCounter_Lt65)|
+                    ((DEBUGSelected & RiscDebugScanChain1) & BitCounter_Lt65)|
+                    ((DEBUGSelected & RiscDebugScanChain2) & BitCounter_Lt65)|
+                    ((DEBUGSelected & RiscDebugScanChain3) & BitCounter_Lt65)|
+                    ((DEBUGSelected & WishboneScanChain)   & BitCounter_Lt65)  
                   );
 
 wire EnableCrcOut= ShiftDR & 
                    (
-                    ((DEBUGSelected & RegisterScanChain)  & BitCounter_Lt38)| 
-                    ((DEBUGSelected & RiscDebugScanChain) & BitCounter_Lt65)|
-                    ((DEBUGSelected & WishboneScanChain)  & BitCounter_Lt65)  
+                    ((DEBUGSelected & RegisterScanChain)   & BitCounter_Lt38)| 
+                    ((DEBUGSelected & RiscDebugScanChain0) & BitCounter_Lt65)|
+                    ((DEBUGSelected & RiscDebugScanChain1) & BitCounter_Lt65)|
+                    ((DEBUGSelected & RiscDebugScanChain2) & BitCounter_Lt65)|
+                    ((DEBUGSelected & RiscDebugScanChain3) & BitCounter_Lt65)|
+                    ((DEBUGSelected & WishboneScanChain)   & BitCounter_Lt65)  
                     `ifdef TRACE_ENABLED
                                                                             |
                     ((DEBUGSelected & TraceTestScanChain) & BitCounter_Lt40) 
@@ -973,7 +1072,7 @@ begin
           if(RegisterScanChain)
             CrcMatch <=#Tp CalculatedCrcIn == JTAG_DR_IN[45:38];
           else
-          if(RiscDebugScanChain)
+          if(RiscDebugScanChain0 | RiscDebugScanChain1 | RiscDebugScanChain2 | RiscDebugScanChain3)
             CrcMatch <=#Tp CalculatedCrcIn == JTAG_DR_IN[72:65];
           else
           if(WishboneScanChain)
@@ -985,7 +1084,10 @@ end
 
 // Active chain
 assign RegisterScanChain   = Chain == `REGISTER_SCAN_CHAIN;
-assign RiscDebugScanChain  = Chain == `RISC_DEBUG_CHAIN;
+assign RiscDebugScanChain0 = Chain == `RISC_DEBUG_CHAIN_0;
+assign RiscDebugScanChain1 = Chain == `RISC_DEBUG_CHAIN_1;
+assign RiscDebugScanChain2 = Chain == `RISC_DEBUG_CHAIN_2;
+assign RiscDebugScanChain3 = Chain == `RISC_DEBUG_CHAIN_3;
 assign WishboneScanChain   = Chain == `WISHBONE_SCAN_CHAIN;
 
 `ifdef TRACE_ENABLED

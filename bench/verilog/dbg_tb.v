@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2002/05/07 14:44:52  mohor
+// mon_cntl_o signals that controls monitor mux added.
+//
 // Revision 1.11  2002/03/12 14:32:26  mohor
 // Few outputs for boundary scan chain added.
 //
@@ -276,7 +279,7 @@ begin
 
 // Testing read and write to RISC registers
   SetInstruction(`CHAIN_SELECT);
-  ChainSelect(`RISC_DEBUG_CHAIN, 8'h38);  // {chain, crc}
+  ChainSelect(`RISC_DEBUG_CHAIN_2, 8'h38);  // {chain, crc}
   SetInstruction(`DEBUG);
 
   ReadRISCRegister(32'h12345ead, 8'hbf);                 // {addr, crc}
@@ -827,7 +830,7 @@ begin
   if(dbg_tb.i_tap_top.CHAIN_SELECTSelected & dbg_tb.i_tap_top.UpdateDR_q)
     case(dbg_tb.i_dbg_top.Chain[`CHAIN_ID_LENGTH-1:0])
       `GLOBAL_BS_CHAIN      : $write("\nChain GLOBAL_BS_CHAIN");
-      `RISC_DEBUG_CHAIN     : $write("\nChain RISC_DEBUG_CHAIN");
+      `RISC_DEBUG_CHAIN_2   : $write("\nChain RISC_DEBUG_CHAIN_2");
       `RISC_TEST_CHAIN      : $write("\nChain RISC_TEST_CHAIN");
       `TRACE_TEST_CHAIN     : $write("\nChain TRACE_TEST_CHAIN");
       `REGISTER_SCAN_CHAIN  : $write("\nChain REGISTER_SCAN_CHAIN");

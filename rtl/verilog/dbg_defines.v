@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2003/07/31 12:19:49  simons
+// Multiple cpu support added.
+//
 // Revision 1.9  2002/05/07 14:43:59  mohor
 // mon_cntl_o signals that controls monitor mux added.
 //
@@ -123,14 +126,23 @@
 `define OPSELECTIONCOUNTER       8    //2^3
 
 // OpSelect (dbg_op_i) signal meaning
-`define DEBUG_READ_PC            0
-`define DEBUG_READ_LSEA          1
-`define DEBUG_READ_LDATA         2
-`define DEBUG_READ_SDATA         3
-`define DEBUG_READ_SPR           4
-`define DEBUG_WRITE_SPR          5
-`define DEBUG_READ_INSTR         6
+//`define DEBUG_READ_PC            0
+//`define DEBUG_READ_LSEA          1
+//`define DEBUG_READ_LDATA         2
+//`define DEBUG_READ_SDATA         3
+//`define DEBUG_READ_SPR           4
+//`define DEBUG_WRITE_SPR          5
+//`define DEBUG_READ_INSTR         6
 //`define Reserved                 7
+
+`define DEBUG_READ_0               0
+`define DEBUG_WRITE_0              1
+`define DEBUG_READ_1               2
+`define DEBUG_WRITE_1              3
+`define DEBUG_READ_2               4
+`define DEBUG_WRITE_2              5
+`define DEBUG_READ_3               6
+`define DEBUG_WRITE_3              7
 
 // Supported Instructions
 `define EXTEST          4'b0000
@@ -146,11 +158,14 @@
 
 // Chains
 `define GLOBAL_BS_CHAIN     4'b0000
-`define RISC_DEBUG_CHAIN    4'b0001
+`define RISC_DEBUG_CHAIN_2  4'b0001
 `define RISC_TEST_CHAIN     4'b0010
 `define TRACE_TEST_CHAIN    4'b0011
 `define REGISTER_SCAN_CHAIN 4'b0100
 `define WISHBONE_SCAN_CHAIN 4'b0101
+`define RISC_DEBUG_CHAIN_0  4'b0110
+`define RISC_DEBUG_CHAIN_1  4'b0111
+`define RISC_DEBUG_CHAIN_3  4'b1000
 
 // Registers addresses
 `define MODER_ADR           5'h00
