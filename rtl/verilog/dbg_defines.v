@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2003/09/17 14:38:57  simons
+// WB_CNTL register added, some syncronization fixes.
+//
 // Revision 1.11  2003/08/28 13:55:21  simons
 // Three more chains added for cpu debug access.
 //
@@ -97,10 +100,10 @@
 //`define TRACE_ENABLED  // Uncomment this define to activate the trace
 
 // Define number of cpus supported by the dbg interface
-`define RISC_NUM 8
+`define RISC_NUM 2
 
 // Define IDCODE Value
-`define IDCODE_VALUE  32'hdeadbeef
+`define IDCODE_VALUE  32'h14951185
 
 // Define master clock (RISC clock)
 //`define	RISC_CLOCK  50   // Half period = 50 ns => MCLK = 10 Mhz
@@ -129,15 +132,6 @@
 `define OPSELECTIONCOUNTER       8    //2^3
 
 // OpSelect (dbg_op_i) signal meaning
-//`define DEBUG_READ_PC            0
-//`define DEBUG_READ_LSEA          1
-//`define DEBUG_READ_LDATA         2
-//`define DEBUG_READ_SDATA         3
-//`define DEBUG_READ_SPR           4
-//`define DEBUG_WRITE_SPR          5
-//`define DEBUG_READ_INSTR         6
-//`define Reserved                 7
-
 `define DEBUG_READ_0               0
 `define DEBUG_WRITE_0              1
 `define DEBUG_READ_1               2
@@ -157,6 +151,7 @@
 `define CLAMPZ          4'b0110
 `define HIGHZ           4'b0111
 `define DEBUG           4'b1000
+`define MBIST           4'b1001
 `define BYPASS          4'b1111
 
 // Chains

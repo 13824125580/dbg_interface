@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2002/11/06 14:30:10  mohor
+// Trst active high. Inverted on higher layer.
+//
 // Revision 1.6  2002/04/22 12:55:56  mohor
 // tdo_padoen_o changed to tdo_padoe_o. Signal is active high.
 //
@@ -84,13 +87,16 @@ module tap_top(
                 ShiftDR, Exit1DR, UpdateDR, UpdateDR_q, CaptureDR, 
                 
                 // Instructions
-                IDCODESelected, CHAIN_SELECTSelected, DEBUGSelected, EXTESTSelected, 
+                IDCODESelected, CHAIN_SELECTSelected, DEBUGSelected, EXTESTSelected, MBISTSelected,
                 
                 // TDO from dbg module
                 TDOData_dbg, BypassRegister,
                 
                 // From Boundary Scan Chain
-                bs_chain_i
+                bs_chain_i,
+
+                // From Mbist Chain
+                mbist_so_i
                 
               );
 
@@ -116,6 +122,7 @@ output  IDCODESelected;
 output  CHAIN_SELECTSelected;
 output  DEBUGSelected;
 output  EXTESTSelected;
+output  MBISTSelected;
 
 input   TDOData_dbg;
 output  BypassRegister;
@@ -123,6 +130,8 @@ output  BypassRegister;
 // From Boundary Scan Chain
 input   bs_chain_i;
 
+// From Mbist Chain
+input   mbist_so_i;
 
 reg     tdo_pad_o;
 
@@ -151,7 +160,7 @@ reg     EXTESTSelected;
 reg     SAMPLE_PRELOADSelected;
 reg     IDCODESelected;
 reg     CHAIN_SELECTSelected;
-reg     INTESTSelected;
+reg     MBISTSelected;
 reg     CLAMPSelected;
 reg     CLAMPZSelected;
 reg     HIGHZSelected;
@@ -536,7 +545,7 @@ begin
   SAMPLE_PRELOADSelected  = 0;
   IDCODESelected          = 0;
   CHAIN_SELECTSelected    = 0;
-  INTESTSelected          = 0;
+  MBISTSelected           = 0;
   CLAMPSelected           = 0;
   CLAMPZSelected          = 0;
   HIGHZSelected           = 0;
@@ -548,7 +557,7 @@ begin
     `SAMPLE_PRELOAD:    SAMPLE_PRELOADSelected  = 1;    // Sample preload
     `IDCODE:            IDCODESelected          = 1;    // ID Code
     `CHAIN_SELECT:      CHAIN_SELECTSelected    = 1;    // Chain select
-    `INTEST:            INTESTSelected          = 1;    // Internal test
+    `MBIST:             MBISTSelected           = 1;    // Mbist test
     `CLAMP:             CLAMPSelected           = 1;    // Clamp
     `CLAMPZ:            CLAMPZSelected          = 1;    // ClampZ
     `HIGHZ:             HIGHZSelected           = 1;    // High Z
@@ -567,7 +576,7 @@ end
 **********************************************************************************/
 
 // This multiplexer can be expanded with number of user registers
-always @ (LatchedJTAG_IR or TDOInstruction or TDOData_dbg or TDOBypassed or bs_chain_i or ShiftIR or Exit1IR)
+always @ (LatchedJTAG_IR or TDOInstruction or TDOData_dbg or TDOBypassed or bs_chain_i or mbist_so_i or ShiftIR or Exit1IR)
 begin
   if(ShiftIR | Exit1IR)
     tdo_pad_o <=#Tp TDOInstruction;
@@ -579,6 +588,7 @@ begin
         `DEBUG:             tdo_pad_o <=#Tp TDOData_dbg;      // Debug
         `SAMPLE_PRELOAD:    tdo_pad_o <=#Tp bs_chain_i;   // Sampling/Preloading
         `EXTEST:            tdo_pad_o <=#Tp bs_chain_i;   // External test
+        `INTEST:            tdo_pad_o <=#Tp mbist_so_i;   // External test
         default:            tdo_pad_o <=#Tp TDOBypassed;  // BYPASS instruction
       endcase
     end
