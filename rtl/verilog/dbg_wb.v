@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2003/12/23 15:26:26  mohor
+// Small fix.
+//
 // Revision 1.1  2003/12/23 15:09:04  mohor
 // New directory structure. New version of the debug interface.
 //
@@ -193,6 +196,15 @@ reg address_unaligned;
 reg wb_error, wb_error_sync, wb_error_tck;
 reg wb_timeout, wb_timeout_sync, wb_timeout_tck;
 
+reg busy_wb;
+reg busy_tck;
+reg wb_end;
+reg wb_end_rst;
+reg wb_end_rst_sync;
+reg wb_end_sync;
+reg wb_end_tck;
+reg busy_sync;
+reg [799:0] TDO_WISHBONE;
 
 always @ (posedge tck_i or posedge trst_i)
 begin
@@ -201,34 +213,25 @@ begin
   else if(crc_cnt_end & (~crc_cnt_end_q))
     begin
       if (dr[2:0] == `WB_STATUS)
-        status <= #1 {crc_match_i, wb_error_tck, wb_timeout_tck, address_unaligned};
-      else                          // Status is not updated when status read is requested
+        status <= #1 {crc_match_i, wb_error_tck, wb_timeout_tck, busy_tck};
+      else
         status <= #1 {crc_match_i, 2'b10, address_unaligned};
     end
   else if (shift_dr_i & (~status_cnt_end))
     status <= #1 {status[0], status[`STATUS_LEN -1:1]};
 end
-// Following status is shifted out: 
+// Following status is shifted out after each command except WB_STATUS: 
 // 1. bit:          1 if crc is OK, else 0
 // 2. bit:          1 if address is unaligned, else 0
 // 3. bit:          always 0
 // 4. bit:          always 1
 
-// Following status is shifted out: 
+// Following status is shifted out after WB_STATUS: 
 // 1. bit:          1 if crc is OK, else 0
-// 2. bit:          1 if address is unaligned, else 0
+// 2. bit:          1 while WB access is in progress (busy_tck), else 0
 // 3. bit:          1 if WB timeout occured, else 0
 // 4. bit:          1 if WB error occured, else 0
 
-reg busy_wb;
-reg busy_tck;
-reg wb_ack_latched;
-reg wb_ack_latched_rst;
-reg wb_ack_latched_rst_sync;
-reg tck_ack_sync;
-reg tck_ack;
-reg busy_sync;
-reg [799:0] TDO_WISHBONE;
 
 always @ (crc_cnt_end or crc_cnt_end_q or crc_match_i or status or pause_dr_i or busy_tck)
 begin
@@ -362,12 +365,12 @@ assign wb_stb_o = wb_cyc_o;
 assign wb_cti_o = 3'h0;     // always performing single access
 assign wb_bte_o = 2'h0;     // always performing single access
 
-reg [31:0] input_storage;
+reg [31:0] input_data;
 
 always @ (posedge wb_clk_i)
 begin
   if(wb_ack_i)
-    input_storage <= #1 wb_dat_i;
+    input_data <= #1 wb_dat_i;
 end
 
 
@@ -375,11 +378,11 @@ end
 always @ (posedge wb_clk_i or posedge wb_rst_i)
 begin
   if (wb_rst_i)
-    wb_ack_latched <= #1 1'b0;
-  else if (wb_ack_i)
-    wb_ack_latched <= #1 1'b1;
-  else if (wb_ack_latched_rst)
-    wb_ack_latched <= #1 1'b0;
+    wb_end <= #1 1'b0;
+  else if (wb_ack_i | wb_err_i | acc_cnt_limit)
+    wb_end <= #1 1'b1;
+  else if (wb_end_rst)
+    wb_end <= #1 1'b0;
 end
 
 
@@ -387,13 +390,13 @@ always @ (posedge tck_i or posedge trst_i)
 begin
   if (trst_i)
     begin
-      tck_ack_sync <= #1 1'b0; 
-      tck_ack  <= #1 1'b0; 
+      wb_end_sync <= #1 1'b0; 
+      wb_end_tck  <= #1 1'b0; 
     end
   else
     begin
-      tck_ack_sync <= #1 wb_ack_latched;
-      tck_ack  <= #1 tck_ack_sync;
+      wb_end_sync <= #1 wb_end;
+      wb_end_tck  <= #1 wb_end_sync;
     end
 end
 
@@ -402,7 +405,7 @@ always @ (posedge wb_clk_i or posedge wb_rst_i)
 begin
   if (wb_rst_i)
     busy_wb <= #1 1'b0;
-  else if (wb_ack_latched_rst | wb_err_i | acc_cnt_limit)
+  else if (wb_end_rst)
     busy_wb <= #1 1'b0;
   else if (wb_cyc_o) 
     busy_wb <= #1 1'b1;
@@ -426,8 +429,8 @@ end
 
 always @ (posedge wb_clk_i)
 begin
-  wb_ack_latched_rst_sync <= #1 tck_ack;
-  wb_ack_latched_rst  <= #1 wb_ack_latched_rst_sync;
+  wb_end_rst_sync <= #1 wb_end_tck;
+  wb_end_rst  <= #1 wb_end_rst_sync;
 end
 
 
