@@ -43,6 +43,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.34  2003/12/23 15:07:34  mohor
+// New directory structure. New version of the debug interface.
+// Files that are not needed removed.
+//
 // Revision 1.33  2003/10/23 16:17:01  mohor
 // CRC logic changed.
 //
@@ -169,7 +173,6 @@
 // Top module
 module dbg_top(
                 // JTAG signals
-                trst_i,     // trst_i is active high (inverted on higher layers)
                 tck_i,
                 tdi_i,
                 tdo_o,
@@ -192,7 +195,6 @@ module dbg_top(
 
 
 // JTAG signals
-input   trst_i;
 input   tck_i;
 input   tdi_i;
 output  tdo_o;
@@ -253,9 +255,9 @@ reg tdo_o;
 reg wishbone_ce;
 
 // data counter
-always @ (posedge tck_i or posedge trst_i)
+always @ (posedge tck_i or posedge wb_rst_i)
 begin
-  if (trst_i)
+  if (wb_rst_i)
     data_cnt <= #1 'h0;
   else if(shift_dr_i & (~data_cnt_end))
     data_cnt <= #1 data_cnt + 1'b1;
@@ -268,9 +270,9 @@ assign data_cnt_end = data_cnt == `CHAIN_DATA_LEN;
 
 
 // crc counter
-always @ (posedge tck_i or posedge trst_i)
+always @ (posedge tck_i or posedge wb_rst_i)
 begin
-  if (trst_i)
+  if (wb_rst_i)
     crc_cnt <= #1 'h0;
   else if(shift_dr_i & data_cnt_end & (~crc_cnt_end) & chain_select)
     crc_cnt <= #1 crc_cnt + 1'b1;
@@ -290,9 +292,9 @@ always @ (posedge tck_i)
 
 
 // status counter
-always @ (posedge tck_i or posedge trst_i)
+always @ (posedge tck_i or posedge wb_rst_i)
 begin
-  if (trst_i)
+  if (wb_rst_i)
     status_cnt <= #1 'h0;
   else if(shift_dr_i & crc_cnt_end & (~status_cnt_end))
     status_cnt <= #1 status_cnt + 1'b1;
@@ -306,9 +308,9 @@ assign status_cnt_end = status_cnt == `STATUS_LEN;
 assign selecting_command = shift_dr_i & (data_cnt == `DATA_CNT'h0) & debug_select_i;
 
 
-always @ (posedge tck_i or posedge trst_i)
+always @ (posedge tck_i or posedge wb_rst_i)
 begin
-  if (trst_i)
+  if (wb_rst_i)
     chain_select <= #1 1'b0;
   else if(selecting_command & tdi_i)       // Chain select
     chain_select <= #1 1'b1;
@@ -331,9 +333,9 @@ begin
 end
 
 
-always @ (posedge tck_i or posedge trst_i)
+always @ (posedge tck_i or posedge wb_rst_i)
 begin
-  if (trst_i)
+  if (wb_rst_i)
     chain <= `CHAIN_ID_LENGTH'b111;
   else if(chain_select & crc_cnt_end & (~crc_cnt_end_q) & crc_match)
     chain <= #1 chain_dr[`CHAIN_DATA_LEN -1:1];
@@ -356,7 +358,7 @@ dbg_crc32_d1 i_dbg_crc32_d1_in
               .data       (tdi_i),
               .enable     (shift_dr_i),
               .shift      (1'b0),
-              .rst        (trst_i),
+              .rst        (wb_rst_i),
               .sync_rst   (update_dr_i),
               .crc_out    (),
               .clk        (tck_i),
@@ -390,7 +392,7 @@ dbg_crc32_d1 i_dbg_crc32_d1_out
               .enable     (crc_en), // enable has priority
 //              .shift      (1'b0),
               .shift      (shift_dr_i & crc_started & (~crc_en)),
-              .rst        (trst_i),
+              .rst        (wb_rst_i),
               .sync_rst   (update_dr_i),
               .crc_out    (crc_out),
               .clk        (tck_i),
@@ -458,9 +460,9 @@ end
 // Signals for WISHBONE module
 
 
-always @ (posedge tck_i or posedge trst_i)
+always @ (posedge tck_i or posedge wb_rst_i)
 begin
-  if (trst_i)
+  if (wb_rst_i)
     wishbone_ce <= #1 1'b0;
   else if(selecting_command & (~tdi_i) & wishbone_scan_chain) // wishbone CE
     wishbone_ce <= #1 1'b1;
@@ -474,7 +476,6 @@ assign tdi_wb = wishbone_ce & tdi_i;
 // Connecting wishbone module
 dbg_wb i_dbg_wb (
                   // JTAG signals
-                  .trst_i        (trst_i), // trst_i is active high (inverted on higher layers)
                   .tck_i         (tck_i),
                   .tdi_i         (tdi_wb),
                   .tdo_o         (tdo_wb),
@@ -488,9 +489,9 @@ dbg_wb i_dbg_wb (
                   .crc_match_i   (crc_match),
                   .crc_en_o      (crc_en_wb),
                   .shift_crc_o   (shift_crc_wb),
+                  .rst_i         (wb_rst_i),
 
                   // WISHBONE common signals
-                  .wb_rst_i      (wb_rst_i),
                   .wb_clk_i      (wb_clk_i),
 
                   // WISHBONE master interface

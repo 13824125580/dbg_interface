@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.22  2004/01/13 11:28:30  mohor
+// tmp version.
+//
 // Revision 1.21  2004/01/10 07:50:41  mohor
 // temp version.
 //
@@ -221,8 +224,6 @@ tap_top i_tap_top (
 
 
 dbg_top i_dbg_top  (
-                
-                    .trst_i(!trst_pad_i),
                     .tck_i(tck_pad_i),
                     .tdi_i(tdo_o),
                     .tdo_o(debug_tdi_i),
@@ -320,6 +321,8 @@ begin
   initialize_memory(32'h12340000, 32'h00100000);  // Initialize 0x100000 bytes starting from address 0x12340000
 
   reset_tap;
+
+  #500;
   goto_run_test_idle;
 
   // Testing read and write to internal registers
@@ -410,6 +413,7 @@ begin
   ReadCPURegister(32'h11001100, 8'hdb);                 // {addr, crc}
 */
   #5000 gen_clk(1);            // One extra TCLK for debugging purposes
+  $display("\n\nSimulation end.");
   #1000 $stop;
 
 end
@@ -450,7 +454,7 @@ task reset_tap;
   begin
     $display("(%0t) Task reset_tap", $time);
     tms_pad_i<=#1 1'b1;
-    gen_clk(7);
+    gen_clk(5);
   end
 endtask
 
@@ -834,8 +838,8 @@ task debug_wishbone_go;
 
     if ((last_wb_cmd == `WB_READ8) | (last_wb_cmd == `WB_READ16) | (last_wb_cmd == `WB_READ32))  // When WB_WRITEx was previously activated, data needs to be shifted.
       begin
-        $display("\t\tGenerating %0d clocks to read %0d data bytes.", dbg_tb.i_dbg_top.i_dbg_wb.len << 3, dbg_tb.i_dbg_top.i_dbg_wb.len);
-        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_wb.len << 3); i=i+1)
+        $display("\t\tGenerating %0d clocks to read %0d data bytes.", dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_limit, dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_limit>>3);
+        for (i=0; i<(dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_limit); i=i+1)
           gen_clk(1);
       end
 
