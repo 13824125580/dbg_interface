@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2001/11/26 10:47:09  mohor
+// Crc generation is different for read or write commands. Small synthesys fixes.
+//
 // Revision 1.11  2001/11/14 10:10:41  mohor
 // Wishbone data latched on wb_clk_i instead of risc_clk.
 //
@@ -636,6 +639,7 @@ end
 wire [72:0] RISC_Data;
 wire [45:0] Register_Data;
 wire [72:0] WISHBONE_Data;
+wire [12:0] chain_sel_data;
 wire wb_Access_wbClk;
 
 // assign RISC_Data      = {CalculatedCrcOut, RISC_DATAINLatch, 33'h0};
@@ -643,9 +647,10 @@ wire wb_Access_wbClk;
 // assign WISHBONE_Data  = {CalculatedCrcOut, WBReadLatch, 32'h0, WBErrorLatch};
 
 wire select_crc_out;
-assign select_crc_out = RegisterScanChain   & JTAG_DR_IN[5]   |     // Calculated CRC is returned when read operation is
-                        RiscDebugScanChain  & JTAG_DR_IN[32]  |     // performed, else received crc is returned (loopback).
-                        WishboneScanChain   & JTAG_DR_IN[32]  ;
+assign select_crc_out = RegisterScanChain     & JTAG_DR_IN[5]   |     // Calculated CRC is returned when read operation is
+                        RiscDebugScanChain    & JTAG_DR_IN[32]  |     // performed, else received crc is returned (loopback).
+                        WishboneScanChain     & JTAG_DR_IN[32]  |
+                        CHAIN_SELECTSelected;                         // When chain is selected, received crc is returned
 
 wire [8:0] send_crc;
 
@@ -655,6 +660,7 @@ assign send_crc = select_crc_out? {9{JTAG_DR_IN[BitCounter-1]}}   : // Calculate
 assign RISC_Data      = {send_crc, RISC_DATAINLatch, 33'h0};
 assign Register_Data  = {send_crc, RegisterReadLatch, 6'h0};
 assign WISHBONE_Data  = {send_crc, WBReadLatch, 32'h0, WBErrorLatch};
+assign chain_sel_data = {send_crc, 4'h0};
                                                   
                                                   
 `ifdef TRACE_ENABLED                              
@@ -688,7 +694,7 @@ begin
             TDOData <= #Tp IDCodeValue[BitCounter];           // IDCODE is shifted out
           else
           if(CHAIN_SELECTSelected)
-            TDOData <= #Tp 0;
+            TDOData <= #Tp chain_sel_data[BitCounter];        // Received crc is sent back
           else
           if(DEBUGSelected)
             begin
