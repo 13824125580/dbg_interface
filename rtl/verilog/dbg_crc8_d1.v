@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2001/12/06 10:01:57  mohor
+// Warnings from synthesys tools fixed.
+//
 // Revision 1.4  2001/11/26 10:47:09  mohor
 // Crc generation is different for read or write commands. Small synthesys fixes.
 //
@@ -111,33 +114,17 @@ input Clk;
 output [7:0] CrcOut;
 reg    [7:0] CrcOut;
 
-// polynomial: (0 1 2 8)
-// data width: 1
-function [7:0] nextCRC8_D1;
+wire [7:0] NewCRC;
 
-  input Data;
-  input [7:0] Crc;
+assign NewCRC[0] = Data ^ CrcOut[7];
+assign NewCRC[1] = Data ^ CrcOut[0] ^ CrcOut[7];
+assign NewCRC[2] = Data ^ CrcOut[1] ^ CrcOut[7];
+assign NewCRC[3] = CrcOut[2];
+assign NewCRC[4] = CrcOut[3];
+assign NewCRC[5] = CrcOut[4];
+assign NewCRC[6] = CrcOut[5];
+assign NewCRC[7] = CrcOut[6];
   
-  reg [0:0] D;
-  reg [7:0] C;
-  reg [7:0] NewCRC;
-  
-  begin
-    D[0] = Data;
-    C = Crc;
-  
-    NewCRC[0] = D[0] ^ C[7];
-    NewCRC[1] = D[0] ^ C[0] ^ C[7];
-    NewCRC[2] = D[0] ^ C[1] ^ C[7];
-    NewCRC[3] = C[2];
-    NewCRC[4] = C[3];
-    NewCRC[5] = C[4];
-    NewCRC[6] = C[5];
-    NewCRC[7] = C[6];
-  
-    nextCRC8_D1 = NewCRC;
-  end
-endfunction
 
 
 always @ (posedge Clk or posedge Reset)
@@ -149,7 +136,7 @@ begin
     CrcOut[7:0] <= #Tp 0;
   else
   if(EnableCrc)
-    CrcOut[7:0] <= #Tp nextCRC8_D1(Data, CrcOut);
+    CrcOut[7:0] <= #Tp NewCRC;
 end
 
 
