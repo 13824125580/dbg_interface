@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2001/09/24 14:06:42  mohor
+// Changes connected to the OpenRISC access (SPR read, SPR write).
+//
 // Revision 1.4  2001/09/20 10:11:25  mohor
 // Working version. Few bugs fixed, comments added.
 //
@@ -75,13 +78,22 @@
 module dbg_top(
                 // JTAG pins
                 tms_pad_i, tck_pad_i, trst_pad_i, tdi_pad_i, tdo_pad_o, 
+
+                // Boundary Scan signals
+                CaptureDR, ShiftDR, UpdateDR, EXTESTSelected, BS_CHAIN_I,
                 
                 // RISC signals
                 risc_clk_i, risc_addr_o, risc_data_i, risc_data_o, wp_i, 
                 bp_i, opselect_o, lsstatus_i, istatus_i, risc_stall_o, reset_o, 
                 
-                // WISHBONE signals
-                wb_rst_i
+                // WISHBONE common signals
+                wb_rst_i, wb_clk_i, 
+
+                // WISHBONE master interface
+                wb_adr_o, wb_dat_o, wb_dat_i, wb_cyc_o, wb_stb_o, wb_sel_o,
+                wb_we_o, wb_ack_i, wb_cab_o, wb_err_i
+
+
               );
 
 parameter Tp = 1;
@@ -92,6 +104,14 @@ input         tck_pad_i;                  // JTAG test clock pad
 input         trst_pad_i;                 // JTAG test reset pad
 input         tdi_pad_i;                  // JTAG test data input pad
 output        tdo_pad_o;                  // JTAG test data output pad
+
+
+// Boundary Scan signals
+output CaptureDR;
+output ShiftDR;
+output UpdateDR;
+output EXTESTSelected;
+input  BS_CHAIN_I;
 
 
 // RISC signals
@@ -108,9 +128,26 @@ output                      risc_stall_o; // Stalls the RISC
 output                      reset_o;      // Resets the RISC
 
 
-// WISHBONE signals
+// WISHBONE common signals
 input         wb_rst_i;                   // WISHBONE reset
+input         wb_clk_i;                   // WISHBONE clock
 
+// WISHBONE master interface
+output [31:0] wb_adr_o;
+output [31:0] wb_dat_o;
+input  [31:0] wb_dat_i;
+output        wb_cyc_o;
+output        wb_stb_o;
+output  [3:0] wb_sel_o;
+output        wb_we_o;
+input         wb_ack_i;
+output        wb_cab_o;
+input         wb_err_i;
+
+reg    [31:0] wb_adr_o;
+reg    [31:0] wb_dat_o;
+reg           wb_we_o;
+reg           wb_cyc_o;
 
 // TAP states
 reg TestLogicReset;
@@ -144,9 +181,7 @@ reg HIGHZSelected;
 reg DEBUGSelected;
 reg BYPASSSelected;
 
-reg [31:0]  risc_addr_o;
 reg [31:0]  ADDR;
-reg [31:0]  risc_data_o;
 reg [31:0]  DataOut;
 
 reg [`OPSELECTWIDTH-1:0] opselect_o;      // Operation selection (selecting what kind of data is set to the risc_data_i)
@@ -160,19 +195,20 @@ reg         RISCAccessTck;                // Indicates access to the RISC (read 
 reg [7:0]   BitCounter;                   // Counting bits in the ShiftDR and Exit1DR stages
 reg         RW;                           // Read/Write bit
 reg         CrcMatch;                     // The crc that is shifted in and the internaly calculated crc are equal
-reg [31:0]  RISC_DATA_IN_TEMP;            // Temporary data storage for the data from the RISC
 
 reg         RegAccess_q;                  // Delayed signals used for accessing the registers
 reg         RegAccess_q2;                 // Delayed signals used for accessing the registers
 reg         RISCAccess_q;                 // Delayed signals used for accessing the RISC
 reg         RISCAccess_q2;                // Delayed signals used for accessing the RISC
 
-
+reg         wb_AccessTck;                 // Indicates access to the WISHBONE
+reg [31:0]  WBReadLatch;                  // Data latched during WISHBONE read
+reg         WBErrorLatch;                 // Error latched during WISHBONE read
 
 wire TCK = tck_pad_i;
 wire TMS = tms_pad_i;
 wire TDI = tdi_pad_i;
-wire RESET = ~trst_pad_i;                 // trst_pad_i is active low
+wire RESET = ~trst_pad_i | wb_rst_i;      // trst_pad_i is active low
 
 wire [31:0]             RegDataIn;        // Data from registers (read data)
 wire [`CRC_LENGTH-1:0]  CalculatedCrcOut; // CRC calculated in this module. This CRC is apended at the end of the TDO.
@@ -184,12 +220,12 @@ wire RiscStall_trace;                     // RISC is stalled by trace module
        
 wire RegisterScanChain;                   // Register Scan chain selected
 wire RiscDebugScanChain;                  // Risc Debug Scan chain selected
+wire WishboneScanChain;                   // WISHBONE Scan chain selected
 
 wire RiscStall_read_access;               // Stalling RISC because of the read access (SPR read)
 wire RiscStall_write_access;              // Stalling RISC because of the write access (SPR write)
 wire RiscStall_access;                    // Stalling RISC because of the read or write access
 
-integer ii, jj, kk;                       // Counters for relocating bits bacuse of the RISC big endian mode of operation
            
             
 // This signals are used only when TRACE is used in the design
@@ -254,7 +290,6 @@ integer ii, jj, kk;                       // Counters for relocating bits bacuse
                                           // data is set to the risc_data_i)
 
 `endif
-
 
 
 /**********************************************************************************
@@ -573,9 +608,13 @@ end
 
 wire [72:0] RISC_Data;
 wire [45:0] Register_Data;
+wire [72:0] WISHBONE_Data;
+wire wb_Access_wbClk;
 
 assign RISC_Data      = {CalculatedCrcOut, RISC_DATAINLatch, 33'h0};
 assign Register_Data  = {CalculatedCrcOut, RegisterReadLatch, 6'h0};
+assign WISHBONE_Data  = {CalculatedCrcOut, WBReadLatch, 32'h0, WBErrorLatch};
+
 
 `ifdef TRACE_ENABLED
   assign Trace_Data     = {CalculatedCrcOut, TraceChain};
@@ -617,6 +656,9 @@ begin
               else
               if(RegisterScanChain)
                 TDOData <= #Tp Register_Data[BitCounter];     // Data read from register in the previous cycle is shifted out
+              else
+              if(WishboneScanChain)
+                TDOData <= #Tp WISHBONE_Data[BitCounter];     // Data read from the WISHBONE slave
               `ifdef TRACE_ENABLED
               else
               if(TraceTestScanChain)
@@ -673,6 +715,10 @@ begin
       RW                <=#Tp 1'b0;
       RegAccessTck      <=#Tp 1'b0;
       RISCAccessTck     <=#Tp 1'b0;
+      wb_adr_o          <=#Tp 32'h0;
+      wb_we_o           <=#Tp 1'h0;
+      wb_dat_o          <=#Tp 32'h0;
+      wb_AccessTck      <=#Tp 1'h0;
     end
   else
   if(UpdateDR & DEBUGSelected & CrcMatch)
@@ -692,37 +738,25 @@ begin
           DataOut[31:0]     <=#Tp JTAG_DR_IN[64:33];  // latch data for write
           RISCAccessTck     <=#Tp 1'b1;
         end
+      else
+      if(WishboneScanChain)
+        begin
+          wb_adr_o          <=#Tp JTAG_DR_IN[31:0];   // Latching address for WISHBONE slave access
+          wb_we_o           <=#Tp JTAG_DR_IN[32];     // latch R/W bit
+          wb_dat_o          <=#Tp JTAG_DR_IN[64:33];  // latch data for write
+          wb_AccessTck      <=#Tp 1'b1;               // 
+        end
     end
   else
     begin
       RegAccessTck      <=#Tp 1'b0;       // This signals are valid for one TCK clock period only
       RISCAccessTck     <=#Tp 1'b0;
+      wb_AccessTck      <=#Tp 1'b0;
     end
 end
 
-
-// Relocating bits because RISC works in big endian mode
-always @(ADDR)
-begin
-  for(ii=0; ii<32; ii=ii+1)
-    risc_addr_o[ii] = ADDR[31-ii];
-end
-
-
-// Relocating bits because RISC works in big endian mode
-always @(DataOut)
-begin
-  for(jj=0; jj<32; jj=jj+1)
-    risc_data_o[jj] = DataOut[31-jj];
-end
-
-
-// Relocating bits because RISC works in big endian mode
-always @(risc_data_i)
-begin
-  for(kk=0; kk<32; kk=kk+1)
-    RISC_DATA_IN_TEMP[kk] = risc_data_i[31-kk];
-end
+assign wb_sel_o[3:0] = 4'hf;
+assign wb_cab_o = 1'b0;
 
 
 // Synchronizing the RegAccess signal to risc_clk_i clock
@@ -734,6 +768,15 @@ dbg_sync_clk1_clk2 syn1 (.clk1(risc_clk_i),   .clk2(TCK),           .reset1(RESE
 dbg_sync_clk1_clk2 syn2 (.clk1(risc_clk_i),    .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
                          .set2(RISCAccessTck), .sync_out(RISCAccess)
                         );
+
+
+// Synchronizing the wb_Access signal to wishbone clock
+dbg_sync_clk1_clk2 syn3 (.clk1(wb_clk_i),      .clk2(TCK),          .reset1(RESET),  .reset2(RESET), 
+                         .set2(wb_AccessTck), .sync_out(wb_Access_wbClk)
+                        );
+
+
+
 
 
 // Delayed signals used for accessing registers and RISC
@@ -771,20 +814,71 @@ end
 assign RiscStall_write_access = RISCAccess & ~RISCAccess_q  &  RW;
 assign RiscStall_read_access  = RISCAccess & ~RISCAccess_q2 & ~RW;
 assign RiscStall_access = RiscStall_write_access | RiscStall_read_access;
-//assign risc_rw_o = RW;
+
+
+reg wb_Access_wbClk_q;
+// Delayed signals used for accessing WISHBONE
+always @ (posedge wb_clk_i or posedge RESET)
+begin
+  if(RESET)
+    wb_Access_wbClk_q <=#Tp 1'b0;
+  else
+    wb_Access_wbClk_q <=#Tp wb_Access_wbClk;
+end
+
+always @ (posedge wb_clk_i or posedge RESET)
+begin
+  if(RESET)
+    wb_cyc_o <=#Tp 1'b0;
+  else
+  if(wb_Access_wbClk & ~wb_Access_wbClk_q & ~(wb_ack_i | wb_err_i))
+    wb_cyc_o <=#Tp 1'b1;
+  else
+  if(wb_ack_i | wb_err_i)
+    wb_cyc_o <=#Tp 1'b0;
+end
+
+assign wb_stb_o = wb_cyc_o;
+
+
+// Latching data read from registers
+always @ (posedge risc_clk_i or posedge RESET)
+begin
+  if(RESET)
+    WBReadLatch[31:0]<=#Tp 32'h0;
+  else
+  if(wb_ack_i)
+    WBReadLatch[31:0]<=#Tp wb_dat_i[31:0];
+end
+
+// Latching WISHBONE error cycle
+always @ (posedge wb_clk_i or posedge RESET)
+begin
+  if(RESET)
+    WBErrorLatch<=#Tp 1'b0;
+  else
+  if(wb_err_i)
+    WBErrorLatch<=#Tp 1'b1;     // Latching wb_err_i while performing WISHBONE access
+  if(wb_ack_i)
+    WBErrorLatch<=#Tp 1'b0;     // Clearing status
+end
 
 
 // Whan enabled, TRACE stalls RISC while saving data to the trace buffer.
 `ifdef TRACE_ENABLED
   assign  risc_stall_o = RiscStall_access | RiscStall_reg | RiscStall_trace ;
 `else
-  assign  risc_stall_o = RiscStall_access | RiscStall_read_access | RiscStall_reg;
+  assign  risc_stall_o = RiscStall_access | RiscStall_reg;
 `endif
 
 assign  reset_o = RiscReset_reg;
 
 
+`ifdef TRACE_ENABLED
 always @ (RiscStall_write_access or RiscStall_read_access or opselect_trace)
+`else
+always @ (RiscStall_write_access or RiscStall_read_access)
+`endif
 begin
   if(RiscStall_write_access)
     opselect_o = `DEBUG_WRITE_SPR;  // Write spr
@@ -792,7 +886,11 @@ begin
   if(RiscStall_read_access)
     opselect_o = `DEBUG_READ_SPR;   // Read spr
   else
+`ifdef TRACE_ENABLED
     opselect_o = opselect_trace;
+`else
+    opselect_o = 3'h0;
+`endif
 end
 
 
@@ -804,10 +902,11 @@ begin
     RISC_DATAINLatch[31:0]<=#Tp 0;
   else
   if(RISCAccess_q & ~RISCAccess_q2)
-    RISC_DATAINLatch[31:0]<=#Tp RISC_DATA_IN_TEMP[31:0];
+    RISC_DATAINLatch[31:0]<=#Tp risc_data_i[31:0];
 end
 
-
+assign risc_addr_o = ADDR;
+assign risc_data_o = DataOut;
 
 
 
@@ -820,7 +919,7 @@ end
   
 
 // Synchronizing the trace read buffer signal to risc_clk_i clock
-dbg_sync_clk1_clk2 syn3 (.clk1(risc_clk_i),     .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
+dbg_sync_clk1_clk2 syn4 (.clk1(risc_clk_i),     .clk2(TCK),           .reset1(RESET),  .reset2(RESET), 
                          .set2(ReadBuffer_Tck), .sync_out(ReadTraceBuffer)
                         );
 
@@ -938,7 +1037,7 @@ assign TDOShifted = (ShiftIR | Exit1IR)? TDOInstruction : TDOData;
 
 // This multiplexer can be expanded with number of user registers
 reg TDOMuxed;
-always @ (JTAG_IR or TDOShifted or TDOBypassed)
+always @ (JTAG_IR or TDOShifted or TDOBypassed or BS_CHAIN_I)
 begin
   case(JTAG_IR)
     `IDCODE: // Reading ID code
@@ -953,14 +1052,14 @@ begin
       begin
         TDOMuxed<=#Tp TDOShifted;
       end
-//    `SAMPLE_PRELOAD:  // Sampling/Preloading
-//      begin
-//        TDOMuxed<=#Tp BS_CHAIN_I;
-//      end
-//    `EXTEST:  // External test
-//      begin
-//        TDOMuxed<=#Tp BS_CHAIN_I;
-//      end
+    `SAMPLE_PRELOAD:  // Sampling/Preloading
+      begin
+        TDOMuxed<=#Tp BS_CHAIN_I;
+      end
+    `EXTEST:  // External test
+      begin
+        TDOMuxed<=#Tp BS_CHAIN_I;
+      end
     default:  // BYPASS instruction
       begin
         TDOMuxed<=#Tp TDOBypassed;
@@ -1013,7 +1112,7 @@ end
 **********************************************************************************/
 dbg_registers dbgregs(.DataIn(DataOut[31:0]), .DataOut(RegDataIn[31:0]), 
                       .Address(ADDR[4:0]), .RW(RW), .Access(RegAccess & ~RegAccess_q), .Clk(risc_clk_i), 
-                      .Reset(wb_rst_i), 
+                      .Bp(bp_i), .Reset(wb_rst_i), 
                       `ifdef TRACE_ENABLED
                       .ContinMode(ContinMode), .TraceEnable(TraceEnable), 
                       .WpTrigger(WpTrigger), .BpTrigger(BpTrigger), .LSSTrigger(LSSTrigger),
@@ -1055,13 +1154,15 @@ wire [7:0] CalculatedCrcIn;     // crc calculated from the input data (shifted i
 wire EnableCrcIn = ShiftDR & 
                   ( (CHAIN_SELECTSelected                 & (BitCounter<4))  |
                     ((DEBUGSelected & RegisterScanChain)  & (BitCounter<38)) | 
-                    ((DEBUGSelected & RiscDebugScanChain) & (BitCounter<65)) 
+                    ((DEBUGSelected & RiscDebugScanChain) & (BitCounter<65)) |
+                    ((DEBUGSelected & WishboneScanChain)  & (BitCounter<65))
                   );
 
 wire EnableCrcOut= ShiftDR & 
                    (
                     ((DEBUGSelected & RegisterScanChain)  & (BitCounter<38)) | 
-                    ((DEBUGSelected & RiscDebugScanChain) & (BitCounter<65)) 
+                    ((DEBUGSelected & RiscDebugScanChain) & (BitCounter<65)) |
+                    ((DEBUGSelected & WishboneScanChain)  & (BitCounter<65))
                     `ifdef TRACE_ENABLED
                                                                              |
                     ((DEBUGSelected & TraceTestScanChain) & (BitCounter<40)) 
@@ -1093,6 +1194,9 @@ begin
       else
       if(RiscDebugScanChain & ~CHAIN_SELECTSelected)
         CrcMatch <=#Tp CalculatedCrcIn == JTAG_DR_IN[72:65];
+      else
+      if(WishboneScanChain & ~CHAIN_SELECTSelected)
+        CrcMatch <=#Tp CalculatedCrcIn == JTAG_DR_IN[72:65];
     end
 end
 
@@ -1100,6 +1204,7 @@ end
 // Active chain
 assign RegisterScanChain   = Chain == `REGISTER_SCAN_CHAIN;
 assign RiscDebugScanChain  = Chain == `RISC_DEBUG_CHAIN;
+assign WishboneScanChain   = Chain == `WISHBONE_SCAN_CHAIN;
 
 `ifdef TRACE_ENABLED
   assign TraceTestScanChain  = Chain == `TRACE_TEST_CHAIN;

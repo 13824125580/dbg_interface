@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2001/09/24 14:06:42  mohor
+// Changes connected to the OpenRISC access (SPR read, SPR write).
+//
 // Revision 1.3  2001/09/20 10:11:25  mohor
 // Working version. Few bugs fixed, comments added.
 //
@@ -128,7 +131,7 @@
 `define RISC_TEST_CHAIN     4'b0010
 `define TRACE_TEST_CHAIN    4'b0011
 `define REGISTER_SCAN_CHAIN 4'b0100
-
+`define WISHBONE_SCAN_CHAIN 4'b0101
 
 // Registers addresses
 `define MODER_ADR           5'h00

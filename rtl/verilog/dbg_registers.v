@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/09/18 14:13:47  mohor
+// Trace fixed. Some registers changed, trace simplified.
+//
 // Revision 1.1.1.1  2001/09/13 13:49:19  mohor
 // Initial official release.
 //
@@ -62,7 +65,7 @@
 `include "dbg_timescale.v"
 `include "dbg_defines.v"
 
-module dbg_registers(DataIn, DataOut, Address, RW, Access, Clk, Reset, 
+module dbg_registers(DataIn, DataOut, Address, RW, Access, Clk, Bp, Reset, 
                      `ifdef TRACE_ENABLED
                      ContinMode, 
                      TraceEnable, WpTrigger, BpTrigger, LSSTrigger, 
@@ -85,6 +88,7 @@ input [4:0] Address;
 input RW;
 input Access;
 input Clk;
+input Bp;
 input Reset;
 
 output [31:0] DataOut;
@@ -139,7 +143,6 @@ reg    [31:0] DataOut;
   output RiscStall;
   output RiscReset;
 
-
   wire MODER_Acc =   (Address == `MODER_ADR)   & Access;
   wire RISCOP_Acc =  (Address == `RISCOP_ADR)  & Access;
 `ifdef TRACE_ENABLED
@@ -172,7 +175,7 @@ reg    [31:0] DataOut;
 
 
   wire [31:0] MODEROut;
-  wire [1:0]  RISCOPOut;
+  wire [1:1]  RISCOPOut;
 
 `ifdef TRACE_ENABLED
   wire [31:0] TSELOut;
@@ -190,7 +193,21 @@ reg    [31:0] DataOut;
 `endif
 
 
-  dbg_register #(2)  RISCOP (.DataIn(DataIn[1:0]), .DataOut(RISCOPOut[1:0]), .Write(RISCOP_Wr),   .Clk(Clk), .Reset(Reset), .Default(`RISCOP_DEF));
+  reg RiscStallBp;
+  always @(posedge Clk or posedge Reset)
+  begin
+    if(Reset)
+      RiscStallBp <= 1'b0;
+    else
+    if(Bp)                      // Breakpoint sets bit
+      RiscStallBp <= 1'b1;
+    else
+    if(RISCOP_Wr)               // Register access can set or clear bit
+      RiscStallBp <= DataIn[0];
+  end
+
+  dbg_register #(1)  RISCOP (.DataIn(DataIn[1]), .DataOut(RISCOPOut[1]), .Write(RISCOP_Wr),   .Clk(Clk), .Reset(Reset), .Default(1'b0));
+
 
 `ifdef TRACE_ENABLED
   dbg_register #(2)  MODER  (.DataIn(DataIn[17:16]), .DataOut(MODEROut[17:16]), .Write(MODER_Wr),   .Clk(Clk), .Reset(Reset), .Default(`MODER_DEF));
@@ -206,7 +223,7 @@ always @ (posedge Clk)
 begin
   if(MODER_Rd)    DataOut<= #Tp MODEROut;
   else
-  if(RISCOP_Rd)   DataOut<= #Tp {30'h0, RISCOPOut};
+  if(RISCOP_Rd)   DataOut<= #Tp {30'h0, RISCOPOut[1], RiscStall};
 `ifdef TRACE_ENABLED
   else
   if(TSEL_Rd)     DataOut<= #Tp TSELOut;
@@ -264,7 +281,7 @@ end
   assign RecordINSTR        = RECSELOut[6];
 `endif
 
-  assign RiscStall          = RISCOPOut[0];
+  assign RiscStall          = Bp | RiscStallBp;   // Bp asynchronously sets the RiscStall, then RiscStallBp (from register) holds it active
   assign RiscReset          = RISCOPOut[1];
 
 endmodule

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2001/09/24 14:06:12  mohor
+// Changes connected to the OpenRISC access (SPR read, SPR write).
+//
 // Revision 1.4  2001/09/20 10:10:29  mohor
 // Working version. Few bugs fixed, comments added.
 //
@@ -99,13 +102,34 @@ wire  [31:0] DATAOUT_RISC;   // DATAOUT_RISC is connect to DATAIN
 
 wire   [`OPSELECTWIDTH-1:0] OpSelect;
 
+wire [31:0] wb_adr_i;
+wire [31:0] wb_dat_i;
+reg  [31:0] wb_dat_o;
+wire        wb_cyc_i;
+wire        wb_stb_i;
+wire  [3:0] wb_sel_i;
+wire        wb_we_i;
+reg         wb_ack_o;
+wire        wb_cab_i;
+reg         wb_err_o;
+
+
 // Connecting TAP module
 dbg_top dbgTAP1(.tms_pad_i(P_TMS), .tck_pad_i(P_TCK), .trst_pad_i(P_TRST), .tdi_pad_i(P_TDI), 
-                .tdo_pad_o(P_TDO), .wb_rst_i(wb_rst_i), .risc_clk_i(Mclk), 
+                .tdo_pad_o(P_TDO), 
+                .CaptureDR(), .ShiftDR(), .UpdateDR(), .EXTESTSelected(), .BS_CHAIN_I(1'b0),
+
+                
+                .wb_rst_i(wb_rst_i), .risc_clk_i(Mclk), 
                 .risc_addr_o(ADDR_RISC), .risc_data_i(DATAOUT_RISC), .risc_data_o(DATAIN_RISC), 
                 .wp_i(Wp), .bp_i(Bp), 
                 .opselect_o(OpSelect), .lsstatus_i(LsStatus), .istatus_i(IStatus), 
-                .risc_stall_o(), .reset_o() 
+                .risc_stall_o(), .reset_o(),
+                
+                .wb_clk_i(Mclk), .wb_adr_o(wb_adr_i), .wb_dat_o(wb_dat_i), .wb_dat_i(wb_dat_o), 
+                .wb_cyc_o(wb_cyc_i), .wb_stb_o(wb_stb_i), .wb_sel_o(wb_sel_i), .wb_we_o(wb_we_i), 
+                .wb_ack_i(wb_ack_o), .wb_cab_o(wb_cab_i), .wb_err_i(wb_err_o)
+
                 );
 
 
@@ -124,6 +148,12 @@ begin
   Bp<=#Tp 0;
   LsStatus<=#Tp 0;
   IStatus<=#Tp 0;
+
+  wb_dat_o<=#Tp 32'h0;
+  wb_ack_o<=#Tp 1'h0;
+  wb_err_o<=#Tp 1'h0;
+
+
 
   wb_rst_i<=#Tp 0;
   P_TRST<=#Tp 1;
@@ -157,20 +187,36 @@ end
 assign DATAOUT_RISC[31:0] = RandNumb[31:0];
 
 
-
 always @ (posedge TestEnabled)
+fork
+
+begin
+  EnableWishboneSlave;  // enabling WISHBONE slave
+end
+
+
 begin
   ResetTAP;
   GotoRunTestIdle;
+
+// Testing read and write to WISHBONE
+  SetInstruction(`CHAIN_SELECT);
+  ChainSelect(`WISHBONE_SCAN_CHAIN, 8'h36);  // {chain, crc}
+  SetInstruction(`DEBUG);
+  ReadRISCRegister(32'h87654321, 8'hfd);                 // {addr, crc}         // Wishbone and RISC accesses are similar
+  WriteRISCRegister(32'h18273645, 32'hbeefbeef, 8'haa);  // {data, addr, crc}
+  ReadRISCRegister(32'h87654321, 8'hfd);                 // {addr, crc}         // Wishbone and RISC accesses are similar
+  ReadRISCRegister(32'h87654321, 8'hfd);                 // {addr, crc}         // Wishbone and RISC accesses are similar
+//
 
 // Testing read and write to RISC registers
   SetInstruction(`CHAIN_SELECT);
   ChainSelect(`RISC_DEBUG_CHAIN, 8'h38);  // {chain, crc}
   SetInstruction(`DEBUG);
+
   ReadRISCRegister(32'h12345ead, 8'hbf);                 // {addr, crc}
   WriteRISCRegister(32'h11223344, 32'h12345678, 8'haf);  // {data, addr, crc}
 //
-
 
 
 // Testing read and write to internal registers
@@ -288,7 +334,7 @@ begin
   #1000 $stop;
 
 end
-
+join
 
 
 // Generation of the TCLK signal
@@ -614,6 +660,43 @@ task WriteRegister;
 endtask
 
 
+task EnableWishboneSlave;
+begin
+while(1)
+  begin
+    if(wb_stb_i & wb_cyc_i) // WB access
+//    wait (wb_stb_i & wb_cyc_i) // WB access
+      begin
+        @ (posedge Mclk);
+        @ (posedge Mclk);
+        @ (posedge Mclk);
+        #1 wb_ack_o = 1;
+        if(~wb_we_i) // read
+          wb_dat_o = 32'hbeefdead;
+        if(wb_we_i & wb_stb_i & wb_cyc_i) // write
+          $display("\nWISHBONE write Data=%0h, Addr=%0h", wb_dat_i, wb_adr_i);
+        if(~wb_we_i & wb_stb_i & wb_cyc_i) // read
+          $display("\nWISHBONE read Data=%0h, Addr=%0h", wb_dat_o, wb_adr_i);
+      end
+    @ (posedge Mclk);
+    #1 wb_ack_o = 0;
+    wb_dat_o = 32'h0;
+  end
+end
+endtask
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**********************************************************************************
 *                                                                                 *
@@ -668,6 +751,7 @@ begin
       `RISC_TEST_CHAIN      : $write("\nChain RISC_TEST_CHAIN");
       `TRACE_TEST_CHAIN     : $write("\nChain TRACE_TEST_CHAIN");
       `REGISTER_SCAN_CHAIN  : $write("\nChain REGISTER_SCAN_CHAIN");
+      `WISHBONE_SCAN_CHAIN  : $write("\nChain WISHBONE_SCAN_CHAIN");
     endcase
 end
 
@@ -698,9 +782,9 @@ end
 
 // print CRC error
 `ifdef TRACE_ENABLED
-  wire CRCErrorReport = ~(dbg_tb.dbgTAP1.CrcMatch & (dbg_tb.dbgTAP1.CHAIN_SELECTSelected | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.RegisterScanChain | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.RiscDebugScanChain | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.TraceTestScanChain));
+  wire CRCErrorReport = ~(dbg_tb.dbgTAP1.CrcMatch & (dbg_tb.dbgTAP1.CHAIN_SELECTSelected | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.RegisterScanChain | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.RiscDebugScanChain | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.TraceTestScanChain | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.WishboneScanChain));
 `else  // TRACE_ENABLED not enabled
-  wire CRCErrorReport = ~(dbg_tb.dbgTAP1.CrcMatch & (dbg_tb.dbgTAP1.CHAIN_SELECTSelected | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.RegisterScanChain | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.RiscDebugScanChain));
+  wire CRCErrorReport = ~(dbg_tb.dbgTAP1.CrcMatch & (dbg_tb.dbgTAP1.CHAIN_SELECTSelected | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.RegisterScanChain | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.RiscDebugScanChain | dbg_tb.dbgTAP1.DEBUGSelected & dbg_tb.dbgTAP1.WishboneScanChain));
 `endif
 
 always @ (posedge P_TCK)
@@ -714,6 +798,8 @@ begin
         $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.dbgTAP1.JTAG_DR_IN[45:38], dbg_tb.dbgTAP1.CalculatedCrcOut[`CRC_LENGTH-1:0]);
       else
       if(dbg_tb.dbgTAP1.RiscDebugScanChain & ~dbg_tb.dbgTAP1.CHAIN_SELECTSelected)
+        $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.dbgTAP1.JTAG_DR_IN[72:65], dbg_tb.dbgTAP1.CalculatedCrcOut[`CRC_LENGTH-1:0]);
+      if(dbg_tb.dbgTAP1.WishboneScanChain & ~dbg_tb.dbgTAP1.CHAIN_SELECTSelected)
         $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.dbgTAP1.JTAG_DR_IN[72:65], dbg_tb.dbgTAP1.CalculatedCrcOut[`CRC_LENGTH-1:0]);
 
       if(CRCErrorReport)
