@@ -49,6 +49,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/09/18 14:13:47  mohor
+// Trace fixed. Some registers changed, trace simplified.
+//
 // Revision 1.1.1.1  2001/09/13 13:49:19  mohor
 // Initial official release.
 //
@@ -1191,9 +1194,9 @@ assign RiscDebugScanChain  = Chain == `RISC_DEBUG_CHAIN;
 **********************************************************************************/
 `ifdef TRACE_ENABLED
   dbg_trace dbgTrace1(.Wp(Wp), .Bp(Bp), .DataIn(RISC_DATA_IN), .OpSelect(OpSelect), 
-                      .LsStatus(LsStatus), .IStatus(IStatus), .RiscStall(RiscStall_trace), 
+                      .LsStatus(LsStatus), .IStatus(IStatus), .RiscStall_O(RiscStall_trace), 
                       .Mclk(Mclk), .Reset(RESET), .TraceChain(TraceChain), 
-                      .ContinMode(ContinMode), .TraceEnable(TraceEnable), 
+                      .ContinMode(ContinMode), .TraceEnable_reg(TraceEnable), 
                       .WpTrigger(WpTrigger), 
                       .BpTrigger(BpTrigger), .LSSTrigger(LSSTrigger), .ITrigger(ITrigger), 
                       .TriggerOper(TriggerOper), .WpQualif(WpQualif), .BpQualif(BpQualif), 

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/09/18 14:13:47  mohor
+// Trace fixed. Some registers changed, trace simplified.
+//
 // Revision 1.1.1.1  2001/09/13 13:49:19  mohor
 // Initial official release.
 //
@@ -64,8 +67,8 @@
 `include "dbg_defines.v"
 
 // module Trace
-module dbg_trace (Wp, Bp, DataIn, OpSelect, LsStatus, IStatus, RiscStall, 
-                  Mclk, Reset, TraceChain, ContinMode, TraceEnable, 
+module dbg_trace (Wp, Bp, DataIn, OpSelect, LsStatus, IStatus, RiscStall_O, 
+                  Mclk, Reset, TraceChain, ContinMode, TraceEnable_reg, 
                   WpTrigger, BpTrigger, LSSTrigger, ITrigger, TriggerOper, WpQualif, 
                   BpQualif, LSSQualif, IQualif, QualifOper, RecordPC, RecordLSEA, 
                   RecordLDATA, RecordSDATA, RecordReadSPR, RecordWriteSPR, 
@@ -91,7 +94,7 @@ input        ReadBuffer;// Instruction for reading a sample from the Buffer
 
 // from registers
 input ContinMode;
-input TraceEnable;
+input TraceEnable_reg;
 
 input [10:0] WpTrigger;
 input        BpTrigger;
@@ -137,8 +140,12 @@ input IStopValid;
 
 
 output [`OPSELECTWIDTH-1:0]  OpSelect; // Operation select (what kind of information is avaliable on the DataIn)
-output        RiscStall;  // CPU stall (stalls the RISC)
+output        RiscStall_O;  // CPU stall (stalls the RISC)
 output [39:0] TraceChain; // Scan shain from the trace module
+
+reg TraceEnable_d;
+reg TraceEnable;
+
 
 
 reg [`TRACECOUNTERWIDTH:0] Counter;
@@ -219,14 +226,14 @@ wire TempBpStop = Bp & BpStop;
 wire TempLSSStop = LsStatus[3:0] == LSSStop[3:0];
 wire TempIStop = IStatus[1:0] == IStop[1:0];
 
-wire TempStopAND =  (  (TempWpStop  | ~WpStopValid)
+wire TempStopAND =       (  (TempWpStop  | ~WpStopValid)
                           & (TempBpStop  | ~BpStopValid) 
                           & (TempLSSStop | ~LSSStopValid) 
                           & (TempIStop   | ~IStopValid)
                          ) 
                          & (WpStopValid | BpStopValid | LSSStopValid | IStopValid);
 
-wire TempStopOR =   (  (TempWpStop  &  WpStopValid)
+wire TempStopOR =        (  (TempWpStop  &  WpStopValid)
                           | (TempBpStop  &  BpStopValid) 
                           | (TempLSSStop &  LSSStopValid) 
                           | (TempIStop   &  IStopValid)
@@ -244,15 +251,41 @@ assign Stop = TraceEnable & (~StopOper[1]? 0 :                         // nothin
 *   Generation of the TriggerLatch                                                *
 *                                                                                 *
 **********************************************************************************/
-wire Reset_TriggerLatch = Reset | TriggerLatch & ~TraceEnable;
-always @(posedge Mclk or posedge Reset_TriggerLatch)
+always @(posedge Mclk or posedge Reset)
 begin
-  if(Reset_TriggerLatch)
+  if(Reset)
+    TriggerLatch<=#Tp 0;
+  else
+  if(TriggerLatch & ~TraceEnable)
     TriggerLatch<=#Tp 0;
   else
   if(Trigger)
     TriggerLatch<=#Tp 1;
 end
+
+
+
+
+/**********************************************************************************
+*                                                                                 *
+*   TraceEnable Synchronization                                                   *
+*                                                                                 *
+**********************************************************************************/
+always @(posedge Mclk or posedge Reset)
+begin
+  if(Reset)
+    begin
+      TraceEnable_d<=#Tp 0;
+      TraceEnable<=#Tp 0;
+    end
+  else
+    begin
+      TraceEnable_d<=#Tp TraceEnable_reg;
+      TraceEnable<=#Tp TraceEnable_d;
+    end
+end
+
+
 
 
 /**********************************************************************************
@@ -273,7 +306,7 @@ wire WriteSample = IncrementPointer;
 wire Decrement = ReadBuffer & ~BufferEmpty & (~ContinMode | ContinMode & ~TraceEnable);
 wire CounterEn = IncrementCounter ^ Decrement;
 
-wire ResetCpuStall;
+wire SyncResetCpuStall;
 wire ResetStallCounter;
 reg BufferFull_q;
 reg BufferFull_2q;
@@ -285,26 +318,32 @@ begin
   Qualifier_mclk<=#Tp Qualifier;
   BufferFull_q<=#Tp BufferFull;
   BufferFull_2q<=#Tp BufferFull_q;
-  RiscStall_q <=#Tp RiscStall;
+  RiscStall_q <=#Tp RiscStall_O;
 end
 
 
-wire AsyncSetCpuStall = Qualifier & ~Qualifier_mclk & TriggerLatch | Qualifier_mclk & Trigger & ~TriggerLatch | 
-                        Qualifier & Trigger & ~Qualifier_mclk & ~TriggerLatch;
+wire FirstCpuStall =    Qualifier & ~Qualifier_mclk & TriggerLatch              | 
+                        Qualifier_mclk & Trigger & ~TriggerLatch                | 
+                        Qualifier & Trigger & ~Qualifier_mclk & ~TriggerLatch   ;
 
 
-wire SyncSetCpuStall = Qualifier_mclk & TriggerLatch &
+//wire SyncSetCpuStall = Qualifier_mclk & TriggerLatch &
+
+wire SyncSetCpuStall = RiscStall_O & ~RiscStall_q |
+                        Qualifier_mclk & TriggerLatch &
                        ( 
                         (~ContinMode & ~BufferFull & ~BufferFull_q & StallCounter==`OPSELECTIONCOUNTER-1) |
                         (~ContinMode & ~BufferFull_q & BufferFull_2q & StallCounter==0)                   |
                         ( ContinMode & StallCounter==`OPSELECTIONCOUNTER-1)
                        );
 
-assign ResetCpuStall = ( 
-                        (~ContinMode & ~BufferFull & ~BufferFull_q & StallCounter==`OPSELECTIONCOUNTER-2) |
-                        (~ContinMode &  ~BufferFull & BufferFull_q & StallCounter==`OPSELECTIONCOUNTER-1) |
-                        ( ContinMode & StallCounter==`OPSELECTIONCOUNTER-2)
-                       ) | Reset;
+assign SyncResetCpuStall = ( 
+                            (~ContinMode & ~BufferFull & ~BufferFull_q & StallCounter==`OPSELECTIONCOUNTER-2) |
+                            (~ContinMode &  ~BufferFull & BufferFull_q & StallCounter==`OPSELECTIONCOUNTER-1) |
+                            ( ContinMode & StallCounter==`OPSELECTIONCOUNTER-2)
+                           );
+
+assign RiscStall_O = FirstCpuStall | RiscStall;
 
 
 always @(posedge Mclk or posedge Reset)
@@ -323,21 +362,22 @@ end
 always @(posedge Mclk or posedge Reset)
 begin
   if(Reset)
-    begin
-      WritePointer<=#Tp 0;
-      ReadPointer<=#Tp 0;
-    end
+    WritePointer<=#Tp 0;
   else
-    begin
-      if(IncrementPointer)
-        WritePointer[`TRACECOUNTERWIDTH-1:0]<=#Tp WritePointer[`TRACECOUNTERWIDTH-1:0] + 1;
-      // else igor !!! Probably else is missing here. Check it.
-      if(Decrement & ~ContinMode | Decrement & ContinMode & ~TraceEnable)
-        ReadPointer[`TRACECOUNTERWIDTH-1:0]<=#Tp ReadPointer[`TRACECOUNTERWIDTH-1:0] + 1;
-      else
-      if(ContinMode & IncrementPointer & (BufferFull | BufferFullDetected))
-        ReadPointer[`TRACECOUNTERWIDTH-1:0]<=#Tp WritePointer[`TRACECOUNTERWIDTH-1:0] + 1;
-    end
+  if(IncrementPointer)
+    WritePointer[`TRACECOUNTERWIDTH-1:0]<=#Tp WritePointer[`TRACECOUNTERWIDTH-1:0] + 1;
+end
+
+always @(posedge Mclk or posedge Reset)
+begin
+  if(Reset)
+    ReadPointer<=#Tp 0;
+  else
+  if(Decrement & ~ContinMode | Decrement & ContinMode & ~TraceEnable)
+    ReadPointer[`TRACECOUNTERWIDTH-1:0]<=#Tp ReadPointer[`TRACECOUNTERWIDTH-1:0] + 1;
+  else
+  if(ContinMode & IncrementPointer & (BufferFull | BufferFullDetected))
+    ReadPointer[`TRACECOUNTERWIDTH-1:0]<=#Tp WritePointer[`TRACECOUNTERWIDTH-1:0] + 1;
 end
 
 always @(posedge Mclk)
@@ -350,16 +390,16 @@ begin
 end
 
 
-always @(posedge Mclk or posedge AsyncSetCpuStall)
+always @(posedge Mclk or posedge Reset)
 begin
-  if(AsyncSetCpuStall)
-    RiscStall<=#Tp 1;
+  if(Reset)
+    RiscStall<=#Tp 0;
+  else
+  if(SyncResetCpuStall)
+    RiscStall<=#Tp 0;
   else
   if(SyncSetCpuStall)
     RiscStall<=#Tp 1;
-  else
-  if(ResetCpuStall)
-    RiscStall<=#Tp 0;
 end
 
 
