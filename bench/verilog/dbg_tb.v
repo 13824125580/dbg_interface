@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.43  2004/03/31 14:34:13  igorm
+// data_cnt_lim length changed to reduce number of warnings.
+//
 // Revision 1.42  2004/03/30 23:10:39  igorm
 // CRC checking of incoming CRC added to all tasks.
 //
@@ -1557,10 +1560,10 @@ endtask       // debug_cpu_wr_comm
 
 
 task debug_cpu_wr_ctrl;
-  input [`DBG_CPU_DR_LEN -1:0]  data;
-  input [99:0]                  text;
-  integer                       i;
-  reg   [`DBG_CPU_CMD_LEN -1:0] command;
+  input [`DBG_CPU_CTRL_LEN -1:0]  data;
+  input [99:0]                    text;
+  integer                         i;
+  reg   [`DBG_CPU_CMD_LEN -1:0]   command;
   
   begin
     test_text = text;
