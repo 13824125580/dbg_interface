@@ -45,6 +45,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2001/10/19 11:40:02  mohor
+// dbg_timescale.v changed to timescale.v This is done for the simulation of
+// few different cores in a single project.
+//
 // Revision 1.3  2001/10/15 09:55:47  mohor
 // Wishbone interface added, few fixes for better performance,
 // hooks for boundary scan testing added.
@@ -66,7 +70,9 @@
 //
 //
 
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
 `include "dbg_defines.v"
 
 module dbg_registers(DataIn, DataOut, Address, RW, Access, Clk, Bp, Reset, 

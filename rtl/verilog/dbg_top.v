@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2001/11/14 10:10:41  mohor
+// Wishbone data latched on wb_clk_i instead of risc_clk.
+//
 // Revision 1.10  2001/11/12 01:11:27  mohor
 // Reset signals are not combined any more.
 //
@@ -89,7 +92,9 @@
 //
 //
 
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
 `include "dbg_defines.v"
 
 // Top module
@@ -162,9 +167,6 @@ input         wb_ack_i;
 output        wb_cab_o;
 input         wb_err_i;
 
-reg    [31:0] wb_adr_o;
-reg    [31:0] wb_dat_o;
-reg           wb_we_o;
 reg           wb_cyc_o;
 
 // TAP states
@@ -636,12 +638,26 @@ wire [45:0] Register_Data;
 wire [72:0] WISHBONE_Data;
 wire wb_Access_wbClk;
 
-assign RISC_Data      = {CalculatedCrcOut, RISC_DATAINLatch, 33'h0};
-assign Register_Data  = {CalculatedCrcOut, RegisterReadLatch, 6'h0};
-assign WISHBONE_Data  = {CalculatedCrcOut, WBReadLatch, 32'h0, WBErrorLatch};
+// assign RISC_Data      = {CalculatedCrcOut, RISC_DATAINLatch, 33'h0};
+// assign Register_Data  = {CalculatedCrcOut, RegisterReadLatch, 6'h0};
+// assign WISHBONE_Data  = {CalculatedCrcOut, WBReadLatch, 32'h0, WBErrorLatch};
 
+wire select_crc_out;
+assign select_crc_out = RegisterScanChain   & JTAG_DR_IN[5]   |     // Calculated CRC is returned when read operation is
+                        RiscDebugScanChain  & JTAG_DR_IN[32]  |     // performed, else received crc is returned (loopback).
+                        WishboneScanChain   & JTAG_DR_IN[32]  ;
 
-`ifdef TRACE_ENABLED
+wire [8:0] send_crc;
+
+assign send_crc = select_crc_out? {9{JTAG_DR_IN[BitCounter-1]}}   : // Calculated CRC is returned when read operation is
+                                  {1'b0, CalculatedCrcOut}        ; // performed, else received crc is returned (loopback).
+
+assign RISC_Data      = {send_crc, RISC_DATAINLatch, 33'h0};
+assign Register_Data  = {send_crc, RegisterReadLatch, 6'h0};
+assign WISHBONE_Data  = {send_crc, WBReadLatch, 32'h0, WBErrorLatch};
+                                                  
+                                                  
+`ifdef TRACE_ENABLED                              
   assign Trace_Data     = {CalculatedCrcOut, TraceChain};
 `endif
 
@@ -740,9 +756,6 @@ begin
       RW                <=#Tp 1'b0;
       RegAccessTck      <=#Tp 1'b0;
       RISCAccessTck     <=#Tp 1'b0;
-      wb_adr_o          <=#Tp 32'h0;
-      wb_we_o           <=#Tp 1'h0;
-      wb_dat_o          <=#Tp 32'h0;
       wb_AccessTck      <=#Tp 1'h0;
     end
   else
@@ -766,9 +779,9 @@ begin
       else
       if(WishboneScanChain)
         begin
-          wb_adr_o          <=#Tp JTAG_DR_IN[31:0];   // Latching address for WISHBONE slave access
-          wb_we_o           <=#Tp JTAG_DR_IN[32];     // latch R/W bit
-          wb_dat_o          <=#Tp JTAG_DR_IN[64:33];  // latch data for write
+          ADDR              <=#Tp JTAG_DR_IN[31:0];   // Latching address for WISHBONE slave access
+          RW                <=#Tp JTAG_DR_IN[32];     // latch R/W bit
+          DataOut           <=#Tp JTAG_DR_IN[64:33];  // latch data for write
           wb_AccessTck      <=#Tp 1'b1;               // 
         end
     end
@@ -780,10 +793,14 @@ begin
     end
 end
 
+
+assign wb_adr_o = ADDR;
+assign wb_we_o  = RW;
+assign wb_dat_o = DataOut;
 assign wb_sel_o[3:0] = 4'hf;
 assign wb_cab_o = 1'b0;
-
-
+   
+   
 // Synchronizing the RegAccess signal to risc_clk_i clock
 dbg_sync_clk1_clk2 syn1 (.clk1(risc_clk_i),   .clk2(TCK),           .reset1(wb_rst_i),  .reset2(trst), 
                          .set2(RegAccessTck), .sync_out(RegAccess)
@@ -884,6 +901,7 @@ begin
   else
   if(wb_err_i)
     WBErrorLatch<=#Tp 1'b1;     // Latching wb_err_i while performing WISHBONE access
+  else
   if(wb_ack_i)
     WBErrorLatch<=#Tp 1'b0;     // Clearing status
 end

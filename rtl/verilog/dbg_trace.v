@@ -45,6 +45,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2001/10/19 11:40:01  mohor
+// dbg_timescale.v changed to timescale.v This is done for the simulation of
+// few different cores in a single project.
+//
 // Revision 1.4  2001/09/20 10:11:25  mohor
 // Working version. Few bugs fixed, comments added.
 //
@@ -69,7 +73,9 @@
 //
 
 
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
 `include "dbg_defines.v"
 
 // module Trace

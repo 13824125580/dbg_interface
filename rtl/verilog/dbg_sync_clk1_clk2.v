@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/10/19 11:40:01  mohor
+// dbg_timescale.v changed to timescale.v This is done for the simulation of
+// few different cores in a single project.
+//
 // Revision 1.1.1.1  2001/09/13 13:49:19  mohor
 // Initial official release.
 //
@@ -49,7 +53,9 @@
 //
 // 
 
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
 
 // FF in clock domain 1 is being set by a signal from the clock domain 2
 module dbg_sync_clk1_clk2 (clk1, clk2, reset1, reset2, set2, sync_out);
