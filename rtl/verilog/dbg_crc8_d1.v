@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2002/04/09 14:19:22  mohor
+// Function changed to logic because of some synthesis warnings.
+//
 // Revision 1.5  2001/12/06 10:01:57  mohor
 // Warnings from synthesys tools fixed.
 //
@@ -99,44 +102,44 @@
 `include "dbg_defines.v"
 
 
-module dbg_crc8_d1 (Data, EnableCrc, Reset, SyncResetCrc, CrcOut, Clk);
+module dbg_crc8_d1 (data, enable_crc, reset, sync_rst_crc, crc_out, clk);
 
 parameter Tp = 1;
 
 
-input Data;
-input EnableCrc;
-input Reset;
-input SyncResetCrc;
-input Clk;
+input data;
+input enable_crc;
+input reset;
+input sync_rst_crc;
+input clk;
 
 
-output [7:0] CrcOut;
-reg    [7:0] CrcOut;
+output [7:0] crc_out;
+reg    [7:0] crc_out;
 
 wire [7:0] NewCRC;
 
-assign NewCRC[0] = Data ^ CrcOut[7];
-assign NewCRC[1] = Data ^ CrcOut[0] ^ CrcOut[7];
-assign NewCRC[2] = Data ^ CrcOut[1] ^ CrcOut[7];
-assign NewCRC[3] = CrcOut[2];
-assign NewCRC[4] = CrcOut[3];
-assign NewCRC[5] = CrcOut[4];
-assign NewCRC[6] = CrcOut[5];
-assign NewCRC[7] = CrcOut[6];
+assign NewCRC[0] = data ^ crc_out[7];
+assign NewCRC[1] = data ^ crc_out[0] ^ crc_out[7];
+assign NewCRC[2] = data ^ crc_out[1] ^ crc_out[7];
+assign NewCRC[3] = crc_out[2];
+assign NewCRC[4] = crc_out[3];
+assign NewCRC[5] = crc_out[4];
+assign NewCRC[6] = crc_out[5];
+assign NewCRC[7] = crc_out[6];
   
 
 
-always @ (posedge Clk or posedge Reset)
+always @ (posedge clk or posedge reset)
 begin
-  if(Reset)
-    CrcOut[7:0] <= #Tp 0;
+  if(reset)
+    crc_out[7:0] <= #Tp 0;
   else
-  if(SyncResetCrc)
-    CrcOut[7:0] <= #Tp 0;
+  if(sync_rst_crc)
+    crc_out[7:0] <= #Tp 0;
   else
-  if(EnableCrc)
-    CrcOut[7:0] <= #Tp NewCRC;
+  if(enable_crc)
+    crc_out[7:0] <= #Tp NewCRC;
 end
 
 

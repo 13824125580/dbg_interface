@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2001/11/26 10:47:09  mohor
+// Crc generation is different for read or write commands. Small synthesys fixes.
+//
 // Revision 1.4  2001/10/19 11:40:02  mohor
 // dbg_timescale.v changed to timescale.v This is done for the simulation of
 // few different cores in a single project.
@@ -75,7 +78,7 @@
 // synopsys translate_on
 `include "dbg_defines.v"
 
-module dbg_registers(DataIn, DataOut, Address, RW, Access, Clk, Bp, Reset, 
+module dbg_registers(data_in, data_out, address, rw, access, clk, bp, reset, 
                      `ifdef TRACE_ENABLED
                      ContinMode, 
                      TraceEnable, WpTrigger, BpTrigger, LSSTrigger, 
@@ -87,22 +90,22 @@ module dbg_registers(DataIn, DataOut, Address, RW, Access, Clk, Bp, Reset,
                      WpStop, BpStop, LSSStop, IStop, StopOper, WpStopValid, BpStopValid, 
                      LSSStopValid, IStopValid, 
                      `endif
-                     RiscStall, RiscReset
+                     risc_stall, risc_reset
                     );
 
 parameter Tp = 1;
 
-input [31:0] DataIn;
-input [4:0] Address;
+input [31:0] data_in;
+input [4:0] address;
 
-input RW;
-input Access;
-input Clk;
-input Bp;
-input Reset;
+input rw;
+input access;
+input clk;
+input bp;
+input reset;
 
-output [31:0] DataOut;
-reg    [31:0] DataOut;
+output [31:0] data_out;
+reg    [31:0] data_out;
 
 `ifdef TRACE_ENABLED
   output ContinMode;
@@ -150,37 +153,37 @@ reg    [31:0] DataOut;
   output RecordINSTR;
 `endif
 
-  output RiscStall;
-  output RiscReset;
+  output risc_stall;
+  output risc_reset;
 
-  wire MODER_Acc =   (Address == `MODER_ADR)   & Access;
-  wire RISCOP_Acc =  (Address == `RISCOP_ADR)  & Access;
+  wire MODER_Acc =   (address == `MODER_ADR)   & access;
+  wire RISCOP_Acc =  (address == `RISCOP_ADR)  & access;
 `ifdef TRACE_ENABLED
-  wire TSEL_Acc =    (Address == `TSEL_ADR)    & Access;
-  wire QSEL_Acc =    (Address == `QSEL_ADR)    & Access;
-  wire SSEL_Acc =    (Address == `SSEL_ADR)    & Access;
-  wire RECSEL_Acc =  (Address == `RECSEL_ADR)  & Access;
+  wire TSEL_Acc =    (address == `TSEL_ADR)    & access;
+  wire QSEL_Acc =    (address == `QSEL_ADR)    & access;
+  wire SSEL_Acc =    (address == `SSEL_ADR)    & access;
+  wire RECSEL_Acc =  (address == `RECSEL_ADR)  & access;
 `endif
 
   
-  wire MODER_Wr =   MODER_Acc   &  RW;
-  wire RISCOP_Wr =  RISCOP_Acc  &  RW;
+  wire MODER_Wr =   MODER_Acc   &  rw;
+  wire RISCOP_Wr =  RISCOP_Acc  &  rw;
 `ifdef TRACE_ENABLED
-  wire TSEL_Wr =    TSEL_Acc    &  RW;
-  wire QSEL_Wr =    QSEL_Acc    &  RW;
-  wire SSEL_Wr =    SSEL_Acc    &  RW;
-  wire RECSEL_Wr =  RECSEL_Acc  &  RW;
+  wire TSEL_Wr =    TSEL_Acc    &  rw;
+  wire QSEL_Wr =    QSEL_Acc    &  rw;
+  wire SSEL_Wr =    SSEL_Acc    &  rw;
+  wire RECSEL_Wr =  RECSEL_Acc  &  rw;
 `endif
 
 
   
-  wire MODER_Rd =   MODER_Acc   &  ~RW;
-  wire RISCOP_Rd =  RISCOP_Acc  &  ~RW;
+  wire MODER_Rd =   MODER_Acc   &  ~rw;
+  wire RISCOP_Rd =  RISCOP_Acc  &  ~rw;
 `ifdef TRACE_ENABLED
-  wire TSEL_Rd =    TSEL_Acc    &  ~RW;
-  wire QSEL_Rd =    QSEL_Acc    &  ~RW;
-  wire SSEL_Rd =    SSEL_Acc    &  ~RW;
-  wire RECSEL_Rd =  RECSEL_Acc  &  ~RW;
+  wire TSEL_Rd =    TSEL_Acc    &  ~rw;
+  wire QSEL_Rd =    QSEL_Acc    &  ~rw;
+  wire SSEL_Rd =    SSEL_Acc    &  ~rw;
+  wire RECSEL_Rd =  RECSEL_Acc  &  ~rw;
 `endif
 
 
@@ -204,47 +207,47 @@ reg    [31:0] DataOut;
 
 
   reg RiscStallBp;
-  always @(posedge Clk or posedge Reset)
+  always @(posedge clk or posedge reset)
   begin
-    if(Reset)
+    if(reset)
       RiscStallBp <= 1'b0;
     else
-    if(Bp)                      // Breakpoint sets bit
+    if(bp)                      // Breakpoint sets bit
       RiscStallBp <= 1'b1;
     else
     if(RISCOP_Wr)               // Register access can set or clear bit
-      RiscStallBp <= DataIn[0];
+      RiscStallBp <= data_in[0];
   end
 
-  dbg_register #(1)  RISCOP (.DataIn(DataIn[1]), .DataOut(RISCOPOut[1]), .Write(RISCOP_Wr),   .Clk(Clk), .Reset(Reset), .Default(1'b0));
+  dbg_register #(1)  RISCOP (.data_in(data_in[1]), .data_out(RISCOPOut[1]), .write(RISCOP_Wr),   .clk(clk), .reset(reset), .defaulty(1'b0));
 
 
 `ifdef TRACE_ENABLED
-  dbg_register #(2)  MODER  (.DataIn(DataIn[17:16]), .DataOut(MODEROut[17:16]), .Write(MODER_Wr),   .Clk(Clk), .Reset(Reset), .Default(`MODER_DEF));
-  dbg_register #(32) TSEL   (.DataIn(DataIn),      .DataOut(TSELOut),    .Write(TSEL_Wr),    .Clk(Clk), .Reset(Reset), .Default(`TSEL_DEF));
-  dbg_register #(32) QSEL   (.DataIn(DataIn),      .DataOut(QSELOut),    .Write(QSEL_Wr),    .Clk(Clk), .Reset(Reset), .Default(`QSEL_DEF));
-  dbg_register #(32) SSEL   (.DataIn(DataIn),      .DataOut(SSELOut),    .Write(SSEL_Wr),    .Clk(Clk), .Reset(Reset), .Default(`SSEL_DEF));
-  dbg_register #(7) RECSEL  (.DataIn(DataIn[6:0]), .DataOut(RECSELOut),  .Write(RECSEL_Wr),  .Clk(Clk), .Reset(Reset), .Default(`RECSEL_DEF));
+  dbg_register #(2)  MODER  (.data_in(data_in[17:16]), .data_out(MODEROut[17:16]), .write(MODER_Wr),   .clk(clk), .reset(reset), .defaulty(`MODER_DEF));
+  dbg_register #(32) TSEL   (.data_in(data_in),      .data_out(TSELOut),    .write(TSEL_Wr),    .clk(clk), .reset(reset), .defaulty(`TSEL_DEF));
+  dbg_register #(32) QSEL   (.data_in(data_in),      .data_out(QSELOut),    .write(QSEL_Wr),    .clk(clk), .reset(reset), .defaulty(`QSEL_DEF));
+  dbg_register #(32) SSEL   (.data_in(data_in),      .data_out(SSELOut),    .write(SSEL_Wr),    .clk(clk), .reset(reset), .defaulty(`SSEL_DEF));
+  dbg_register #(7) RECSEL  (.data_in(data_in[6:0]), .data_out(RECSELOut),  .write(RECSEL_Wr),  .clk(clk), .reset(reset), .defaulty(`RECSEL_DEF));
 `endif
 
 
 
-always @ (posedge Clk)
+always @ (posedge clk)
 begin
-  if(MODER_Rd)    DataOut<= #Tp MODEROut;
+  if(MODER_Rd)    data_out<= #Tp MODEROut;
   else
-  if(RISCOP_Rd)   DataOut<= #Tp {30'h0, RISCOPOut[1], RiscStall};
+  if(RISCOP_Rd)   data_out<= #Tp {30'h0, RISCOPOut[1], risc_stall};
 `ifdef TRACE_ENABLED
   else
-  if(TSEL_Rd)     DataOut<= #Tp TSELOut;
+  if(TSEL_Rd)     data_out<= #Tp TSELOut;
   else
-  if(QSEL_Rd)     DataOut<= #Tp QSELOut;
+  if(QSEL_Rd)     data_out<= #Tp QSELOut;
   else
-  if(SSEL_Rd)     DataOut<= #Tp SSELOut;
+  if(SSEL_Rd)     data_out<= #Tp SSELOut;
   else
-  if(RECSEL_Rd)   DataOut<= #Tp {25'h0, RECSELOut};
+  if(RECSEL_Rd)   data_out<= #Tp {25'h0, RECSELOut};
 `endif
-  else            DataOut<= #Tp 'h0;
+  else            data_out<= #Tp 'h0;
 end
 
 `ifdef TRACE_ENABLED
@@ -291,7 +294,7 @@ end
   assign RecordINSTR        = RECSELOut[6];
 `endif
 
-  assign RiscStall          = Bp | RiscStallBp;   // Bp asynchronously sets the RiscStall, then RiscStallBp (from register) holds it active
-  assign RiscReset          = RISCOPOut[1];
+  assign risc_stall          = bp | RiscStallBp;   // bp asynchronously sets the risc_stall, then RiscStallBp (from register) holds it active
+  assign risc_reset          = RISCOPOut[1];
 
 endmodule

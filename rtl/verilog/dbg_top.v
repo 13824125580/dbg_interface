@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.24  2002/04/17 13:17:01  mohor
+// Intentional error removed.
+//
 // Revision 1.23  2002/04/17 11:16:33  mohor
 // A block for checking possible simulation/synthesis missmatch added.
 //
@@ -811,9 +814,9 @@ end
 *   Connecting Registers                                                          *
 *                                                                                 *
 **********************************************************************************/
-dbg_registers dbgregs(.DataIn(DataOut[31:0]), .DataOut(RegDataIn[31:0]), 
-                      .Address(ADDR[4:0]), .RW(RW), .Access(RegAccess & ~RegAccess_q), .Clk(risc_clk_i), 
-                      .Bp(bp_i), .Reset(wb_rst_i), 
+dbg_registers dbgregs(.data_in(DataOut[31:0]), .data_out(RegDataIn[31:0]), 
+                      .address(ADDR[4:0]), .rw(RW), .access(RegAccess & ~RegAccess_q), .clk(risc_clk_i), 
+                      .bp(bp_i), .reset(wb_rst_i), 
                       `ifdef TRACE_ENABLED
                       .ContinMode(ContinMode), .TraceEnable(TraceEnable), 
                       .WpTrigger(WpTrigger), .BpTrigger(BpTrigger), .LSSTrigger(LSSTrigger),
@@ -832,7 +835,7 @@ dbg_registers dbgregs(.DataIn(DataOut[31:0]), .DataOut(RegDataIn[31:0]),
                       .StopOper(StopOper), .WpStopValid(WpStopValid), .BpStopValid(BpStopValid), 
                       .LSSStopValid(LSSStopValid), .IStopValid(IStopValid), 
                       `endif
-                      .RiscStall(RiscStall_reg), .RiscReset(RiscReset_reg)
+                      .risc_stall(RiscStall_reg), .risc_reset(RiscReset_reg)
 
                      );
 
@@ -882,12 +885,12 @@ wire EnableCrcOut= ShiftDR &
                    );
 
 // Calculating crc for input data
-dbg_crc8_d1 crc1 (.Data(tdi), .EnableCrc(EnableCrcIn), .Reset(AsyncResetCrc), .SyncResetCrc(SyncResetCrc), 
-                  .CrcOut(CalculatedCrcIn), .Clk(tck));
+dbg_crc8_d1 crc1 (.data(tdi), .enable_crc(EnableCrcIn), .reset(AsyncResetCrc), .sync_rst_crc(SyncResetCrc), 
+                  .crc_out(CalculatedCrcIn), .clk(tck));
 
 // Calculating crc for output data
-dbg_crc8_d1 crc2 (.Data(TDOData), .EnableCrc(EnableCrcOut), .Reset(AsyncResetCrc), .SyncResetCrc(SyncResetCrc), 
-                  .CrcOut(CalculatedCrcOut), .Clk(tck));
+dbg_crc8_d1 crc2 (.data(TDOData), .enable_crc(EnableCrcOut), .reset(AsyncResetCrc), .sync_rst_crc(SyncResetCrc), 
+                  .crc_out(CalculatedCrcOut), .clk(tck));
 
 
 // Generating CrcMatch signal
