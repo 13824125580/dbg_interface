@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2004/01/13 11:28:14  mohor
+// tmp version.
+//
 // Revision 1.9  2004/01/10 07:50:24  mohor
 // temp version.
 //
@@ -193,6 +196,7 @@ wire          status_cnt_end;
 
 wire          byte, half, long;
 reg           byte_q, half_q, long_q;
+reg           byte_q2, half_q2, long_q2;
 reg           cmd_read;
 reg           cmd_write;
 reg           cmd_go;
@@ -218,6 +222,7 @@ reg [399:0] latching_data;
 
 reg set_addr, set_addr_sync, set_addr_wb, set_addr_wb_q;
 reg read_cycle;
+reg write_cycle;
 reg [2:0] read_type;
 wire [31:0] input_data;
 
@@ -304,11 +309,14 @@ begin
                     end
       endcase
     end
-  else if (enable & ((~addr_len_cnt_end) | (~cmd_cnt_end) | (~data_cnt_end)))
+//  else if (enable & ((~addr_len_cnt_end) | (~cmd_cnt_end) | (~data_cnt_end)))
+  else if (enable & ((~addr_len_cnt_end) | (~cmd_cnt_end) | ((~data_cnt_end) & write_cycle)))
     begin
     dr <= #1 {dr[49:0], tdi_i};
     latching_data = "tdi shifted in";
     end
+  else
+    latching_data = "nothing";
 end
 
 
@@ -372,6 +380,9 @@ begin
       byte_q <= #1 byte;
       half_q <= #1 half;
       long_q <= #1 long;
+      byte_q2 <= #1 byte_q;
+      half_q2 <= #1 half_q;
+      long_q2 <= #1 long_q;
 //    end
 end
 
@@ -419,19 +430,32 @@ begin
 end
     
 
-    
+wire go_prelim;
+
+assign go_prelim = (cmd_cnt == 2'h2) & dr[1] & (~dr[0]) & (~tdi_i); 
+
+/*
 always @ (posedge tck_i)
 begin
   if (update_dr_i)
     data_cnt_limit = 19'h0;
-  else if (((cmd_cnt == 2'h2) & dr[1] & (~dr[0]) & (~tdi_i) & cmd_write) | // current command is WB_GO and previous command is WB_WRITEx)
-           (crc_cnt_31 & dr_go_latched & cmd_read)                         // current command is WB_GO and previous command is WB_READx)  
+//  else if (((cmd_cnt == 2'h2) & dr[1] & (~dr[0]) & (~tdi_i) & cmd_write) | // current command is WB_GO and previous command is WB_WRITEx)
+  else if ( go_prelim & cmd_write  |                                       // current command is WB_GO and previous command is WB_WRITEx)
+            crc_cnt_31 & dr_go_latched & cmd_read                          // current command is WB_GO and previous command is WB_READx)  
           )
+    data_cnt_limit = {len, 3'b000};
+end
+*/
+
+always @ (posedge tck_i)
+begin
+  if (update_dr_i)
     data_cnt_limit = {len, 3'b000};
 end
 
 
-assign crc_cnt_en = enable & cmd_cnt_end & addr_len_cnt_end & data_cnt_end & (~crc_cnt_end);
+//assign crc_cnt_en = enable & cmd_cnt_end & addr_len_cnt_end & data_cnt_end & (~crc_cnt_end);
+assign crc_cnt_en = enable & (~crc_cnt_end) & (cmd_cnt_end & addr_len_cnt_end  & (~write_cycle) | (data_cnt_end & write_cycle));
 
 // crc counter
 always @ (posedge tck_i or posedge trst_i)
@@ -465,9 +489,11 @@ begin
     status_cnt1 <= #1 1'b0;
   else if (update_dr_i)
     status_cnt1 <= #1 1'b0;
-//  else if (data_cnt_end & (~data_cnt_end_q) & cmd_old_read & dr_go_latched |
-  else if (data_cnt_end & (~data_cnt_end_q) & read_cycle |
-           crc_cnt_end & (~crc_cnt_end_q) & (~(cmd_read & dr_go_latched))       // cmd is not changed, yet.
+//  else if (data_cnt_end & (~data_cnt_end_q) & read_cycle |
+//           crc_cnt_end & (~crc_cnt_end_q) & (~(cmd_read & dr_go_latched))       // cmd is not changed, yet.
+//          )
+  else if (data_cnt_end & read_cycle |
+           crc_cnt_end & (~(cmd_read & dr_go_latched))       // cmd is not changed, yet.
           )
     status_cnt1 <= #1 1'b1;
 end
@@ -549,7 +575,7 @@ begin
     tdo_o = dr[31];
     TDO_WISHBONE = "read data";
     end
-  else if (data_cnt_end & (~data_cnt_end_q) & read_cycle)     // cmd is already updated
+  else if (read_cycle & data_cnt_end & (~data_cnt_end_q))     // cmd is already updated
     begin
       tdo_o = crc_match_reg;
       TDO_WISHBONE = "crc_match_reg";
@@ -654,9 +680,9 @@ assign len_eq_0 = len == 16'h0;
 // Start wishbone read cycle
 always @ (posedge tck_i)
 begin
-  if (cmd_cnt_end & (~cmd_cnt_end_q) & cmd_read & dr_go)                  // First read after cmd is entered        igor !!! Add something to block too many accesses.
+  if (cmd_read & go_prelim)                                                             // First read after cmd is entered
     start_rd_tck <= #1 1'b1;
-  else if (read_cycle & dr_go_latched & crc_cnt_end & (~crc_cnt_end_q) & (~len_eq_0))   // Second read after first data is latched  igor !!! Add something to block too many accesses.
+  else if (read_cycle & dr_go_latched & crc_cnt_end & (~crc_cnt_end_q) & (~len_eq_0))   // Second read after first data is latched
     start_rd_tck <= #1 1'b1;
   else if (read_cycle & (~len_eq_0))
     begin
@@ -690,15 +716,27 @@ always @ (posedge tck_i)
 begin
   if (update_dr_i)
     read_cycle <= #1 1'b0;
-  else if (cmd_cnt_end & (~cmd_cnt_end_q) & cmd_read & dr_go)
+//  else if (cmd_cnt_end & (~cmd_cnt_end_q) & cmd_read & dr_go)
+  else if (cmd_read & go_prelim)
     read_cycle <= #1 1'b1;
 end
 
 
 always @ (posedge tck_i)
 begin
-  if (cmd_cnt_end & (~cmd_cnt_end_q) & cmd_read & dr_go)
+//  if (cmd_cnt_end & (~cmd_cnt_end_q) & cmd_read & dr_go)
+  if (cmd_read & go_prelim)
     read_type <= #1 cmd;
+end
+
+
+always @ (posedge tck_i)
+begin
+  if (update_dr_i)
+    write_cycle <= #1 1'b0;
+//  else if (cmd_cnt_end & (~cmd_cnt_end_q) & cmd_write & dr_go)
+  else if (cmd_write & go_prelim)
+    write_cycle <= #1 1'b1;
 end
 
 
@@ -712,7 +750,7 @@ begin
     begin
       case (cmd)  // synthesis parallel_case full_case
         `WB_WRITE8  : begin
-                        if (byte & (~byte_q))
+                        if (byte_q & (~byte_q2))
                           begin
                             start_wr_tck <= #1 1'b1;
                             wb_dat_o <= #1 {4{dr[7:0]}};
@@ -723,7 +761,7 @@ begin
                           end
                       end
         `WB_WRITE16 : begin
-                        if (half & (~half_q))
+                        if (half_q & (~half_q2))
                           begin
                             start_wr_tck <= #1 1'b1;
                             wb_dat_o <= #1 {2{dr[15:0]}};
@@ -734,7 +772,7 @@ begin
                           end
                       end
         `WB_WRITE32 : begin
-                        if (long & (~long_q))
+                        if (long_q & (~long_q2))
                           begin
                             start_wr_tck <= #1 1'b1;
                             wb_dat_o <= #1 dr[31:0];
