@@ -12,12 +12,12 @@
 ////       igorm@opencores.org                                    ////
 ////                                                              ////
 ////                                                              ////
-////  All additional information is avaliable in the README.txt   ////
+////  All additional information is available in the README.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2000,2001 Authors                              ////
+//// Copyright (C) 2000,2001, 2002 Authors                        ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.27  2002/10/10 02:42:55  mohor
+// WISHBONE Scan Chain is changed to reflect state of the WISHBONE access (WBInProgress bit added). Internal counter is used (counts 256 wb_clk cycles) and when counter exceeds that value, wb_cyc_o is negated.
+//
 // Revision 1.26  2002/05/07 14:43:59  mohor
 // mon_cntl_o signals that controls monitor mux added.
 //
@@ -349,7 +352,7 @@ wire BitCounter_Lt65;
 `endif
 
 
-assign trst = ~trst_in;                   // trst_pad_i is active low
+assign trst = trst_in;                   // trst_pad_i is active high !!! Inverted on higher layer.
 
 
 /**********************************************************************************
