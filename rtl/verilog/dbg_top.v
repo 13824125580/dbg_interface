@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.38  2004/01/18 09:22:47  simons
+// Sensitivity list updated.
+//
 // Revision 1.37  2004/01/17 17:01:14  mohor
 // Almost finished.
 //
@@ -318,11 +321,11 @@ wire shift_crc;
 always @ (posedge tck_i or posedge wb_rst_i)
 begin
   if (wb_rst_i)
-    data_cnt <= #1 'h0;
+    data_cnt <= #1 {`DATA_CNT{1'b0}};
   else if(shift_dr_i & (~data_cnt_end))
     data_cnt <= #1 data_cnt + 1'b1;
   else if (update_dr_i)
-    data_cnt <= #1 'h0;
+    data_cnt <= #1 {`DATA_CNT{1'b0}};
 end
 
 
@@ -333,11 +336,11 @@ assign data_cnt_end = data_cnt == `CHAIN_DATA_LEN;
 always @ (posedge tck_i or posedge wb_rst_i)
 begin
   if (wb_rst_i)
-    crc_cnt <= #1 'h0;
+    crc_cnt <= #1 {`CRC_CNT{1'b0}};
   else if(shift_dr_i & data_cnt_end & (~crc_cnt_end) & chain_select)
     crc_cnt <= #1 crc_cnt + 1'b1;
   else if (update_dr_i)
-    crc_cnt <= #1 'h0;
+    crc_cnt <= #1 {`CRC_CNT{1'b0}};
 end
 
 assign crc_cnt_end = crc_cnt == `CRC_LEN;
@@ -355,11 +358,11 @@ always @ (posedge tck_i)
 always @ (posedge tck_i or posedge wb_rst_i)
 begin
   if (wb_rst_i)
-    status_cnt <= #1 'h0;
+    status_cnt <= #1 {`STATUS_CNT{1'b0}};
   else if(shift_dr_i & crc_cnt_end & (~status_cnt_end))
     status_cnt <= #1 status_cnt + 1'b1;
   else if (update_dr_i)
-    status_cnt <= #1 'h0;
+    status_cnt <= #1 {`STATUS_CNT{1'b0}};
 end
 
 assign status_cnt_end = status_cnt == `STATUS_LEN;

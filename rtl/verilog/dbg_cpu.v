@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2004/01/17 18:38:11  mohor
+// cpu_tall_o is set with cpu_stb_o or register.
+//
 // Revision 1.3  2004/01/17 18:01:24  mohor
 // New version.
 //
@@ -129,7 +132,6 @@ output        cpu_rst_o;
 
                                                                                 
 reg           tdo_o;
-reg   [799:0] tdo_text;
 
 wire          cmd_cnt_en;
 reg     [1:0] cmd_cnt;
@@ -151,7 +153,6 @@ reg           data_cnt_end_q;
 wire          status_cnt_end;
 reg           status_cnt1, status_cnt2, status_cnt3, status_cnt4;
 reg     [3:0] status;
-reg   [199:0] status_text;
 
 reg           crc_match_reg;
 wire          enable;
@@ -193,7 +194,6 @@ reg           reg_access;
 
 reg    [31:0] adr;
 reg           set_addr;
-reg   [199:0] latching_data_text;
 reg           cpu_ack_sync;
 reg           cpu_ack_tck;
 reg           cpu_ack_tck_q;
@@ -219,9 +219,9 @@ assign cmd_cnt_en = enable & (~cmd_cnt_end);
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    cmd_cnt <= #1 'h0;
+    cmd_cnt <= #1 2'h0;
   else if (update_dr_i)
-    cmd_cnt <= #1 'h0;
+    cmd_cnt <= #1 2'h0;
   else if (cmd_cnt_en)
     cmd_cnt <= #1 cmd_cnt + 1'b1;
 end
@@ -234,9 +234,9 @@ assign addr_cnt_en = enable & cmd_cnt_end & (~addr_cnt_end);
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    addr_cnt <= #1 'h0;
+    addr_cnt <= #1 6'h0;
   else if (update_dr_i)
-    addr_cnt <= #1 'h0;
+    addr_cnt <= #1 6'h0;
   else if (addr_cnt_en)
     addr_cnt <= #1 addr_cnt + 1'b1;
 end
@@ -249,9 +249,9 @@ assign data_cnt_en = enable & (~data_cnt_end) & (cmd_cnt_end & write_cycle | crc
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    data_cnt <= #1 'h0;
+    data_cnt <= #1 6'h0;
   else if (update_dr_i)
-    data_cnt <= #1 'h0;
+    data_cnt <= #1 6'h0;
   else if (data_cnt_en)
     data_cnt <= #1 data_cnt + 1'b1;
 end
@@ -264,11 +264,11 @@ assign crc_cnt_en = enable & (~crc_cnt_end) & (cmd_cnt_end & addr_cnt_end  & (~w
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    crc_cnt <= #1 'h0;
+    crc_cnt <= #1 6'h0;
   else if(crc_cnt_en)
     crc_cnt <= #1 crc_cnt + 1'b1;
   else if (update_dr_i)
-    crc_cnt <= #1 'h0;
+    crc_cnt <= #1 6'h0;
 end
 
 
@@ -366,7 +366,6 @@ begin
   if (reg_access)
     begin
       dr[31:24] <= #1 reg_data_out;
-      latching_data_text = "Latch reg data";
     end
   else if (cpu_ack_tck & (~cpu_ack_tck_q) & read_cycle_cpu)
     begin
@@ -374,15 +373,11 @@ begin
         dr[31:0] <= #1 cpu_data_i;
       else
         dr[31:24] <= #1 cpu_data_i[7:0];
-      latching_data_text = "Latch cpu data";
     end
   else if (enable & ((~addr_cnt_end) | (~cmd_cnt_end) | ((~data_cnt_end) & write_cycle) | (crc_cnt_end & (~data_cnt_end) & read_cycle)))
     begin
       dr <= #1 {dr[33:0], tdi_i};
-      latching_data_text = "shifting data";
     end
-  else
-    latching_data_text = "nothing";
 end
 
 
@@ -592,23 +587,19 @@ always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
     begin
-    status <= #1 'h0;
-    status_text <= #1 "reset";
+    status <= #1 4'h0;
     end
   else if(crc_cnt_end & (~crc_cnt_end_q) & (~read_cycle))
     begin
     status <= #1 {crc_match_i, 1'b0, 1'b1, 1'b0};
-    status_text <= #1 "!!!READ";
     end
   else if (data_cnt_end & (~data_cnt_end_q) & read_cycle)
     begin
     status <= #1 {crc_match_reg, 1'b0, 1'b1, 1'b0};
-    status_text <= #1 "READ";
     end
   else if (shift_dr_i & (~status_cnt_end))
     begin
     status <= #1 {status[0], status[3:1]};
-    status_text <= #1 "shift";
     end
 end
 // Following status is shifted out:
@@ -626,27 +617,22 @@ begin
   if (crc_cnt_end & (~crc_cnt_end_q) & (~(read_cycle)))
     begin
       tdo_o = crc_match_i;
-      tdo_text = "crc_match_i";
     end
   else if (read_cycle & crc_cnt_end & (~data_cnt_end))
     begin
     tdo_o = dr[31];
-    tdo_text = "read data";
     end
   else if (read_cycle & data_cnt_end & (~data_cnt_end_q))     // cmd is already updated
     begin
       tdo_o = crc_match_reg;
-      tdo_text = "crc_match_reg";
     end
   else if (crc_cnt_end)
     begin
       tdo_o = status[0];
-      tdo_text = "status";
     end
   else
     begin
       tdo_o = 1'b0;
-      tdo_text = "zero while CRC is shifted in";
     end
 end
 

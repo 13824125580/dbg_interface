@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2004/01/17 18:01:24  mohor
+// New version.
+//
 // Revision 1.14  2004/01/16 14:51:33  mohor
 // cpu registers added.
 //
@@ -228,10 +231,7 @@ reg           wb_end_rst_sync;
 reg           wb_end_sync;
 reg           wb_end_tck, wb_end_tck_q;
 reg           busy_sync;
-reg   [799:0] tdo_text;
-reg   [399:0] latching_data_text;
 reg           latch_data;
-reg   [199:0] status_text;
 
 reg           set_addr, set_addr_sync, set_addr_wb, set_addr_wb_q;
 reg           read_cycle;
@@ -278,7 +278,6 @@ begin
     begin
       dr[31:0] <= #1 input_data[31:0];
       latch_data <= #1 1'b1;
-      latching_data_text <= #1 "First latch";
     end
   else if (read_cycle & crc_cnt_end)
     begin
@@ -293,13 +292,11 @@ begin
                             2'b11 : dr[31:24] <= #1 input_data[7:0];
                           endcase
                           latch_data <= #1 1'b1;
-                          latching_data_text <= #1 "8 bit latched";
                         end
                       else
                         begin
                           dr[31:24] <= #1 {dr[30:24], 1'b0};
                           latch_data <= #1 1'b0;
-                          latching_data_text <= #1 "8 bit shifted";
                         end
                     end
         `WB_READ16: begin
@@ -309,14 +306,12 @@ begin
                             dr[31:16] <= #1 input_data[15:0];
                           else
                             dr[31:16] <= #1 input_data[31:16];
-                          latching_data_text <= #1 "16 bit latched";
                           latch_data <= #1 1'b1;
                         end
                       else
                         begin
                           dr[31:16] <= #1 {dr[30:16], 1'b0};
                           latch_data <= #1 1'b0;
-                          latching_data_text <= #1 "16 bit shifted";
                         end
                     end
         `WB_READ32: begin
@@ -324,13 +319,11 @@ begin
                         begin
                           dr[31:0] <= #1 input_data[31:0];
                           latch_data <= #1 1'b1;
-                          latching_data_text <= #1 "32 bit latched";
                         end
                       else
                         begin
                           dr[31:0] <= #1 {dr[30:0], 1'b0};
                           latch_data <= #1 1'b0;
-                          latching_data_text <= #1 "32 bit shifted";
                         end
                     end
       endcase
@@ -339,10 +332,7 @@ begin
     begin
       dr <= #1 {dr[49:0], tdi_i};
       latch_data <= #1 1'b0;
-      latching_data_text <= #1 "tdi shifted in";
     end
-  else
-    latching_data_text <= #1 "nothing";
 end
 
 
@@ -353,9 +343,9 @@ assign cmd_cnt_en = enable & (~cmd_cnt_end);
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    cmd_cnt <= #1 'h0;
+    cmd_cnt <= #1 2'h0;
   else if (update_dr_i)
-    cmd_cnt <= #1 'h0;
+    cmd_cnt <= #1 2'h0;
   else if (cmd_cnt_en)
     cmd_cnt <= #1 cmd_cnt + 1'b1;
 end
@@ -368,9 +358,9 @@ assign addr_len_cnt_en = enable & cmd_cnt_end & (~addr_len_cnt_end);
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    addr_len_cnt <= #1 'h0;
+    addr_len_cnt <= #1 6'h0;
   else if (update_dr_i)
-    addr_len_cnt <= #1 'h0;
+    addr_len_cnt <= #1 6'h0;
   else if (addr_len_cnt_en)
     addr_len_cnt <= #1 addr_len_cnt + 1'b1;
 end
@@ -383,9 +373,9 @@ assign data_cnt_en = enable & (~data_cnt_end) & (cmd_cnt_end & write_cycle | crc
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    data_cnt <= #1 'h0;
+    data_cnt <= #1 19'h0;
   else if (update_dr_i)
-    data_cnt <= #1 'h0;
+    data_cnt <= #1 19'h0;
   else if (data_cnt_en)
     data_cnt <= #1 data_cnt + 1'b1;
 end
@@ -408,8 +398,8 @@ begin
 end
 
 
-assign dr_read = (dr[2:0] == `WB_READ8) | (dr[2:0] == `WB_READ16) | (dr[2:0] == `WB_READ32);
-assign dr_write = (dr[2:0] == `WB_WRITE8) | (dr[2:0] == `WB_WRITE16) | (dr[2:0] == `WB_WRITE32);
+assign dr_read = (dr[2:0] == `WB_READ8) || (dr[2:0] == `WB_READ16) || (dr[2:0] == `WB_READ32);
+assign dr_write = (dr[2:0] == `WB_WRITE8) || (dr[2:0] == `WB_WRITE16) || (dr[2:0] == `WB_WRITE32);
 assign dr_go = dr[2:0] == `WB_GO;
 
 
@@ -464,11 +454,11 @@ assign crc_cnt_en = enable & (~crc_cnt_end) & (cmd_cnt_end & addr_len_cnt_end  &
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    crc_cnt <= #1 'h0;
+    crc_cnt <= #1 6'h0;
   else if(crc_cnt_en)
     crc_cnt <= #1 crc_cnt + 1'b1;
   else if (update_dr_i)
-    crc_cnt <= #1 'h0;
+    crc_cnt <= #1 6'h0;
 end
 
 assign cmd_cnt_end  = cmd_cnt  == 2'h3;
@@ -530,23 +520,19 @@ always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
     begin
-    status <= #1 'h0;
-    status_text <= #1 "reset";
+    status <= #1 {`STATUS_LEN{1'b0}};
     end
   else if(crc_cnt_end & (~crc_cnt_end_q) & (~read_cycle))
     begin
     status <= #1 {crc_match_i, wb_error_tck, wb_overrun_tck, busy_tck};
-    status_text <= #1 "!!!READ";
     end
   else if (data_cnt_end & (~data_cnt_end_q) & read_cycle)
     begin
     status <= #1 {crc_match_reg, wb_error_tck, underrun_tck, busy_tck};
-    status_text <= #1 "READ";
     end
   else if (shift_dr_i & (~status_cnt_end))
     begin
     status <= #1 {status[0], status[`STATUS_LEN -1:1]};
-    status_text <= #1 "shift";
     end
 end
 // Following status is shifted out:
@@ -564,32 +550,26 @@ begin
   if (pause_dr_i)
     begin
     tdo_o = busy_tck;
-    tdo_text = "busy_tck";
     end
   else if (crc_cnt_end & (~crc_cnt_end_q) & (~(read_cycle)))
     begin
       tdo_o = crc_match_i;
-      tdo_text = "crc_match_i";
     end
   else if (read_cycle & crc_cnt_end & (~data_cnt_end))
     begin
     tdo_o = dr[31];
-    tdo_text = "read data";
     end
   else if (read_cycle & data_cnt_end & (~data_cnt_end_q))     // cmd is already updated
     begin
       tdo_o = crc_match_reg;
-      tdo_text = "crc_match_reg";
     end
   else if (crc_cnt_end & data_cnt_end)  // cmd is already updated
     begin
       tdo_o = status[0];
-      tdo_text = "status";
     end
   else
     begin
       tdo_o = 1'b0;
-      tdo_text = "zero while CRC is shifted in";
     end
 end
 
@@ -607,8 +587,8 @@ always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
     begin
-      cmd <= #1 'h0;
-      cmd_old <= #1 'h0;
+      cmd <= #1 3'h0;
+      cmd_old <= #1 3'h0;
       cmd_read <= #1 1'b0; 
       cmd_write <= #1 1'b0; 
       cmd_go <= #1 1'b0;
@@ -962,7 +942,7 @@ end
 always @ (posedge wb_clk_i)
 begin
   if(wishbone_ce_rst)
-    mem_ptr <= #1 'h0;
+    mem_ptr <= #1 3'h0;
   else if (wb_ack_i)
     begin
       if (rw_type == `WB_READ8)
@@ -1013,7 +993,7 @@ assign input_data = {mem[0], mem[1], mem[2], mem[3]};
 always @ (posedge tck_i)
 begin
   if (update_dr_i)
-    fifo_cnt <= #1 'h0;
+    fifo_cnt <= #1 3'h0;
   else if (wb_end_tck & (~wb_end_tck_q) & (~latch_data))  // incrementing
     begin
       case (rw_type)  // synthesis parallel_case full_case
