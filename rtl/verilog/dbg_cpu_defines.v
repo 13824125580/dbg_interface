@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2004/01/17 17:01:14  mohor
+// Almost finished.
+//
 // Revision 1.1  2004/01/16 14:53:33  mohor
 // *** empty log message ***
 //
@@ -72,4 +75,9 @@
 `define CPU_OP_ADR     2'd0
 `define CPU_SEL_ADR    2'd1
 
+// Defining length of the CRC
+`define DBG_CPU_CRC_LEN     32
+
+// Defining length of the status
+`define DBG_CPU_STATUS_LEN  4
 

@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2004/01/25 14:04:18  mohor
+// All flipflops are reset.
+//
 // Revision 1.3  2004/01/22 10:16:08  mohor
 // cpu_stall_o activated as soon as bp occurs.
 //
@@ -192,7 +195,7 @@ assign cpu_stall_o = bp_i | stall_bp | stall_reg_cpu;
 
 
 dbg_register #(2, 0)          CPUOP  (.data_in(data_i[2:1]),           .data_out(cpu_op_out[2:1]), .write(cpuop_wr),       .clk(clk_i),     .reset(rst_i));
-dbg_register #(`CPU_NUM, 0)   CPUSEL (.data_in(data_i[`CPU_NUM-1:0]),  .data_out(cpu_sel_out),     .write(cpusel_wr_cpu),  .clk(cpu_clk_i), .reset(rst_i)); // cpu_cli_i
+dbg_register #(`CPU_NUM, `CPU_NUM'h1)   CPUSEL (.data_in(data_i[`CPU_NUM-1:0]),  .data_out(cpu_sel_out),     .write(cpusel_wr_cpu),  .clk(cpu_clk_i), .reset(rst_i)); // cpu_cli_i
 
 
 always @ (posedge clk_i or posedge rst_i)

@@ -43,6 +43,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.42  2004/01/30 10:24:31  mohor
+// Defines WISHBONE_SUPPORTED and CPU_SUPPORTED added. By default both are
+// turned on.
+//
 // Revision 1.41  2004/01/25 14:04:18  mohor
 // All flipflops are reset.
 //
@@ -277,7 +281,7 @@ input         wb_err_i;
 output  [2:0] wb_cti_o;
 output  [1:0] wb_bte_o;
 
-reg           wishbone_scan_chain;
+reg           wishbone_module;
 reg           wishbone_ce;
 wire          tdi_wb;
 wire          tdo_wb;
@@ -303,7 +307,7 @@ output        cpu_we_o;
 input         cpu_ack_i;
 output        cpu_rst_o;
 
-reg           cpu_debug_scan_chain;
+reg           cpu_debug_module;
 reg           cpu_ce;
 wire          tdi_cpu;
 wire          tdo_cpu;
@@ -317,17 +321,17 @@ wire          shift_crc_cpu = 1'b0;
 
 reg [`DATA_CNT -1:0]        data_cnt;
 reg [`CRC_CNT -1:0]         crc_cnt;
-reg [`STATUS_CNT -1:0]      status_cnt;
-reg [`CHAIN_DATA_LEN -1:0]  chain_dr;
-reg [`CHAIN_ID_LENGTH -1:0] chain; 
+reg [`DBG_TOP_STATUS_CNT_WIDTH -1:0]      status_cnt;
+reg [`MODULE_DATA_LEN -1:0]  module_dr;
+reg [`MODULE_ID_LENGTH -1:0] module_id; 
 
-wire chain_latch_en;
+wire module_latch_en;
 wire data_cnt_end;
 wire crc_cnt_end;
 wire status_cnt_end;
 reg  crc_cnt_end_q;
-reg  chain_select;
-reg  chain_select_error;
+reg  module_select;
+reg  module_select_error;
 wire crc_out;
 wire crc_match;
 
@@ -353,7 +357,7 @@ begin
 end
 
 
-assign data_cnt_end = data_cnt == `CHAIN_DATA_LEN;
+assign data_cnt_end = data_cnt == `MODULE_DATA_LEN;
 
 
 // crc counter
@@ -361,13 +365,13 @@ always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
     crc_cnt <= #1 {`CRC_CNT{1'b0}};
-  else if(shift_dr_i & data_cnt_end & (~crc_cnt_end) & chain_select)
+  else if(shift_dr_i & data_cnt_end & (~crc_cnt_end) & module_select)
     crc_cnt <= #1 crc_cnt + 1'b1;
   else if (update_dr_i)
     crc_cnt <= #1 {`CRC_CNT{1'b0}};
 end
 
-assign crc_cnt_end = crc_cnt == `CRC_LEN;
+assign crc_cnt_end = crc_cnt == `DBG_TOP_CRC_LEN;
 
 
 always @ (posedge tck_i or posedge rst_i)
@@ -383,14 +387,14 @@ end
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    status_cnt <= #1 {`STATUS_CNT{1'b0}};
+    status_cnt <= #1 {`DBG_TOP_STATUS_CNT_WIDTH{1'b0}};
   else if(shift_dr_i & crc_cnt_end & (~status_cnt_end))
     status_cnt <= #1 status_cnt + 1'b1;
   else if (update_dr_i)
-    status_cnt <= #1 {`STATUS_CNT{1'b0}};
+    status_cnt <= #1 {`DBG_TOP_STATUS_CNT_WIDTH{1'b0}};
 end
 
-assign status_cnt_end = status_cnt == `STATUS_LEN;
+assign status_cnt_end = status_cnt == `DBG_TOP_STATUS_LEN;
 
 
 assign selecting_command = shift_dr_i & (data_cnt == `DATA_CNT'h0) & debug_select_i;
@@ -399,45 +403,45 @@ assign selecting_command = shift_dr_i & (data_cnt == `DATA_CNT'h0) & debug_selec
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    chain_select <= #1 1'b0;
+    module_select <= #1 1'b0;
   else if(selecting_command & tdi_i)       // Chain select
-    chain_select <= #1 1'b1;
+    module_select <= #1 1'b1;
   else if (update_dr_i)
-    chain_select <= #1 1'b0;
+    module_select <= #1 1'b0;
 end
 
 
-always @ (chain)
+always @ (module_id)
 begin
   `ifdef CPU_SUPPORTED
-  cpu_debug_scan_chain  <= #1 1'b0;
+  cpu_debug_module  <= #1 1'b0;
   `endif
   `ifdef WISHBONE_SUPPORTED
-  wishbone_scan_chain   <= #1 1'b0;
+  wishbone_module   <= #1 1'b0;
   `endif
-  chain_select_error    <= #1 1'b0;
+  module_select_error    <= #1 1'b0;
   
-  case (chain)                /* synthesis parallel_case */
+  case (module_id)                /* synthesis parallel_case */
     `ifdef CPU_SUPPORTED
-      `CPU_DEBUG_CHAIN      :   cpu_debug_scan_chain  <= #1 1'b1;
+      `CPU_DEBUG_MODULE     :   cpu_debug_module  <= #1 1'b1;
     `endif
     `ifdef WISHBONE_SUPPORTED
-      `WISHBONE_DEBUG_CHAIN :   wishbone_scan_chain   <= #1 1'b1;
+      `WISHBONE_DEBUG_MODULE:   wishbone_module   <= #1 1'b1;
     `endif
-    default                 :   chain_select_error    <= #1 1'b1; 
+    default                 :   module_select_error    <= #1 1'b1; 
   endcase
 end
 
 
-assign chain_latch_en = chain_select & crc_cnt_end & (~crc_cnt_end_q);
+assign module_latch_en = module_select & crc_cnt_end & (~crc_cnt_end_q);
 
 
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    chain <= `CHAIN_ID_LENGTH'b111;
-  else if(chain_latch_en & crc_match)
-    chain <= #1 chain_dr[`CHAIN_DATA_LEN -1:1];
+    module_id <= {`MODULE_ID_LENGTH{1'b1}};
+  else if(module_latch_en & crc_match)
+    module_id <= #1 module_dr[`MODULE_DATA_LEN -2:0];
 end
 
 
@@ -447,9 +451,9 @@ assign data_shift_en = shift_dr_i & (~data_cnt_end);
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    chain_dr <= #1 `CHAIN_DATA_LEN'h0;
+    module_dr <= #1 `MODULE_DATA_LEN'h0;
   else if (data_shift_en)
-    chain_dr[`CHAIN_DATA_LEN -1:0] <= #1 {tdi_i, chain_dr[`CHAIN_DATA_LEN -1:1]};
+    module_dr[`MODULE_DATA_LEN -1:0] <= #1 {module_dr[`MODULE_DATA_LEN -2:0], tdi_i};
 end
 
 
@@ -467,7 +471,7 @@ dbg_crc32_d1 i_dbg_crc32_d1_in
              );
 
 
-reg tdo_chain_select;
+reg tdo_module_select;
 wire crc_en;
 wire crc_en_dbg;
 reg crc_started;
@@ -505,36 +509,29 @@ dbg_crc32_d1 i_dbg_crc32_d1_out
              );
 
 // Following status is shifted out: 
-// 1. bit:          1 if crc is OK, else 0
-// 2. bit:          1 if command is "chain select", else 0
-// 3. bit:          1 if non-existing chain is selected else 0
-// 4. bit:          always 1
+// 1. bit:          0 if crc is OK, else 1
+// 2. bit:          0 if command is "module_id select", else 1
+// 3. bit:          0 if existing module_id is selected else, 1 if non-existing module_id is selected
+// 4. bit:          0 (always)
 
-reg [799:0] current_on_tdo;
 
-always @ (status_cnt or chain_select or crc_match or chain_select_error or crc_out)
+always @ (status_cnt or module_select or crc_match or module_select_error or crc_out)
 begin
   case (status_cnt)                   /* synthesis full_case parallel_case */ 
-    `STATUS_CNT'd0  : begin
-                        tdo_chain_select = crc_match;
-                        current_on_tdo = "crc_match";
+    `DBG_TOP_STATUS_CNT_WIDTH'd0  : begin
+                        tdo_module_select = ~crc_match;
                       end
-    `STATUS_CNT'd1  : begin
-                        tdo_chain_select = chain_select;
-                        current_on_tdo = "chain_select";
+    `DBG_TOP_STATUS_CNT_WIDTH'd1  : begin
+                        tdo_module_select = ~module_select;
                       end
-    `STATUS_CNT'd2  : begin
-                        tdo_chain_select = chain_select_error;
-                        current_on_tdo = "chain_select_error";
+    `DBG_TOP_STATUS_CNT_WIDTH'd2  : begin
+                        tdo_module_select = module_select_error;
                       end
-    `STATUS_CNT'd3  : begin
-                        tdo_chain_select = 1'b1;
-                        current_on_tdo = "one 1";
+    `DBG_TOP_STATUS_CNT_WIDTH'd3  : begin
+                        tdo_module_select = 1'b0;
                       end
-    `STATUS_CNT'd4  : begin
-                        tdo_chain_select = crc_out;
-                  //      tdo_chain_select = 1'hz;
-                        current_on_tdo = "crc_out";
+    `DBG_TOP_STATUS_CNT_WIDTH'd4  : begin
+                        tdo_module_select = crc_out;
                       end
   endcase
 end
@@ -544,7 +541,7 @@ end
 
 assign shift_crc = shift_crc_wb | shift_crc_cpu;
 
-always @ (shift_crc or crc_out or tdo_chain_select
+always @ (shift_crc or crc_out or tdo_module_select
 `ifdef WISHBONE_SUPPORTED
  or wishbone_ce or tdo_wb
 `endif
@@ -564,7 +561,7 @@ begin
     tdo_tmp = tdo_cpu;
   `endif
   else
-    tdo_tmp = tdo_chain_select;
+    tdo_tmp = tdo_module_select;
 end
 
 
@@ -593,15 +590,15 @@ begin
   else if(selecting_command & (~tdi_i))
     begin
       `ifdef WISHBONE_SUPPORTED
-      if (wishbone_scan_chain)      // wishbone CE
+      if (wishbone_module)      // wishbone CE
         wishbone_ce <= #1 1'b1;
       `endif
       `ifdef CPU_SUPPORTED
-      if (cpu_debug_scan_chain)     // CPU CE
+      if (cpu_debug_module)     // CPU CE
         cpu_ce <= #1 1'b1;
       `endif
     end
-  else if (update_dr_i)   // igor !!! This needs to be changed?
+  else if (update_dr_i)
     begin
       `ifdef WISHBONE_SUPPORTED
       wishbone_ce <= #1 1'b0;

@@ -43,6 +43,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.17  2004/01/30 10:24:30  mohor
+// Defines WISHBONE_SUPPORTED and CPU_SUPPORTED added. By default both are
+// turned on.
+//
 // Revision 1.16  2004/01/20 14:23:45  mohor
 // Define name changed.
 //
@@ -106,28 +110,31 @@
 //
 
 
-// Length of the CHAIN ID register
-`define	CHAIN_ID_LENGTH	3
+// Length of the MODULE ID register
+`define	MODULE_ID_LENGTH	4
 
 // Length of data
-`define CHAIN_DATA_LEN  `CHAIN_ID_LENGTH + 1
+`define MODULE_DATA_LEN  `MODULE_ID_LENGTH + 1
 `define DATA_CNT        3
 
 // Length of status
-`define STATUS_LEN      4
-`define STATUS_CNT      3
+`define DBG_TOP_STATUS_LEN          3'd4
+`define DBG_TOP_STATUS_CNT_WIDTH    3
 
 // Length of the CRC
-`define	CRC_LEN         32
+`define	DBG_TOP_CRC_LEN             32
 `define CRC_CNT         6
 
 // Chains
-`define CPU_DEBUG_CHAIN      3'b000
-`define WISHBONE_DEBUG_CHAIN 3'b001
+`define CPU_DEBUG_MODULE      4'b0000
+`define WISHBONE_DEBUG_MODULE 4'b0001
 
 // If WISHBONE debugging is supported uncomment the folowing line
 `define WISHBONE_SUPPORTED
 
 // If CPU_DEBUG is supported uncomment the folowing line
 `define CPU_SUPPORTED
+
+// If more debug info is needed, uncomment the follofing line
+//`define MORE_DBG_INFO
 

@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.39  2004/03/15 16:17:07  igorm
+// 'hz changed to 1'hz because Icarus complains.
+//
 // Revision 1.38  2004/01/30 10:24:02  mohor
 // Defines WISHBONE_SUPPORTED and CPU_SUPPORTED added. By default both are
 // turned on.
@@ -261,7 +264,7 @@ reg [31:0] id;
 wire crc_match_in;
 reg [31:0] crc_in;
 reg [31:0] crc_out;
-
+reg [`DBG_TOP_STATUS_LEN -1:0] status;
 
 wire tdo;
 
@@ -462,19 +465,29 @@ begin
   // Testing read and write to internal registers
   #10000;
   
-  set_instruction(`IDCODE);
-  read_id_code(id);
-
-  $display("\tRead ID     = 0x%0x", id);
-  $display("\tExpected ID = 0x%0x", `IDCODE_VALUE);
+  id_test;
 
   set_instruction(`DEBUG);
   #10000;
 
+
+
+
+
+
+
+
+
+
+
+  #100000;
   `ifdef WISHBONE_SUPPORTED
-  chain_select(`WISHBONE_DEBUG_CHAIN, 1'b0);   // {chain, gen_crc_err}
+  module_select(`WISHBONE_DEBUG_MODULE, 1'b0);   // {module_id, gen_crc_err}
 
   #10000;
+  debug_wishbone(`WB_READ32, 1'b0, 32'h12345678, 16'h4, 1'b0, "read32 1"); // {command, ready, addr, length, gen_crc_err, text}
+
+  #100000;
 
 //  debug_wishbone(`WB_READ8, 1'b0, 32'h12345678, 16'h4, 1'b0, "abc 1"); // {command, ready, addr, length, gen_crc_err, text}
 //  debug_wishbone(`WB_READ8, 1'b0, 32'h12345679, 16'h4, 1'b0, "abc 2"); // {command, ready, addr, length, gen_crc_err, text}
@@ -539,7 +552,7 @@ begin
 
   `ifdef CPU_SUPPORTED
   #10000;
-  chain_select(`CPU_DEBUG_CHAIN, 1'b0);   // {chain, gen_crc_err}
+  module_select(`CPU_DEBUG_MODULE, 1'b0);   // {module_id, gen_crc_err}
 
 
 
@@ -632,7 +645,7 @@ task stall_test;
 
     // Unstall with register
     set_instruction(`DEBUG);
-    chain_select(`CPU_DEBUG_CHAIN, 1'b0);   // {chain, gen_crc_err}
+    module_select(`CPU_DEBUG_MODULE, 1'b0);   // {module_id, gen_crc_err}
     #1 check_stall(1); // set?
     debug_cpu(`CPU_WRITE_REG, `CPU_OP_ADR, 32'h0, 1'b0, result, "clr unstall"); // {command, addr, data, gen_crc_err, result, text}
     #1 check_stall(1); // set?
@@ -695,6 +708,26 @@ task initialize_memory;
 endtask
 
 
+task id_test;
+  begin
+    test_text = "id_test";
+    $display("\n\n(%0t) TEST: id_test", $time);
+
+    set_instruction(`IDCODE);
+    read_id_code(id);
+
+    `ifdef MORE_DBG_INFO
+      $display("\tRead ID     = 0x%0x", id);
+      $display("\tExpected ID = 0x%0x", `IDCODE_VALUE);
+    `endif
+
+    if (id==`IDCODE_VALUE)
+      $display("(%0t) STATUS: passed\n", $time);
+    else
+      $display("(%0t) STATUS: failed (Read ID = 0x%0x, Expected ID = 0x%0x\n", $time, id, `IDCODE_VALUE);
+  end
+endtask // id_test
+
 
 // Generation of the TCLK signal
 task gen_clk;
@@ -738,18 +771,26 @@ task set_instruction;
   
   begin
     case (instr)
-      `EXTEST          : $display("(%0t) Task set_instruction (EXTEST)", $time); 
-      `SAMPLE_PRELOAD  : $display("(%0t) Task set_instruction (SAMPLE_PRELOAD)", $time); 
-      `IDCODE          : $display("(%0t) Task set_instruction (IDCODE)", $time);
-      `DEBUG           : $display("(%0t) Task set_instruction (DEBUG)", $time);
-      `MBIST           : $display("(%0t) Task set_instruction (MBIST)", $time);
-      `BYPASS          : $display("(%0t) Task set_instruction (BYPASS)", $time);
-      default
-                       begin
-                         $display("(%0t) Task set_instruction (Unsupported instruction !!!)", $time);
-                         $display("\tERROR: Unsupported instruction !!!", $time);
-                         $stop;
-                       end
+      `ifdef MORE_DBG_INFO
+        `EXTEST          : $display("(%0t) Task set_instruction (EXTEST)", $time); 
+        `SAMPLE_PRELOAD  : $display("(%0t) Task set_instruction (SAMPLE_PRELOAD)", $time); 
+        `IDCODE          : $display("(%0t) Task set_instruction (IDCODE)", $time);
+        `DEBUG           : $display("(%0t) Task set_instruction (DEBUG)", $time);
+        `MBIST           : $display("(%0t) Task set_instruction (MBIST)", $time);
+        `BYPASS          : $display("(%0t) Task set_instruction (BYPASS)", $time);
+      `else
+        `EXTEST          : ; 
+        `SAMPLE_PRELOAD  : ; 
+        `IDCODE          : ; 
+        `DEBUG           : ; 
+        `MBIST           : ; 
+        `BYPASS          : ; 
+      `endif
+        default
+                         begin
+                           $display("(*E) (%0t) Task set_instruction: Unsupported instruction !!!", $time);
+                           $stop;
+                         end
     endcase
 
     tms_pad_i<=#1 1;
@@ -779,7 +820,9 @@ task read_id_code;
   output [31:0] code;
   reg    [31:0] code;
   begin
-    $display("(%0t) Task read_id_code", $time);
+    `ifdef MORE_DBG_INFO
+      $display("(%0t) Task read_id_code", $time);
+    `endif
     tms_pad_i<=#1 1;
     gen_clk(1);
     tms_pad_i<=#1 0;
@@ -801,37 +844,38 @@ task read_id_code;
 endtask
 
 
-// sets the selected scan chain and goes to the RunTestIdle state
-task chain_select;
-  input [3:0]  data;
-  input        gen_crc_err;
-  integer i;
-  
+// sets the selected module and goes to the RunTestIdle state
+task module_select;
+  input [`MODULE_ID_LENGTH -1:0]  data;
+  input                           gen_crc_err;
+  integer                         i;
+
   begin
     case (data)
-      `CPU_DEBUG_CHAIN      : $display("(%0t) Task chain_select (CPU_DEBUG_CHAIN, gen_crc_err=%0d)", $time, gen_crc_err);
-      `WISHBONE_DEBUG_CHAIN : $display("(%0t) Task chain_select (WISHBONE_DEBUG_CHAIN, gen_crc_err=%0d)", $time, gen_crc_err);
-      default               : $display("(%0t) Task chain_select (ERROR!!! Unknown chain selected)", $time);
+      `CPU_DEBUG_MODULE      : $display("(%0t) Task module_select (CPU_DEBUG_MODULE, gen_crc_err=%0d)", $time, gen_crc_err);
+      `WISHBONE_DEBUG_MODULE : $display("(%0t) Task module_select (WISHBONE_DEBUG_MODULE, gen_crc_err=%0d)", $time, gen_crc_err);
+      default                : $display("(%0t) Task module_select (ERROR!!! Unknown module selected)", $time);
     endcase
 
-    tms_pad_i<=#1 1;
+    tms_pad_i<=#1 1'b1;
     gen_clk(1);
-    tms_pad_i<=#1 0;
+    tms_pad_i<=#1 1'b0;
     gen_clk(2);  // we are in shiftDR
 
-    crc_out = 32'hffffffff; // Initialize outgoing CRC
-    tdi_pad_i<=#1 1'b1; // chain_select bit
+    status = {`DBG_TOP_STATUS_LEN{1'b0}};    // Initialize status to all 0's
+    crc_out = {`DBG_TOP_CRC_LEN{1'b1}}; // Initialize outgoing CRC to all ff
+    tdi_pad_i<=#1 1'b1; // module_select bit
     calculate_crc(1'b1);
     gen_clk(1);
 
-    for(i=0; i<`CHAIN_ID_LENGTH; i=i+1)
+    for(i=`MODULE_ID_LENGTH -1; i>=0; i=i-1) // Shifting module ID
     begin
       tdi_pad_i<=#1 data[i];
       calculate_crc(data[i]);
       gen_clk(1);
     end
 
-    for(i=31; i>=0; i=i-1)
+    for(i=`DBG_TOP_CRC_LEN -1; i>=0; i=i-1)
     begin
       if (gen_crc_err & (i==0))  // Generate crc error at last crc bit
         tdi_pad_i<=#1 ~crc_out[i];   // error crc
@@ -843,38 +887,48 @@ task chain_select;
 
     tdi_pad_i<=#1 1'hz;  // tri-state
 
-    crc_in = 32'hffffffff;  // Initialize incoming CRC
-    gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
+    crc_in = {`DBG_TOP_CRC_LEN{1'b1}};  // Initialize incoming CRC to all ff
 
-
-    for(i=0; i<`CRC_LEN -1; i=i+1)
-      gen_clk(1);
-
-    tms_pad_i<=#1 1;
-    gen_clk(1);         // to exit1_dr
-
-    if (~crc_match_in)
+    for(i=`DBG_TOP_STATUS_LEN -1; i>=0; i=i-1)
       begin
-        $display("(%0t) Incoming CRC failed !!!", $time);
-        $stop;
+        gen_clk(1);     // Generating 1 clock to read out a status bit.
+        status[i] = tdo;
       end
 
-    tms_pad_i<=#1 1;
+    for(i=0; i<`DBG_TOP_CRC_LEN -1; i=i+1)
+      gen_clk(1);
+
+    tms_pad_i<=#1 1'b1;
+    gen_clk(1);         // to exit1_dr
+
+    tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to update_dr
-    tms_pad_i<=#1 0;
+    tms_pad_i<=#1 1'b0;
     gen_clk(1);         // to run_test_idle
+
+    if (|status)
+      begin
+        $write("(*E) (%0t) Chain select error: ", $time);
+        casex (status)
+          4'b1xxx : $display("CRC error !!!\n\n", $time);
+          4'bx1xx : $display("Unknown command !!!\n\n", $time);
+          4'bxx1x : $display("Non-existing module selected !!!\n\n", $time);
+          4'bxxx1 : $display("Status[0] should be 1'b0 !!!\n\n", $time);
+        endcase
+        $stop;
+      end
   end
-endtask   // chain_select
+endtask   // module_select
 
 
 
 
 `ifdef WISHBONE_SUPPORTED
 task debug_wishbone;
-  input [2:0]   command;
+  input [`DBG_WB_CMD_LEN -1:0]   command;
   input         ready;
-  input [31:0]  addr;
-  input [15:0]  length;
+  input [`DBG_WB_ADR_LEN -1:0]  addr;
+  input [`DBG_WB_LEN_LEN -1:0]  length;
   input         gen_crc_err;
   input [99:0]  text;
   integer i;
@@ -885,12 +939,6 @@ task debug_wishbone;
     test_text = text;
 
     case (command)
-      `WB_STATUS   : 
-        begin
-          $display("wb_status (gen_crc_err=%0d (%0s))", gen_crc_err, text);
-          debug_wishbone_status(command, gen_crc_err);
-          last_wb_cmd = `WB_STATUS;  last_wb_cmd_text = "WB_STATUS";
-        end 
       `WB_READ8    :  
         begin
           $display("wb_read8 (adr=0x%0x, length=0x%0x, gen_crc_err=%0d (%0s))", addr, length, gen_crc_err, text);
@@ -945,48 +993,48 @@ endtask       // debug_wishbone
 
 
 task debug_wishbone_set_addr;
-  input [2:0]   command;
-  input [31:0]  addr;
-  input [15:0]  length;
-  input         gen_crc_err;
+  input [`DBG_WB_CMD_LEN -1:0]  command;
+  input [`DBG_WB_ADR_LEN -1:0]  addr;
+  input [`DBG_WB_LEN_LEN -1:0]  length;
+  input                         gen_crc_err;
   integer i;
   
   begin
     $display("(%0t) Task debug_wishbone_set_addr: ", $time);
 
-    tms_pad_i<=#1 1;
+    tms_pad_i<=#1 1'b1;
     gen_clk(1);
-    tms_pad_i<=#1 0;
+    tms_pad_i<=#1 1'b0;
     gen_clk(2);  // we are in shiftDR
 
-    crc_out = 32'hffffffff; // Initialize outgoing CRC
+    crc_out = {`DBG_WB_CRC_LEN{1'b1}}; // Initialize outgoing CRC to all ff
 
-    tdi_pad_i<=#1 1'b0; // chain_select bit = 0
+    tdi_pad_i<=#1 1'b0; // module_select bit = 0
     calculate_crc(1'b0);
     gen_clk(1);
 
-    for(i=2; i>=0; i=i-1)
+    for(i=`DBG_WB_CMD_LEN -1; i>=0; i=i-1)
     begin
       tdi_pad_i<=#1 command[i]; // command
       calculate_crc(command[i]);
       gen_clk(1);
     end
 
-    for(i=31; i>=0; i=i-1)       // address
+    for(i=`DBG_WB_ADR_LEN -1; i>=0; i=i-1)       // address
     begin
       tdi_pad_i<=#1 addr[i];
       calculate_crc(addr[i]);
       gen_clk(1);
     end
  
-    for(i=15; i>=0; i=i-1)       // length
+    for(i=`DBG_WB_LEN_LEN -1; i>=0; i=i-1)       // length
     begin
       tdi_pad_i<=#1 length[i];
       calculate_crc(length[i]);
       gen_clk(1);
     end
 
-    for(i=31; i>=0; i=i-1)
+    for(i=`DBG_WB_CRC_LEN -1; i>=0; i=i-1)
     begin
       if (gen_crc_err & (i==0))  // Generate crc error at last crc bit
         tdi_pad_i<=#1 ~crc_out[i];   // error crc
@@ -998,15 +1046,15 @@ task debug_wishbone_set_addr;
 
     tdi_pad_i<=#1 1'hz;
 
-    crc_in = 32'hffffffff;  // Initialize incoming CRC
-    gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
+    crc_in = {`DBG_WB_CRC_LEN{1'b1}};  // Initialize incoming CRC to all ff
+    gen_clk(`DBG_WB_STATUS_LEN);       // Generating 4 clocks to read out status.
 
-    for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
+    for(i=0; i<`DBG_WB_CRC_LEN -1; i=i+1)  // Getting in the CRC
     begin
       gen_clk(1);
     end
 
-    tms_pad_i<=#1 1;
+    tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to exit1_dr
 
     if (~crc_match_in)
@@ -1015,9 +1063,9 @@ task debug_wishbone_set_addr;
         $stop;
       end
 
-    tms_pad_i<=#1 1;
+    tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to update_dr
-    tms_pad_i<=#1 0;
+    tms_pad_i<=#1 1'b0;
     gen_clk(1);         // to run_test_idle
   end
 endtask       // debug_wishbone_set_addr
@@ -1041,7 +1089,7 @@ task debug_wishbone_status;
 
     crc_out = 32'hffffffff; // Initialize outgoing CRC
 
-    tdi_pad_i<=#1 1'b0; // chain_select bit = 0
+    tdi_pad_i<=#1 1'b0; // module_select bit = 0
     calculate_crc(1'b0);
     gen_clk(1);
 
@@ -1066,9 +1114,9 @@ task debug_wishbone_status;
 
     crc_in = 32'hffffffff;  // Initialize incoming CRC
 
-    gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
+    gen_clk(`DBG_WB_STATUS_LEN);   // Generating 4 clocks to read out status.
 
-    for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
+    for(i=0; i<`DBG_WB_CRC_LEN -1; i=i+1)  // Getting in the CRC
     begin
       gen_clk(1);
     end
@@ -1112,7 +1160,7 @@ task debug_wishbone_go;
 
     crc_out = 32'hffffffff; // Initialize outgoing CRC
 
-    tdi_pad_i<=#1 1'b0; // chain_select bit = 0
+    tdi_pad_i<=#1 1'b0; // module_select bit = 0
     calculate_crc(1'b0);
     gen_clk(1);
 
@@ -1196,9 +1244,9 @@ task debug_wishbone_go;
       end
 
 
-    gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
+    gen_clk(`DBG_WB_STATUS_LEN);   // Generating 4 clocks to read out status.
 
-    for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
+    for(i=0; i<`DBG_WB_CRC_LEN -1; i=i+1)  // Getting in the CRC
     begin
       gen_clk(1);
     end
@@ -1314,7 +1362,7 @@ task debug_cpu_set_addr;
 
     crc_out = 32'hffffffff; // Initialize outgoing CRC
 
-    tdi_pad_i<=#1 1'b0; // chain_select bit = 0
+    tdi_pad_i<=#1 1'b0; // module_select bit = 0
     calculate_crc(1'b0);
     gen_clk(1);
 
@@ -1345,9 +1393,9 @@ task debug_cpu_set_addr;
     tdi_pad_i<=#1 1'hz;
 
     crc_in = 32'hffffffff;  // Initialize incoming CRC
-    gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
+    gen_clk(`DBG_CPU_STATUS_LEN);   // Generating 4 clocks to read out status.
 
-    for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
+    for(i=0; i<`DBG_CPU_CRC_LEN -1; i=i+1)  // Getting in the CRC
     begin
       gen_clk(1);
     end
@@ -1387,7 +1435,7 @@ task debug_cpu_go;
     gen_clk(2);  // we are in shiftDR
 
     crc_out = 32'hffffffff; // Initialize outgoing CRC
-    tdi_pad_i<=#1 1'b0; // chain_select bit = 0
+    tdi_pad_i<=#1 1'b0; // module_select bit = 0
     calculate_crc(1'b0);
     gen_clk(1);
 
@@ -1451,9 +1499,9 @@ task debug_cpu_go;
       end
 
 
-    gen_clk(`STATUS_LEN);   // Generating 4 clocks to read out status.
+    gen_clk(`DBG_CPU_STATUS_LEN);   // Generating 4 clocks to read out status.
 
-    for(i=0; i<`CRC_LEN -1; i=i+1)  // Getting in the CRC
+    for(i=0; i<`DBG_CPU_CRC_LEN -1; i=i+1)  // Getting in the CRC
     begin
       gen_clk(1);
     end
@@ -1576,6 +1624,7 @@ assign crc_match_in = crc_in == 32'h0;
 *                                                                                 *
 **********************************************************************************/
 
+`ifdef MORE_DBG_INFO
 always @ (posedge tck_pad_i)
 begin
   if(dbg_tb.i_tap_top.update_ir)
@@ -1589,7 +1638,7 @@ begin
 		default           :	$display("\n\tInstruction not valid. Instruction BYPASS activated !!!");
     endcase
 end
-
+`endif
 
 
 // We never use following states: exit2_ir,  exit2_dr,  pause_ir or pause_dr
@@ -1607,8 +1656,9 @@ end
 
 
 // Detecting CRC error
+/*
 always @ (    
-           posedge dbg_tb.i_dbg_top.chain_latch_en
+           posedge dbg_tb.i_dbg_top.module_latch_en
            `ifdef WISHBONE_SUPPORTED
            or posedge dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end
            `endif
@@ -1626,7 +1676,7 @@ begin
       $stop;
     end
 end
-
+*/
 
 
 endmodule // dbg_tb

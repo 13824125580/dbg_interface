@@ -15,7 +15,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2000 - 2003 Authors                            ////
+//// Copyright (C) 2000 - 2004 Authors                            ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2004/01/16 14:51:33  mohor
+// cpu registers added.
+//
 // Revision 1.3  2004/01/08 17:53:36  mohor
 // tmp version.
 //
@@ -55,6 +58,18 @@
 //
 //
 
+// Defining length of the command
+`define DBG_WB_CMD_LEN        3'd3
+`define DBG_WB_CMD_CNT_WIDTH  3
+
+// Defining length of the address
+`define DBG_WB_ADR_LEN        6'd32
+
+// Defining length of the length register
+`define DBG_WB_LEN_LEN        5'd16
+
+// Defining length of the CRC
+`define DBG_WB_CRC_LEN        6'd32
 
 // Defining commands for wishbone
 `define WB_STATUS     3'h0
@@ -68,5 +83,6 @@
 
 
 // Length of status
-`define STATUS_LEN      4
+`define DBG_WB_STATUS_LEN     4
+
 

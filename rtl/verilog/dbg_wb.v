@@ -15,7 +15,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2000 - 2003 Authors                            ////
+//// Copyright (C) 2000 - 2004 Authors                            ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.18  2004/01/25 14:04:18  mohor
+// All flipflops are reset.
+//
 // Revision 1.17  2004/01/22 13:58:53  mohor
 // Port signals are all set to zero after reset.
 //
@@ -171,7 +174,7 @@ reg           tdo_o;
 reg    [50:0] dr;
 wire          enable;
 wire          cmd_cnt_en;
-reg     [1:0] cmd_cnt;
+reg     [`DBG_WB_CMD_CNT_WIDTH -1:0] cmd_cnt;
 wire          cmd_cnt_end;
 reg           cmd_cnt_end_q;
 wire          addr_len_cnt_en;
@@ -223,7 +226,7 @@ reg           cmd_go;
 
 reg           status_cnt1, status_cnt2, status_cnt3, status_cnt4;
 
-reg [`STATUS_LEN -1:0] status;
+reg [`DBG_WB_STATUS_LEN -1:0] status;
 
 reg           wb_error, wb_error_sync, wb_error_tck;
 reg           wb_overrun, wb_overrun_sync, wb_overrun_tck;
@@ -356,9 +359,9 @@ assign cmd_cnt_en = enable & (~cmd_cnt_end);
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    cmd_cnt <= #1 2'h0;
+    cmd_cnt <= #1 {`DBG_WB_CMD_CNT_WIDTH{1'b0}};
   else if (update_dr_i)
-    cmd_cnt <= #1 2'h0;
+    cmd_cnt <= #1 {`DBG_WB_CMD_CNT_WIDTH{1'b0}};
   else if (cmd_cnt_en)
     cmd_cnt <= #1 cmd_cnt + 1'b1;
 end
@@ -460,7 +463,7 @@ always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
     addr_len_cnt_limit <= #1 6'd0;
-  else if (cmd_cnt == 2'h2)
+  else if (cmd_cnt == `DBG_WB_CMD_CNT_WIDTH'h2)
     begin
       if ((~dr[0])  & (~tdi_i))                                   // (current command is WB_STATUS or WB_GO)
         addr_len_cnt_limit <= #1 6'd0;
@@ -497,7 +500,7 @@ begin
     crc_cnt <= #1 6'h0;
 end
 
-assign cmd_cnt_end  = cmd_cnt  == 2'h3;
+assign cmd_cnt_end  = cmd_cnt  == `DBG_WB_CMD_LEN;
 assign addr_len_cnt_end = addr_len_cnt == addr_len_cnt_limit;
 assign crc_cnt_end  = crc_cnt  == 6'd32;
 assign crc_cnt_31 = crc_cnt  == 6'd31;
@@ -565,7 +568,7 @@ always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
     begin
-    status <= #1 {`STATUS_LEN{1'b0}};
+    status <= #1 {`DBG_WB_STATUS_LEN{1'b0}};
     end
   else if(crc_cnt_end & (~crc_cnt_end_q) & (~read_cycle))
     begin
@@ -577,7 +580,7 @@ begin
     end
   else if (shift_dr_i & (~status_cnt_end))
     begin
-    status <= #1 {status[0], status[`STATUS_LEN -1:1]};
+    status <= #1 {status[0], status[`DBG_WB_STATUS_LEN -1:1]};
     end
 end
 // Following status is shifted out:
