@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2003/10/21 09:48:31  simons
+// Mbist support added.
+//
 // Revision 1.7  2002/11/06 14:30:10  mohor
 // Trst active high. Inverted on higher layer.
 //
@@ -84,7 +87,7 @@ module tap_top(
                 tms_pad_i, tck_pad_i, trst_pad_i, tdi_pad_i, tdo_pad_o, tdo_padoe_o,
 
                 // TAP states
-                ShiftDR, Exit1DR, UpdateDR, UpdateDR_q, CaptureDR, 
+                ShiftDR, Exit1DR, UpdateDR, UpdateDR_q, CaptureDR, SelectDRScan,
                 
                 // Instructions
                 IDCODESelected, CHAIN_SELECTSelected, DEBUGSelected, EXTESTSelected, MBISTSelected,
@@ -96,7 +99,17 @@ module tap_top(
                 bs_chain_i,
 
                 // From Mbist Chain
-                mbist_so_i
+                mbist_so_i,
+
+                // Selected chains
+                RegisterScanChain,
+                CpuDebugScanChain0,
+                CpuDebugScanChain1,
+                CpuDebugScanChain2,
+                CpuDebugScanChain3,
+                WishboneScanChain
+
+
                 
               );
 
@@ -116,6 +129,7 @@ output  Exit1DR;
 output  UpdateDR;
 output  UpdateDR_q;
 output  CaptureDR;
+output  SelectDRScan;
 
 // Instructions
 output  IDCODESelected;
@@ -132,6 +146,15 @@ input   bs_chain_i;
 
 // From Mbist Chain
 input   mbist_so_i;
+
+// Selected chains
+input   RegisterScanChain;
+input   CpuDebugScanChain0;
+input   CpuDebugScanChain1;
+input   CpuDebugScanChain2;
+input   CpuDebugScanChain3;
+input   WishboneScanChain;
+
 
 reg     tdo_pad_o;
 
@@ -173,10 +196,6 @@ wire    trst;
 wire    tck;
 wire    TMS;
 wire    tdi;
-
-wire    RiscDebugScanChain;
-wire    WishboneScanChain;
-wire    RegisterScanChain;
 
 
 assign trst = trst_pad_i;                // trst_pad_i is active high !!! Inverted on higher layer 
@@ -429,9 +448,11 @@ end
 
 
 //TDO is changing on the falling edge of tck
-always @ (negedge tck)
+always @ (negedge tck or posedge trst)
 begin
-  if(ShiftIR)
+  if (trst)
+    TDOInstruction <= #Tp 1'b0;
+  else if(ShiftIR)
     TDOInstruction <= #Tp JTAG_IR[0];
 end
 
@@ -464,15 +485,15 @@ begin
     end
   else
   if(CHAIN_SELECTSelected & ShiftDR)
-    JTAG_DR_IN[12:0] <= #Tp {tdi, JTAG_DR_IN[12:1]};
+    JTAG_DR_IN[11:0] <= #Tp {tdi, JTAG_DR_IN[11:1]};
   else
   if(DEBUGSelected & ShiftDR)
     begin
-      if(RiscDebugScanChain | WishboneScanChain)
-        JTAG_DR_IN[73:0] <= #Tp {tdi, JTAG_DR_IN[73:1]};
+      if(CpuDebugScanChain0 | CpuDebugScanChain1 | CpuDebugScanChain2 | CpuDebugScanChain3 | WishboneScanChain)
+        JTAG_DR_IN[72:0] <= #Tp {tdi, JTAG_DR_IN[72:1]};
       else
       if(RegisterScanChain)
-        JTAG_DR_IN[46:0] <= #Tp {tdi, JTAG_DR_IN[46:1]};
+        JTAG_DR_IN[45:0] <= #Tp {tdi, JTAG_DR_IN[45:1]};
     end
 end
  
@@ -495,9 +516,11 @@ end
 **********************************************************************************/
 reg TDOBypassed;
 
-always @ (posedge tck)
+always @ (posedge tck or posedge trst)
 begin
-  if(ShiftDR)
+  if (trst)
+    BypassRegister<=#Tp 1'b0;
+  else if(ShiftDR)
     BypassRegister<=#Tp tdi;
 end
 

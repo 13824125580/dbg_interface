@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2003/10/21 09:48:31  simons
+// Mbist support added.
+//
 // Revision 1.12  2003/09/17 14:38:57  simons
 // WB_CNTL register added, some syncronization fixes.
 //
@@ -100,14 +103,14 @@
 //`define TRACE_ENABLED  // Uncomment this define to activate the trace
 
 // Define number of cpus supported by the dbg interface
-`define RISC_NUM 2
+`define CPU_NUM 2
 
 // Define IDCODE Value
 `define IDCODE_VALUE  32'h14951185
 
-// Define master clock (RISC clock)
-//`define	RISC_CLOCK  50   // Half period = 50 ns => MCLK = 10 Mhz
-`define	RISC_CLOCK  2.5   // Half period = 5 ns => MCLK = 200 Mhz
+// Define master clock (CPU clock)
+//`define	CPU_CLOCK  50   // Half period = 50 ns => MCLK = 10 Mhz
+`define	CPU_CLOCK  2.5   // Half period = 5 ns => MCLK = 200 Mhz
 
 // Length of the Instruction register
 `define	IR_LENGTH	4
@@ -156,22 +159,22 @@
 
 // Chains
 `define GLOBAL_BS_CHAIN     4'b0000
-`define RISC_DEBUG_CHAIN_2  4'b0001
-`define RISC_TEST_CHAIN     4'b0010
+`define CPU_DEBUG_CHAIN_2   4'b0001
+`define CPU_TEST_CHAIN      4'b0010
 `define TRACE_TEST_CHAIN    4'b0011
 `define REGISTER_SCAN_CHAIN 4'b0100
 `define WISHBONE_SCAN_CHAIN 4'b0101
-`define RISC_DEBUG_CHAIN_0  4'b0110
-`define RISC_DEBUG_CHAIN_1  4'b0111
-`define RISC_DEBUG_CHAIN_3  4'b1000
+`define CPU_DEBUG_CHAIN_0   4'b0110
+`define CPU_DEBUG_CHAIN_1   4'b0111
+`define CPU_DEBUG_CHAIN_3   4'b1000
 
 // Registers addresses
 `define MODER_ADR           5'h00
 `define TSEL_ADR            5'h01
 `define QSEL_ADR            5'h02
 `define SSEL_ADR            5'h03
-`define RISCOP_ADR          5'h04
-`define RISCSEL_ADR         5'h05
+`define CPUOP_ADR           5'h04
+`define CPUSEL_ADR          5'h05
 `define RECSEL_ADR          5'h10
 `define MON_CNTL_ADR        5'h11
 `define WB_CNTL_ADR         5'h12
@@ -182,6 +185,6 @@
 `define TSEL_DEF            32'h00000000
 `define QSEL_DEF            32'h00000000
 `define SSEL_DEF            32'h00000000
-`define RISCOP_DEF          2'h0
+`define CPUOP_DEF           2'h0
 `define RECSEL_DEF          7'h0
 `define MON_CNTL_DEF        4'h0

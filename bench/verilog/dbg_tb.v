@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2003/08/28 13:54:33  simons
+// Three more chains added for cpu debug access.
+//
 // Revision 1.12  2002/05/07 14:44:52  mohor
 // mon_cntl_o signals that controls monitor mux added.
 //
@@ -116,12 +119,13 @@ reg Bp;
 reg [3:0] LsStatus;
 reg [1:0] IStatus;
 reg BS_CHAIN_I;
+reg MBIST_I;
 
 wire P_TDO;
-wire [31:0] ADDR_RISC;
-wire [31:0] DATAIN_RISC;     // DATAIN_RISC is connect to DATAOUT
+wire [31:0] ADDR_CPU;
+wire [31:0] DATAIN_CPU;     // DATAIN_CPU is connect to DATAOUT
 
-wire  [31:0] DATAOUT_RISC;   // DATAOUT_RISC is connect to DATAIN
+wire  [31:0] DATAOUT_CPU;   // DATAOUT_CPU is connect to DATAIN
 
 wire   [`OPSELECTWIDTH-1:0] OpSelect;
 
@@ -141,13 +145,20 @@ wire Exit1DR;
 wire UpdateDR;
 wire UpdateDR_q;
 wire CaptureDR;
+wire SelectDRScan;
 wire IDCODESelected;
 wire CHAIN_SELECTSelected;
 wire DEBUGSelected;
 wire TDOData_dbg;
 wire BypassRegister;
 wire EXTESTSelected;
+wire MBISTSelected;
 wire [3:0] mon_cntl_o;
+wire CpuDebugScanChain0;
+wire CpuDebugScanChain1;
+wire CpuDebugScanChain2;
+wire CpuDebugScanChain3;
+
 
 // Connecting TAP module
 tap_top i_tap_top
@@ -156,25 +167,40 @@ tap_top i_tap_top
                 
                 // TAP states
                 .ShiftDR(ShiftDR), .Exit1DR(Exit1DR), .UpdateDR(UpdateDR), .UpdateDR_q(UpdateDR_q), 
-                .CaptureDR(CaptureDR), 
+                .CaptureDR(CaptureDR), .SelectDRScan(SelectDRScan), 
                 
                 // Instructions
                 .IDCODESelected(IDCODESelected), .CHAIN_SELECTSelected(CHAIN_SELECTSelected), 
                 .DEBUGSelected(DEBUGSelected),   .EXTESTSelected(EXTESTSelected), 
+                .MBISTSelected(MBISTSelected), 
                 
                 // TDO from dbg module
                 .TDOData_dbg(TDOData_dbg), .BypassRegister(BypassRegister), 
                 
                 // Boundary Scan Chain
-                .bs_chain_i(BS_CHAIN_I)
+                .bs_chain_i(BS_CHAIN_I),
+
+                // From Mbist Chain
+                .mbist_so_i(MBIST_I),
+
+                // Selected chains
+                .RegisterScanChain(RegisterScanChain),
+                .CpuDebugScanChain0(CpuDebugScanChain0),
+                .CpuDebugScanChain1(CpuDebugScanChain1),
+                .CpuDebugScanChain2(CpuDebugScanChain2),
+                .CpuDebugScanChain3(CpuDebugScanChain3),
+                .WishboneScanChain(WishboneScanChain)
 
                );
 
+
+
 dbg_top i_dbg_top
                ( 
-                .risc_clk_i(Mclk), .risc_addr_o(ADDR_RISC), .risc_data_i(DATAOUT_RISC), 
-                .risc_data_o(DATAIN_RISC), .wp_i(Wp), .bp_i(Bp), .opselect_o(OpSelect), 
-                .lsstatus_i(LsStatus), .istatus_i(IStatus), .risc_stall_o(), .reset_o(),
+                .cpu_clk_i(Mclk), .cpu_addr_o(ADDR_CPU), .cpu_data_i(DATAOUT_CPU), 
+                .cpu_data_o(DATAIN_CPU), .wp_i(Wp), .bp_i(Bp), .opselect_o(OpSelect), 
+                .lsstatus_i(LsStatus), .istatus_i(IStatus), .cpu_stall_o(), 
+                .cpu_stall_all_o(), .cpu_sel_o(), .reset_o(),
                 
                 .wb_rst_i(wb_rst_i), .wb_clk_i(Mclk), 
                 
@@ -184,7 +210,8 @@ dbg_top i_dbg_top
                 .wb_err_i(wb_err_o), 
                 
                 // TAP states
-                .ShiftDR(ShiftDR), .Exit1DR(Exit1DR), .UpdateDR(UpdateDR), .UpdateDR_q(UpdateDR_q), 
+                .ShiftDR(ShiftDR), .Exit1DR(Exit1DR), .UpdateDR(UpdateDR), .UpdateDR_q(UpdateDR_q),
+                .SelectDRScan(SelectDRScan),
                 
                 // Instructions
                 .IDCODESelected(IDCODESelected), .CHAIN_SELECTSelected(CHAIN_SELECTSelected), 
@@ -196,7 +223,15 @@ dbg_top i_dbg_top
                 .BypassRegister(BypassRegister), 
                 
                 
-                .mon_cntl_o(mon_cntl_o)
+                .mon_cntl_o(mon_cntl_o),
+
+                // Selected chains
+                .RegisterScanChain(RegisterScanChain),
+                .CpuDebugScanChain0(CpuDebugScanChain0),
+                .CpuDebugScanChain1(CpuDebugScanChain1),
+                .CpuDebugScanChain2(CpuDebugScanChain2),
+                .CpuDebugScanChain3(CpuDebugScanChain3),
+                .WishboneScanChain(WishboneScanChain)
 
                );
  
@@ -211,6 +246,7 @@ begin
   P_TCK<=#Tp 'hz;
   P_TDI<=#Tp 'hz;
   BS_CHAIN_I = 0;
+  MBIST_I = 0;
 
   Wp<=#Tp 0;
   Bp<=#Tp 0;
@@ -224,24 +260,24 @@ begin
 
 
   wb_rst_i<=#Tp 0;
-  P_TRST<=#Tp 1;
-  #100 wb_rst_i<=#Tp 1;
   P_TRST<=#Tp 0;
-  #100 wb_rst_i<=#Tp 0;
+  #100 wb_rst_i<=#Tp 1;
   P_TRST<=#Tp 1;
+  #100 wb_rst_i<=#Tp 0;
+  P_TRST<=#Tp 0;
   #Tp TestEnabled<=#Tp 1;
 end
 
 
-// Generating master clock (RISC clock) 200 MHz
+// Generating master clock (cpu clock) 200 MHz
 initial
 begin
   Mclk<=#Tp 0;
-  #1 forever #`RISC_CLOCK Mclk<=~Mclk;
+  #1 forever #`CPU_CLOCK Mclk<=~Mclk;
 end
 
 
-// Generating random number for use in DATAOUT_RISC[31:0]
+// Generating random number for use in DATAOUT_CPU[31:0]
 reg [31:0] RandNumb;
 always @ (posedge Mclk or posedge wb_rst_i)
 begin
@@ -252,161 +288,188 @@ begin
 end
 
 
-assign DATAOUT_RISC[31:0] = RandNumb[31:0];
+assign DATAOUT_CPU[31:0] = RandNumb[31:0];
 
 
 always @ (posedge TestEnabled)
-fork
-
 begin
-  EnableWishboneSlave;  // enabling WISHBONE slave
-end
+
+  $display("//////////////////////////////////////////////////////////////////////////////////////");
+  $display("//                                                                                  //");
+  $display("//  (%0t) dbg_tb starting                                                         //", $time);
+  $display("//                                                                                  //");
+  $display("//////////////////////////////////////////////////////////////////////////////////////");
+
+  fork
 
 
-begin
-  ResetTAP;
-  GotoRunTestIdle;
-
-// Testing read and write to WISHBONE
-  SetInstruction(`CHAIN_SELECT);
-  ChainSelect(`WISHBONE_SCAN_CHAIN, 8'h36);  // {chain, crc}
-  SetInstruction(`DEBUG);
-  ReadRISCRegister(32'h87654321, 8'hfd);                 // {addr, crc}         // Wishbone and RISC accesses are similar
-  WriteRISCRegister(32'h18273645, 32'hbeefbeef, 8'haa);  // {data, addr, crc}
-  ReadRISCRegister(32'h87654321, 8'hfd);                 // {addr, crc}         // Wishbone and RISC accesses are similar
-  ReadRISCRegister(32'h87654321, 8'hfd);                 // {addr, crc}         // Wishbone and RISC accesses are similar
-//
-
-// Testing read and write to RISC registers
-  SetInstruction(`CHAIN_SELECT);
-  ChainSelect(`RISC_DEBUG_CHAIN_2, 8'h38);  // {chain, crc}
-  SetInstruction(`DEBUG);
-
-  ReadRISCRegister(32'h12345ead, 8'hbf);                 // {addr, crc}
-  WriteRISCRegister(32'h11223344, 32'h12345678, 8'haf);  // {data, addr, crc}
-//
+  begin
+    EnableWishboneSlave;  // enabling WISHBONE slave
+  end
 
 
-// Testing read and write to internal registers
-  SetInstruction(`IDCODE);
-  ReadIDCode; // muten
-
-  SetInstruction(`CHAIN_SELECT);
-  ChainSelect(`REGISTER_SCAN_CHAIN, 8'h0e);  // {chain, crc}
-  SetInstruction(`DEBUG);
-
-
-//
-//  Testing internal registers
-    ReadRegister(`MODER_ADR, 8'h00);           // {addr, crc}
-    ReadRegister(`TSEL_ADR, 8'h64);            // {addr, crc}
-    ReadRegister(`QSEL_ADR, 8'h32);            // {addr, crc}
-    ReadRegister(`SSEL_ADR, 8'h56);            // {addr, crc}
-    ReadRegister(`RECSEL_ADR, 8'hc4);          // {addr, crc}
-    ReadRegister(`MON_CNTL_ADR, 8'ha0);          // {addr, crc}
-    ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
-    ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
-
-    WriteRegister(32'h00000001, `MODER_ADR,   8'h53); // {data, addr, crc}
-    WriteRegister(32'h00000020, `TSEL_ADR,    8'h5e); // {data, addr, crc}
-    WriteRegister(32'h00000300, `QSEL_ADR,    8'hdd); // {data, addr, crc}
-    WriteRegister(32'h00004000, `SSEL_ADR,    8'he2); // {data, addr, crc}
-    WriteRegister(32'h0000dead, `RECSEL_ADR,  8'hfb); // {data, addr, crc}
-    WriteRegister(32'h0000000d, `MON_CNTL_ADR,  8'h5a); // {data, addr, crc}
-
-    ReadRegister(`MODER_ADR, 8'h00);           // {addr, crc}
-    ReadRegister(`TSEL_ADR, 8'h64);            // {addr, crc}
-    ReadRegister(`QSEL_ADR, 8'h32);            // {addr, crc}
-    ReadRegister(`SSEL_ADR, 8'h56);            // {addr, crc}
-    ReadRegister(`RECSEL_ADR, 8'hc4);          // {addr, crc}
-    ReadRegister(`MON_CNTL_ADR, 8'ha0);          // {addr, crc}
-    ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
-    ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
-//
-
-
-// testing trigger and qualifier
-`ifdef TRACE_ENABLED
-
-
-
-
-
-// Anything starts trigger and qualifier
-    #1000 WriteRegister(32'h00000000, `QSEL_ADR,   8'h50);    // Any qualifier
-    #1000 WriteRegister(32'h00000000, `TSEL_ADR,   8'h06);    // Any trigger
-    #1000 WriteRegister(32'h00000003, `RECSEL_ADR,   8'h0c);  // Two samples are selected for recording (RECPC and RECLSEA)
-    #100  WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
-    #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
-// End: Anything starts trigger and qualifier //
-
-
-/* Anything starts trigger, breakpoint starts qualifier
-// Uncomment this part when you want to test it.
-    #1000 WriteRegister(`QUALIFOP_OR | `BPQUALIFVALID | `BPQUALIF, `QSEL_ADR,   8'had);    // Any qualifier
-    #1000 WriteRegister(32'h00000000, `TSEL_ADR,   8'h06);    // Any trigger
-    #1000 WriteRegister(32'h0000000c, `RECSEL_ADR,   8'h0f);  // Two samples are selected for recording (RECSDATA and RECLDATA)
-    #1000 WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
-    #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
-    wait(dbg_tb.i_dbg_top.TraceEnable)
-    @ (posedge Mclk);
-      #1 Bp = 1;                                                 // Set breakpoint
-    repeat(8) @(posedge Mclk);
-    wait(dbg_tb.i_dbg_top.dbgTrace1.RiscStall)
-      #1 Bp = 0;                                                 // Clear breakpoint
-// End: Anything starts trigger, breakpoint starts qualifier */
-
-
-/* Anything starts qualifier, breakpoint starts trigger
-// Uncomment this part when you want to test it.
-    #1000 WriteRegister(32'h00000000, `QSEL_ADR,   8'h50);    // Any qualifier
-    #1000 WriteRegister(`LSSTRIG_0 | `LSSTRIG_2 | `LSSTRIGVALID | `WPTRIG_4 | `WPTRIGVALID | `TRIGOP_AND, `TSEL_ADR,   8'had);    // Trigger is AND of Watchpoint4 and LSSTRIG[0] and LSSTRIG[2]
-    #1000 WriteRegister(32'h00000003, `RECSEL_ADR,   8'h0c);  // Two samples are selected for recording (RECPC and RECLSEA)
-    #1000 WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
-    #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
-    wait(dbg_tb.i_dbg_top.TraceEnable)
-    @ (posedge Mclk)
-      Wp[4] = 1;                                              // Set watchpoint[4]
-      LsStatus = 4'h5;                                        // LsStatus[0] and LsStatus[2] are active
-    @ (posedge Mclk)
-      Wp[4] = 0;                                              // Clear watchpoint[4]
-      LsStatus = 4'h0;                                        // LsStatus[0] and LsStatus[2] are cleared
-// End: Anything starts trigger and qualifier */
-
-
-
-
-
-
-// Reading data from the trace buffer
-  SetInstruction(`CHAIN_SELECT);
-  ChainSelect(`TRACE_TEST_CHAIN, 8'h24);  // {chain, crc}
-  SetInstruction(`DEBUG);
-  ReadTraceBuffer;
-  ReadTraceBuffer;
-  ReadTraceBuffer;
-  ReadTraceBuffer;
-  ReadTraceBuffer;
-  ReadTraceBuffer;
-  ReadTraceBuffer;
-  ReadTraceBuffer;
-  ReadTraceBuffer;
-  ReadTraceBuffer;
-  ReadTraceBuffer;
-  ReadTraceBuffer;
-
-
-`endif  // TRACE_ENABLED
-
-
-
+  begin
+    ResetTAP;
+    GotoRunTestIdle;
   
+    // Testing read and write to WISHBONE (WB and CPU chain are the same)
+    SetInstruction(`CHAIN_SELECT);
+    ChainSelect(`WISHBONE_SCAN_CHAIN, 8'h36);  // {chain, crc}
+    SetInstruction(`DEBUG);
+    WriteCPURegister(32'h18273645, 32'hbeefbeef, 8'haa);  // {data, addr, crc}
+
+    #10000;
+    ReadCPURegister(32'h87654321, 8'hfd);                 // {addr, crc}         // Wishbone and CPU accesses are similar
+    ReadCPURegister(32'h87654321, 8'hfd);                 // {addr, crc}         // Wishbone and CPU accesses are similar
+
+    // Testing read and write to CPU0 registers
+    #10000;
+    SetInstruction(`CHAIN_SELECT);
+    ChainSelect(`CPU_DEBUG_CHAIN_0, 8'h12);  // {chain, crc}
+    SetInstruction(`DEBUG);
+    WriteCPURegister(32'h11001100, 32'h00110011, 8'h86);  // {data, addr, crc}
+  
+    ReadCPURegister(32'h11001100, 8'hdb);                 // {addr, crc}
+    ReadCPURegister(32'h11001100, 8'hdb);                 // {addr, crc}
+  
+    // Testing read and write to CPU1 registers
+    #10000;
+    SetInstruction(`CHAIN_SELECT);
+    ChainSelect(`CPU_DEBUG_CHAIN_1, 8'h2a);  // {chain, crc}
+    SetInstruction(`DEBUG);
+    WriteCPURegister(32'h22002200, 32'h00220022, 8'h10);  // {data, addr, crc}
+  
+    ReadCPURegister(32'h22002200, 8'hee);                 // {addr, crc}
+    ReadCPURegister(32'h22002200, 8'hee);                 // {addr, crc}
+  
+    // Testing read and write to CPU2 registers
+    #10000;
+    SetInstruction(`CHAIN_SELECT);
+    ChainSelect(`CPU_DEBUG_CHAIN_2, 8'h38);  // {chain, crc}
+    SetInstruction(`DEBUG);
+    WriteCPURegister(32'h33003300, 32'h00330033, 8'hf4);  // {data, addr, crc}
+  
+    ReadCPURegister(32'h33003300, 8'h35);                 // {addr, crc}
+    ReadCPURegister(32'h33003300, 8'h35);                 // {addr, crc}
+  
+    // Testing read and write to CPU3 registers
+    #10000;
+    SetInstruction(`CHAIN_SELECT);
+    ChainSelect(`CPU_DEBUG_CHAIN_3, 8'h07);  // {chain, crc}
+    SetInstruction(`DEBUG);
+    WriteCPURegister(32'h44004400, 32'h00440044, 8'h5b);  // {data, addr, crc}
+  
+    ReadCPURegister(32'h44004400, 8'h77);                 // {addr, crc}
+    ReadCPURegister(32'h44004400, 8'h77);                 // {addr, crc}
+  
+    // Testing read and write to internal registers
+    #10000;
+    SetInstruction(`IDCODE);
+    ReadIDCode;
+  
+    SetInstruction(`CHAIN_SELECT);
+    ChainSelect(`REGISTER_SCAN_CHAIN, 8'h0e);  // {chain, crc}
+    SetInstruction(`DEBUG);
+  
+  
+    //  Testing internal registers
+    WriteRegister(32'h00000001, `CPUOP_ADR,   8'h4a);   // {data, addr, crc}
+    WriteRegister(32'h00000002, `CPUOP_ADR,   8'he0);   // {data, addr, crc}
+    WriteRegister(32'h00000004, `CPUOP_ADR,   8'hb5);   // {data, addr, crc}
+    WriteRegister(32'h00000000, `CPUSEL_ADR,  8'h1f);   // {data, addr, crc}
+    WriteRegister(32'h00000001, `CPUSEL_ADR,  8'h2e);   // {data, addr, crc}
+    WriteRegister(32'h00000002, `CPUSEL_ADR,  8'h84);   // {data, addr, crc}
+
+    ReadRegister(`CPUOP_ADR, 8'h19);           // {addr, crc}
+    ReadRegister(`CPUOP_ADR, 8'h19);           // {addr, crc}
+    ReadRegister(`CPUSEL_ADR, 8'h7d);          // {addr, crc}
+    ReadRegister(`CPUSEL_ADR, 8'h7d);          // {addr, crc}
+
+    //ReadRegister(`MODER_ADR, 8'h00);           // {addr, crc}
+    //ReadRegister(`TSEL_ADR, 8'h64);            // {addr, crc}
+    //ReadRegister(`QSEL_ADR, 8'h32);            // {addr, crc}
+    //ReadRegister(`SSEL_ADR, 8'h56);            // {addr, crc}
+    //ReadRegister(`RECSEL_ADR, 8'hc4);          // {addr, crc}
+    //ReadRegister(`MON_CNTL_ADR, 8'ha0);        // {addr, crc}
+    //ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
+    //ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
+  
+    //WriteRegister(32'h00000001, `MODER_ADR,   8'h53);   // {data, addr, crc}
+    //WriteRegister(32'h00000020, `TSEL_ADR,    8'h5e);   // {data, addr, crc}
+    //WriteRegister(32'h00000300, `QSEL_ADR,    8'hdd);   // {data, addr, crc}
+    //WriteRegister(32'h00004000, `SSEL_ADR,    8'he2);   // {data, addr, crc}
+    //WriteRegister(32'h0000dead, `RECSEL_ADR,  8'hfb);   // {data, addr, crc}
+    //WriteRegister(32'h0000000d, `MON_CNTL_ADR,  8'h5a); // {data, addr, crc}
+  
+  
+  // testing trigger and qualifier
+  `ifdef TRACE_ENABLED
+      // Anything starts trigger and qualifier
+      #1000 WriteRegister(32'h00000000, `QSEL_ADR,   8'h50);    // Any qualifier
+      #1000 WriteRegister(32'h00000000, `TSEL_ADR,   8'h06);    // Any trigger
+      #1000 WriteRegister(32'h00000003, `RECSEL_ADR,   8'h0c);  // Two samples are selected for recording (RECPC and RECLSEA)
+      #100  WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
+      #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
+      // End: Anything starts trigger and qualifier //
+  
+      /* Anything starts trigger, breakpoint starts qualifier
+      // Uncomment this part when you want to test it.
+      #1000 WriteRegister(`QUALIFOP_OR | `BPQUALIFVALID | `BPQUALIF, `QSEL_ADR,   8'had);    // Any qualifier
+      #1000 WriteRegister(32'h00000000, `TSEL_ADR,   8'h06);    // Any trigger
+      #1000 WriteRegister(32'h0000000c, `RECSEL_ADR,   8'h0f);  // Two samples are selected for recording (RECSDATA and RECLDATA)
+      #1000 WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
+      #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
+      wait(dbg_tb.i_dbg_top.TraceEnable)
+      @ (posedge Mclk);
+        #1 Bp = 1;                                                 // Set breakpoint
+      repeat(8) @(posedge Mclk);
+      wait(dbg_tb.i_dbg_top.dbgTrace1.CpuStall)
+        #1 Bp = 0;                                                 // Clear breakpoint
+      // End: Anything starts trigger, breakpoint starts qualifier */
+  
+      /* Anything starts qualifier, breakpoint starts trigger
+      // Uncomment this part when you want to test it.
+      #1000 WriteRegister(32'h00000000, `QSEL_ADR,   8'h50);    // Any qualifier
+      #1000 WriteRegister(`LSSTRIG_0 | `LSSTRIG_2 | `LSSTRIGVALID | `WPTRIG_4 | `WPTRIGVALID | `TRIGOP_AND, `TSEL_ADR,   8'had);    // Trigger is AND of Watchpoint4 and LSSTRIG[0] and LSSTRIG[2]
+      #1000 WriteRegister(32'h00000003, `RECSEL_ADR,   8'h0c);  // Two samples are selected for recording (RECPC and RECLSEA)
+      #1000 WriteRegister(32'h00000000, `SSEL_ADR,   8'h34);    // No stop signal
+      #1000 WriteRegister(`ENABLE, `MODER_ADR,    8'hd4);       // Trace enabled
+      wait(dbg_tb.i_dbg_top.TraceEnable)
+      @ (posedge Mclk)
+        Wp[4] = 1;                                              // Set watchpoint[4]
+        LsStatus = 4'h5;                                        // LsStatus[0] and LsStatus[2] are active
+      @ (posedge Mclk)
+        Wp[4] = 0;                                              // Clear watchpoint[4]
+        LsStatus = 4'h0;                                        // LsStatus[0] and LsStatus[2] are cleared
+      // End: Anything starts trigger and qualifier */
+  
+      // Reading data from the trace buffer
+      SetInstruction(`CHAIN_SELECT);
+      ChainSelect(`TRACE_TEST_CHAIN, 8'h24);  // {chain, crc}
+      SetInstruction(`DEBUG);
+      ReadTraceBuffer;
+      ReadTraceBuffer;
+      ReadTraceBuffer;
+      ReadTraceBuffer;
+      ReadTraceBuffer;
+      ReadTraceBuffer;
+      ReadTraceBuffer;
+      ReadTraceBuffer;
+      ReadTraceBuffer;
+      ReadTraceBuffer;
+      ReadTraceBuffer;
+      ReadTraceBuffer;
+  `endif  // TRACE_ENABLED
+  
+  
+  
+    
   #5000 GenClk(1);            // One extra TCLK for debugging purposes
   #1000 $stop;
-
+  
+  end
+  join
 end
-join
-
 
 // Generation of the TCLK signal
 task GenClk;
@@ -425,6 +488,7 @@ endtask
 // TAP reset
 task ResetTAP;
   begin
+    $display("(%0t) Task ResetTAP", $time);
     P_TMS<=#Tp 1;
     GenClk(7);
   end
@@ -434,6 +498,7 @@ endtask
 // Goes to RunTestIdle state
 task GotoRunTestIdle;
   begin
+    $display("(%0t) Task GotoRunTestIdle", $time);
     P_TMS<=#Tp 0;
     GenClk(1);
   end
@@ -446,6 +511,7 @@ task SetInstruction;
   integer i;
   
   begin
+    $display("(%0t) Task SetInstruction", $time);
     P_TMS<=#Tp 1;
     GenClk(2);
     P_TMS<=#Tp 0;
@@ -475,6 +541,7 @@ task ChainSelect;
   integer i;
   
   begin
+    $display("(%0t) Task ChainSelect", $time);
     P_TMS<=#Tp 1;
     GenClk(1);
     P_TMS<=#Tp 0;
@@ -508,6 +575,7 @@ endtask
 // Reads the ID code
 task ReadIDCode;
   begin
+    $display("(%0t) Task ReadIDCode", $time);
     P_TMS<=#Tp 1;
     GenClk(1);
     P_TMS<=#Tp 0;
@@ -519,7 +587,7 @@ task ReadIDCode;
     P_TMS<=#Tp 1;        // going out of shiftIR
     GenClk(1);
 
-      P_TDI<=#Tp 'hz; // tri-state
+    P_TDI<=#Tp 'hz; // tri-state
     GenClk(1);
     P_TMS<=#Tp 0;
     GenClk(1);       // we are in RunTestIdle
@@ -530,6 +598,7 @@ endtask
 // Reads sample from the Trace Buffer
 task ReadTraceBuffer;
   begin
+    $display("(%0t) Task ReadTraceBuffer", $time);
     P_TMS<=#Tp 1;
     GenClk(1);
     P_TMS<=#Tp 0;
@@ -547,13 +616,14 @@ task ReadTraceBuffer;
 endtask
 
 
-// Reads the RISC register and latches the data so it is ready for reading
-task ReadRISCRegister;
+// Reads the CPU register and latches the data so it is ready for reading
+task ReadCPURegister;
   input [31:0] Address;
   input [7:0] Crc;
   integer i;
   
   begin
+    $display("(%0t) Task ReadCPURegister", $time);
     P_TMS<=#Tp 1;
     GenClk(1);
     P_TMS<=#Tp 0;
@@ -594,14 +664,15 @@ task ReadRISCRegister;
 endtask
 
 
-// Write the RISC register
-task WriteRISCRegister;
+// Write the CPU register
+task WriteCPURegister;
   input [31:0] Data;
   input [31:0] Address;
   input [`CRC_LENGTH-1:0] Crc;
   integer i;
   
   begin
+    $display("(%0t) Task WriteCPURegister", $time);
     P_TMS<=#Tp 1;
     GenClk(1);
     P_TMS<=#Tp 0;
@@ -651,6 +722,7 @@ task ReadRegister;
   integer i;
   
   begin
+    $display("(%0t) Task ReadRegister", $time);
     P_TMS<=#Tp 1;
     GenClk(1);
     P_TMS<=#Tp 0;
@@ -700,6 +772,7 @@ task WriteRegister;
   integer i;
   
   begin
+    $display("(%0t) Task WriteRegister", $time);
     P_TMS<=#Tp 1;
     GenClk(1);
     P_TMS<=#Tp 0;
@@ -745,8 +818,10 @@ endtask
 
 task EnableWishboneSlave;
 begin
+$display("(%0t) Task EnableWishboneSlave", $time);
 while(1)
   begin
+    @ (posedge Mclk);
     if(wb_stb_i & wb_cyc_i) // WB access
 //    wait (wb_stb_i & wb_cyc_i) // WB access
       begin
@@ -756,6 +831,8 @@ while(1)
         #1 wb_ack_o = 1;
         if(~wb_we_i) // read
           wb_dat_o = 32'hbeefdead;
+          wb_dat_o = {wb_adr_i[3:0],   wb_adr_i[7:4],   wb_adr_i[11:8],  wb_adr_i[15:12],
+                      wb_adr_i[19:16], wb_adr_i[23:20], wb_adr_i[27:24], wb_adr_i[31:28]};
         if(wb_we_i & wb_stb_i & wb_cyc_i) // write
           $display("\nWISHBONE write Data=%0h, Addr=%0h", wb_dat_i, wb_adr_i);
         if(~wb_we_i & wb_stb_i & wb_cyc_i) // read
@@ -808,16 +885,16 @@ always @ (posedge P_TCK)
 begin
   if(UpdateIR_q)
     case(dbg_tb.i_tap_top.LatchedJTAG_IR[`IR_LENGTH-1:0])
-      `EXTEST         : $write("\n\tInstruction EXTEST");
-      `SAMPLE_PRELOAD : $write("\n\tInstruction SAMPLE_PRELOAD");
-      `IDCODE         : $write("\n\tInstruction IDCODE");
-      `CHAIN_SELECT   : $write("\n\tInstruction CHAIN_SELECT");
-      `INTEST         : $write("\n\tInstruction INTEST");
-      `CLAMP          : $write("\n\tInstruction CLAMP");
-      `CLAMPZ         : $write("\n\tInstruction CLAMPZ");
-      `HIGHZ          : $write("\n\tInstruction HIGHZ");
-      `DEBUG          : $write("\n\tInstruction DEBUG");
-      `BYPASS         : $write("\n\tInstruction BYPASS");
+      `EXTEST         : $write("\tInstruction EXTEST entered");
+      `SAMPLE_PRELOAD : $write("\tInstruction SAMPLE_PRELOAD entered");
+      `IDCODE         : $write("\tInstruction IDCODE entered");
+      `CHAIN_SELECT   : $write("\tInstruction CHAIN_SELECT entered");
+      `INTEST         : $write("\tInstruction INTEST entered");
+      `CLAMP          : $write("\tInstruction CLAMP entered");
+      `CLAMPZ         : $write("\tInstruction CLAMPZ entered");
+      `HIGHZ          : $write("\tInstruction HIGHZ entered");
+      `DEBUG          : $write("\tInstruction DEBUG entered");
+      `BYPASS         : $write("\tInstruction BYPASS entered");
 		default           :	$write("\n\tInstruction not valid. Instruction BYPASS activated !!!");
     endcase
 end
@@ -830,8 +907,11 @@ begin
   if(dbg_tb.i_tap_top.CHAIN_SELECTSelected & dbg_tb.i_tap_top.UpdateDR_q)
     case(dbg_tb.i_dbg_top.Chain[`CHAIN_ID_LENGTH-1:0])
       `GLOBAL_BS_CHAIN      : $write("\nChain GLOBAL_BS_CHAIN");
-      `RISC_DEBUG_CHAIN_2   : $write("\nChain RISC_DEBUG_CHAIN_2");
-      `RISC_TEST_CHAIN      : $write("\nChain RISC_TEST_CHAIN");
+      `CPU_DEBUG_CHAIN_0    : $write("\nChain CPU_DEBUG_CHAIN_0");
+      `CPU_DEBUG_CHAIN_1    : $write("\nChain CPU_DEBUG_CHAIN_1");
+      `CPU_DEBUG_CHAIN_2    : $write("\nChain CPU_DEBUG_CHAIN_2");
+      `CPU_DEBUG_CHAIN_3    : $write("\nChain CPU_DEBUG_CHAIN_3");
+      `CPU_TEST_CHAIN       : $write("\nChain CPU_TEST_CHAIN");
       `TRACE_TEST_CHAIN     : $write("\nChain TRACE_TEST_CHAIN");
       `REGISTER_SCAN_CHAIN  : $write("\nChain REGISTER_SCAN_CHAIN");
       `WISHBONE_SCAN_CHAIN  : $write("\nChain WISHBONE_SCAN_CHAIN");
@@ -839,14 +919,14 @@ begin
 end
 
 
-// print RISC registers read/write
+// print CPU registers read/write
 always @ (posedge Mclk)
 begin
-  if(dbg_tb.i_dbg_top.RISCAccess & ~dbg_tb.i_dbg_top.RISCAccess_q & dbg_tb.i_dbg_top.RW)
-    $write("\n\t\tWrite to RISC Register (addr=0x%h, data=0x%h)", dbg_tb.i_dbg_top.ADDR[31:0], dbg_tb.i_dbg_top.DataOut[31:0]);
+  if(dbg_tb.i_dbg_top.CPUAccess0 & ~dbg_tb.i_dbg_top.CPUAccess_q & dbg_tb.i_dbg_top.RW)
+    $write("\n\t\tWrite to CPU Register (addr=0x%h, data=0x%h)", dbg_tb.i_dbg_top.ADDR[31:0], dbg_tb.i_dbg_top.DataOut[31:0]);
   else
-  if(dbg_tb.i_dbg_top.RISCAccess_q & ~dbg_tb.i_dbg_top.RISCAccess_q2 & ~dbg_tb.i_dbg_top.RW)
-    $write("\n\t\tRead from RISC Register (addr=0x%h, data=0x%h)", dbg_tb.i_dbg_top.ADDR[31:0], dbg_tb.i_dbg_top.risc_data_i[31:0]);
+  if(dbg_tb.i_dbg_top.CPUAccess_q & ~dbg_tb.i_dbg_top.CPUAccess_q2 & ~dbg_tb.i_dbg_top.RW)
+    $write("\n\t\tRead from CPU Register (addr=0x%h, data=0x%h)", dbg_tb.i_dbg_top.ADDR[31:0], dbg_tb.i_dbg_top.cpu_data_i[31:0]);
 end
 
 
@@ -865,9 +945,9 @@ end
 
 // print CRC error
 `ifdef TRACE_ENABLED
-  wire CRCErrorReport = ~(dbg_tb.i_dbg_top.CrcMatch & (dbg_tb.i_dbg_top.CHAIN_SELECTSelected | dbg_tb.i_dbg_top.DEBUGSelected & dbg_tb.i_dbg_top.RegisterScanChain | dbg_tb.i_dbg_top.DEBUGSelected & dbg_tb.i_dbg_top.RiscDebugScanChain | dbg_tb.i_dbg_top.DEBUGSelected & dbg_tb.i_dbg_top.TraceTestScanChain | dbg_tb.i_dbg_top.DEBUGSelected & dbg_tb.i_dbg_top.WishboneScanChain));
+  wire CRCErrorReport = ~(dbg_tb.i_dbg_top.CrcMatch & (dbg_tb.i_dbg_top.CHAIN_SELECTSelected | dbg_tb.i_dbg_top.DEBUGSelected & RegisterScanChain | dbg_tb.i_dbg_top.DEBUGSelected & (CpuDebugScanChain0 | CpuDebugScanChain1 | CpuDebugScanChain2 | CpuDebugScanChain3) | dbg_tb.i_dbg_top.DEBUGSelected & dbg_tb.i_dbg_top.TraceTestScanChain | dbg_tb.i_dbg_top.DEBUGSelected & WishboneScanChain));
 `else  // TRACE_ENABLED not enabled
-  wire CRCErrorReport = ~(dbg_tb.i_dbg_top.CrcMatch & (dbg_tb.i_tap_top.CHAIN_SELECTSelected | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.RegisterScanChain | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.RiscDebugScanChain | dbg_tb.i_tap_top.DEBUGSelected & dbg_tb.i_tap_top.WishboneScanChain));
+  wire CRCErrorReport = ~(dbg_tb.i_dbg_top.CrcMatch & (dbg_tb.i_tap_top.CHAIN_SELECTSelected | dbg_tb.i_tap_top.DEBUGSelected & RegisterScanChain | dbg_tb.i_tap_top.DEBUGSelected & (CpuDebugScanChain0 | CpuDebugScanChain1 | CpuDebugScanChain2 | CpuDebugScanChain3) | dbg_tb.i_tap_top.DEBUGSelected & WishboneScanChain));
 `endif
 
 always @ (posedge P_TCK)
@@ -877,12 +957,12 @@ begin
       if(dbg_tb.i_tap_top.CHAIN_SELECTSelected)
         $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_dbg_top.JTAG_DR_IN[11:4], dbg_tb.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
       else
-      if(dbg_tb.i_tap_top.RegisterScanChain & ~dbg_tb.i_tap_top.CHAIN_SELECTSelected)
+      if(RegisterScanChain & ~dbg_tb.i_tap_top.CHAIN_SELECTSelected)
         $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_dbg_top.JTAG_DR_IN[45:38], dbg_tb.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
       else
-      if(dbg_tb.i_tap_top.RiscDebugScanChain & ~dbg_tb.i_tap_top.CHAIN_SELECTSelected)
+      if((CpuDebugScanChain0 | CpuDebugScanChain1 | CpuDebugScanChain2 | CpuDebugScanChain3) & ~dbg_tb.i_tap_top.CHAIN_SELECTSelected)
         $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_dbg_top.JTAG_DR_IN[72:65], dbg_tb.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
-      if(dbg_tb.i_tap_top.WishboneScanChain & ~dbg_tb.i_tap_top.CHAIN_SELECTSelected)
+      if(WishboneScanChain & ~dbg_tb.i_tap_top.CHAIN_SELECTSelected)
         $write("\t\tCrcIn=0x%h, CrcOut=0x%h", dbg_tb.i_dbg_top.JTAG_DR_IN[72:65], dbg_tb.i_dbg_top.CalculatedCrcOut[`CRC_LENGTH-1:0]);
 
       if(CRCErrorReport)
@@ -890,6 +970,7 @@ begin
           $write("\n\t\t\t\tCrc Error when receiving data (read or write) !!!  CrcIn should be: 0x%h\n", dbg_tb.i_dbg_top.CalculatedCrcIn);
           #1000 $stop;
         end
+      $display("\n");
     end
 end
 
@@ -904,7 +985,13 @@ begin
         TempData[31:0]<=#Tp {dbg_tb.i_tap_top.tdo_pad_o, TempData[31:1]};
       else
       if(dbg_tb.i_tap_top.UpdateDR)
-        $write("\n\t\tIDCode = 0x%h", TempData[31:0]);
+        if (TempData[31:0] != `IDCODE_VALUE)
+          begin
+            $display("(%0t) ERROR: IDCODE not correct", $time);
+            $stop;
+          end
+        else
+          $write("\n\t\tIDCode = 0x%h", TempData[31:0]);
     end
 end
 
@@ -922,6 +1009,22 @@ begin
         $write("\n\t\TraceData = 0x%h + Crc = 0x%h", TraceData[39:0], TraceData[47:40]);
     end
 end
+
+
+// We never use following states: Exit2IR,  Exit2DR,  PauseIR or PauseDR
+always @ (posedge P_TCK)
+begin
+  if(dbg_tb.i_tap_top.Exit2IR | dbg_tb.i_tap_top.Exit2DR | dbg_tb.i_tap_top.PauseIR | dbg_tb.i_tap_top.PauseDR)
+    begin
+      $display("\n(%0t) ERROR: Exit2IR,  Exit2DR,  PauseIR or PauseDR state detected.", $time);
+      $display("(%0t) Simulation stopped !!!", $time);
+      $stop;
+    end
+end
+
+
+
+
 
 
 endmodule // TB

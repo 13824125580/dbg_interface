@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2001/11/26 10:47:09  mohor
+// Crc generation is different for read or write commands. Small synthesys fixes.
+//
 // Revision 1.5  2001/10/19 11:40:01  mohor
 // dbg_timescale.v changed to timescale.v This is done for the simulation of
 // few different cores in a single project.
@@ -79,7 +82,7 @@
 `include "dbg_defines.v"
 
 // module Trace
-module dbg_trace (Wp, Bp, DataIn, OpSelect, LsStatus, IStatus, RiscStall_O, 
+module dbg_trace (Wp, Bp, DataIn, OpSelect, LsStatus, IStatus, CpuStall_O, 
                   Mclk, Reset, TraceChain, ContinMode, TraceEnable_reg, 
                   WpTrigger, BpTrigger, LSSTrigger, ITrigger, TriggerOper, WpQualif, 
                   BpQualif, LSSQualif, IQualif, QualifOper, RecordPC, RecordLSEA, 
@@ -152,7 +155,7 @@ input IStopValid;             // Signals that come from registers and indicate w
 
 
 output [`OPSELECTWIDTH-1:0]  OpSelect;  // Operation select (what kind of information is avaliable on the DataIn)
-output        RiscStall_O;              // CPU stall (stalls the RISC)
+output        CpuStall_O;               // CPU stall (stalls the RISC)
 output [39:0] TraceChain;               // Scan shain from the trace module
 
 reg TraceEnable_d;
@@ -163,8 +166,8 @@ reg TraceEnable;
 reg [`TRACECOUNTERWIDTH:0] Counter;
 reg [`TRACECOUNTERWIDTH-1:0] WritePointer;
 reg [`TRACECOUNTERWIDTH-1:0] ReadPointer;
-reg RiscStall;
-reg RiscStall_q;
+reg CpuStall;
+reg CpuStall_q;
 reg [`OPSELECTWIDTH-1:0] StallCounter;
 
 reg [`TRACESAMPLEWIDTH-1:0] Buffer[0:`TRACEBUFFERLENGTH-1];
@@ -302,7 +305,7 @@ end
 
 /**********************************************************************************
 *                                                                                 *
-*   RiscStall, counter and pointers generation                                     *
+*   CpuStall, counter and pointers generation                                     *
 *                                                                                 *
 **********************************************************************************/
 reg BufferFullDetected;
@@ -310,8 +313,8 @@ wire [`OPSELECTIONCOUNTER-1:0] RecEnable;
 
 wire BufferFull = Counter[`TRACECOUNTERWIDTH:0]==`TRACEBUFFERLENGTH;
 wire BufferEmpty = Counter[`TRACECOUNTERWIDTH:0]==0;
-wire IncrementCounter = RiscStall_q & ~(BufferFull | BufferFullDetected) & Qualifier & RecEnable[StallCounter];
-wire IncrementPointer = RiscStall_q & (~BufferFull | ContinMode) & Qualifier & RecEnable[StallCounter];
+wire IncrementCounter = CpuStall_q & ~(BufferFull | BufferFullDetected) & Qualifier & RecEnable[StallCounter];
+wire IncrementPointer = CpuStall_q & (~BufferFull | ContinMode) & Qualifier & RecEnable[StallCounter];
 
 wire WriteSample = IncrementPointer;
 
@@ -330,7 +333,7 @@ begin
   Qualifier_mclk<=#Tp Qualifier;
   BufferFull_q<=#Tp BufferFull;
   BufferFull_2q<=#Tp BufferFull_q;
-  RiscStall_q <=#Tp RiscStall_O;
+  CpuStall_q <=#Tp CpuStall_O;
 end
 
 
@@ -341,7 +344,7 @@ wire FirstCpuStall =    Qualifier & ~Qualifier_mclk & TriggerLatch              
 
 //wire SyncSetCpuStall = Qualifier_mclk & TriggerLatch &
 
-wire SyncSetCpuStall = RiscStall_O & ~RiscStall_q |
+wire SyncSetCpuStall = CpuStall_O & ~CpuStall_q |
                         Qualifier_mclk & TriggerLatch &
                        ( 
                         (~ContinMode & ~BufferFull & ~BufferFull_q & StallCounter==`OPSELECTIONCOUNTER-1) |
@@ -355,7 +358,7 @@ assign SyncResetCpuStall = (
                             ( ContinMode & StallCounter==`OPSELECTIONCOUNTER-2)
                            );
 
-assign RiscStall_O = FirstCpuStall | RiscStall;
+assign CpuStall_O = FirstCpuStall | CpuStall;
 
 
 always @(posedge Mclk or posedge Reset)
@@ -405,13 +408,13 @@ end
 always @(posedge Mclk or posedge Reset)
 begin
   if(Reset)
-    RiscStall<=#Tp 0;
+    CpuStall<=#Tp 0;
   else
   if(SyncResetCpuStall)
-    RiscStall<=#Tp 0;
+    CpuStall<=#Tp 0;
   else
   if(SyncSetCpuStall)
-    RiscStall<=#Tp 1;
+    CpuStall<=#Tp 1;
 end
 
 
@@ -420,7 +423,7 @@ begin
   if(ResetStallCounter)
     StallCounter<=#Tp 0;
   else
-  if(RiscStall_q & (~BufferFull | ContinMode))
+  if(CpuStall_q & (~BufferFull | ContinMode))
     StallCounter<=#Tp StallCounter+1;
 end
 
