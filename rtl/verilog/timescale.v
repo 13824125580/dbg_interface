@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  dbg_timescale.v                                             ////
+////  timescale.v                                                 ////
 ////                                                              ////
 ////                                                              ////
 ////  This file is part of the SoC/OpenRISC Development Interface ////
@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1.1.1  2001/09/13 13:49:19  mohor
+// Initial official release.
+//
 //
 //
 //

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2001/10/17 10:39:03  mohor
+// bs_chain_o added.
+//
 // Revision 1.7  2001/10/16 10:09:56  mohor
 // Signal names changed to lowercase.
 //
@@ -79,7 +82,7 @@
 //
 //
 
-`include "dbg_timescale.v"
+`include "timescale.v"
 `include "dbg_defines.v"
 
 // Top module

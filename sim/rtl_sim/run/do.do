@@ -3,7 +3,7 @@ vlog -reportprogress 30 -work work {C:/cvsroot/dbg_interface/rtl/verilog/dbg_def
 vlog -reportprogress 30 -work work {C:/cvsroot/dbg_interface/rtl/verilog/dbg_register.v}
 vlog -reportprogress 30 -work work {C:/cvsroot/dbg_interface/rtl/verilog/dbg_registers.v}
 vlog -reportprogress 30 -work work {C:/cvsroot/dbg_interface/rtl/verilog/dbg_sync_clk1_clk2.v}
-vlog -reportprogress 30 -work work {C:/cvsroot/dbg_interface/rtl/verilog/dbg_timescale.v}
+vlog -reportprogress 30 -work work {C:/cvsroot/dbg_interface/rtl/verilog/timescale.v}
 vlog -reportprogress 30 -work work {C:/cvsroot/dbg_interface/rtl/verilog/dbg_top.v}
 vlog -reportprogress 30 -work work {C:/cvsroot/dbg_interface/rtl/verilog/dbg_trace.v}
 

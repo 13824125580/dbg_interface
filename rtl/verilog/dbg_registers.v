@@ -45,6 +45,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2001/10/15 09:55:47  mohor
+// Wishbone interface added, few fixes for better performance,
+// hooks for boundary scan testing added.
+//
 // Revision 1.2  2001/09/18 14:13:47  mohor
 // Trace fixed. Some registers changed, trace simplified.
 //
@@ -62,7 +66,7 @@
 //
 //
 
-`include "dbg_timescale.v"
+`include "timescale.v"
 `include "dbg_defines.v"
 
 module dbg_registers(DataIn, DataOut, Address, RW, Access, Clk, Bp, Reset, 

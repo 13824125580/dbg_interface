@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2001/09/20 10:11:25  mohor
+// Working version. Few bugs fixed, comments added.
+//
 // Revision 1.3  2001/09/19 11:55:13  mohor
 // Asynchronous set/reset not used in trace any more.
 //
@@ -66,7 +69,7 @@
 //
 
 
-`include "dbg_timescale.v"
+`include "timescale.v"
 `include "dbg_defines.v"
 
 // module Trace

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/09/20 10:11:25  mohor
+// Working version. Few bugs fixed, comments added.
+//
 // Revision 1.1.1.1  2001/09/13 13:49:19  mohor
 // Initial official release.
 //
@@ -80,7 +83,7 @@
 //       http://www.easics.com
 ///////////////////////////////////////////////////////////////////////
 
-`include "dbg_timescale.v"
+`include "timescale.v"
 `include "dbg_defines.v"
 
 

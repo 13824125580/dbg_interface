@@ -45,12 +45,15 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1.1.1  2001/09/13 13:49:19  mohor
+// Initial official release.
+//
 //
 //
 //
 //
 
-`include "dbg_timescale.v"
+`include "timescale.v"
 
 module dbg_register(DataIn, DataOut, Write, Clk, Reset, Default);
 
