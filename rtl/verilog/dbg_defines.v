@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2003/08/28 13:55:21  simons
+// Three more chains added for cpu debug access.
+//
 // Revision 1.10  2003/07/31 12:19:49  simons
 // Multiple cpu support added.
 //
@@ -176,6 +179,7 @@
 `define RISCSEL_ADR         5'h05
 `define RECSEL_ADR          5'h10
 `define MON_CNTL_ADR        5'h11
+`define WB_CNTL_ADR         5'h12
 
 
 // Registers default values (after reset)

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2003/07/31 14:01:53  simons
+// Lapsus fixed.
+//
 // Revision 1.9  2003/07/31 12:19:49  simons
 // Multiple cpu support added.
 //
@@ -102,7 +105,7 @@ module dbg_registers(data_in, data_out, address, rw, access, clk, bp, reset,
                      WpStop, BpStop, LSSStop, IStop, StopOper, WpStopValid, BpStopValid, 
                      LSSStopValid, IStopValid, 
                      `endif
-                     risc_stall, risc_stall_all, risc_sel, risc_reset, mon_cntl_o
+                     risc_stall, risc_stall_all, risc_sel, risc_reset, mon_cntl_o, wb_cntl_o
                     );
 
 parameter Tp = 1;
@@ -170,11 +173,13 @@ reg    [31:0] data_out;
   output [`RISC_NUM-1:0] risc_sel;
   output risc_reset;
   output [3:0] mon_cntl_o;
+  output [1:0] wb_cntl_o;
 
   wire MODER_Acc     = (address == `MODER_ADR)    & access;
   wire RISCOP_Acc    = (address == `RISCOP_ADR)   & access;
   wire RISCSEL_Acc   = (address == `RISCSEL_ADR)  & access;
   wire MON_CNTL_Acc  = (address == `MON_CNTL_ADR) & access;
+  wire WB_CNTL_Acc   = (address == `WB_CNTL_ADR)  & access;
 `ifdef TRACE_ENABLED
   wire TSEL_Acc      = (address == `TSEL_ADR)     & access;
   wire QSEL_Acc      = (address == `QSEL_ADR)     & access;
@@ -187,6 +192,7 @@ reg    [31:0] data_out;
   wire RISCOP_Wr     = RISCOP_Acc   &  rw;
   wire RISCSEL_Wr    = RISCSEL_Acc  &  rw;
   wire MON_CNTL_Wr   = MON_CNTL_Acc &  rw;
+  wire WB_CNTL_Wr    = WB_CNTL_Acc  &  rw;
 `ifdef TRACE_ENABLED
   wire TSEL_Wr       = TSEL_Acc     &  rw;
   wire QSEL_Wr       = QSEL_Acc     &  rw;
@@ -200,6 +206,7 @@ reg    [31:0] data_out;
   wire RISCOP_Rd     = RISCOP_Acc   & ~rw;
   wire RISCSEL_Rd    = RISCSEL_Acc  & ~rw;
   wire MON_CNTL_Rd   = MON_CNTL_Acc & ~rw;
+  wire WB_CNTL_Rd    = WB_CNTL_Acc  & ~rw;
 `ifdef TRACE_ENABLED
   wire TSEL_Rd       = TSEL_Acc     & ~rw;
   wire QSEL_Rd       = QSEL_Acc     & ~rw;
@@ -212,6 +219,7 @@ reg    [31:0] data_out;
   wire [2:1]            RISCOPOut;
   wire [`RISC_NUM-1:0]  RISCSELOut;
   wire [3:0]            MONCNTLOut;
+  wire [1:0]            WB_CNTLOut;
 
 `ifdef TRACE_ENABLED
   wire [31:0]           TSELOut;
@@ -245,6 +253,7 @@ reg    [31:0] data_out;
   dbg_register #(2, 0)  RISCOP  (.data_in(data_in[2:1]),   .data_out(RISCOPOut[2:1]),    .write(RISCOP_Wr),   .clk(clk), .reset(reset));
   dbg_register #(`RISC_NUM, 1)  RISCSEL  (.data_in(data_in[`RISC_NUM-1:0]),   .data_out(RISCSELOut),    .write(RISCSEL_Wr),   .clk(clk), .reset(reset));
   dbg_register #(4, `MON_CNTL_DEF)  MONCNTL (.data_in(data_in[3:0]), .data_out(MONCNTLOut[3:0]), .write(MON_CNTL_Wr), .clk(clk), .reset(reset));
+  dbg_register #(2, 0)  WBCNTL (.data_in(data_in[1:0]), .data_out(WB_CNTLOut[1:0]), .write(WB_CNTL_Wr), .clk(clk), .reset(reset));
 
 
 `ifdef TRACE_ENABLED
@@ -266,6 +275,8 @@ begin
   if(RISCSEL_Rd)  data_out<= #Tp {{(32-`RISC_NUM){1'b0}}, RISCSELOut};
   else
   if(MON_CNTL_Rd) data_out<= #Tp {28'h0, MONCNTLOut};
+  else
+  if(WB_CNTL_Rd) data_out<= #Tp {30'h0, WB_CNTLOut};
 `ifdef TRACE_ENABLED
   else
   if(TSEL_Rd)     data_out<= #Tp TSELOut;
@@ -328,5 +339,6 @@ end
   assign risc_sel            = RISCSELOut;
   assign risc_reset          = RISCOPOut[1];
   assign mon_cntl_o          = MONCNTLOut;
+  assign wb_cntl_o           = WB_CNTLOut;
 
 endmodule

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.30  2003/08/28 13:55:22  simons
+// Three more chains added for cpu debug access.
+//
 // Revision 1.29  2003/07/31 12:19:49  simons
 // Multiple cpu support added.
 //
@@ -418,6 +421,7 @@ wire [46:0] Register_Data;
 wire [73:0] WISHBONE_Data;
 wire [12:0] chain_sel_data;
 wire wb_Access_wbClk;
+wire [1:0] wb_cntl_o;
 
 
 reg select_crc_out;
@@ -667,12 +671,24 @@ begin
 end
 
 
-assign wb_adr_o = ADDR;
-assign wb_we_o  = RW;
-assign wb_dat_o = DataOut;
-assign wb_sel_o[3:0] = 4'hf;
+assign wb_adr_o = ADDR & {32{wb_cyc_o}};
+assign wb_we_o  = RW & wb_cyc_o;
+assign wb_dat_o = DataOut & {32{wb_cyc_o}};
 assign wb_cab_o = 1'b0;
-   
+
+reg [3:0] wb_sel_o;
+always @(ADDR[1:0] or wb_cntl_o or wb_cyc_o)
+begin
+  if(wb_cyc_o)
+      case (wb_cntl_o)
+        2'b00:   wb_sel_o = 4'hf;
+        2'b01:   wb_sel_o = ADDR[1] ? 4'h3 : 4'hc;
+        2'b10:   wb_sel_o = ADDR[1] ? (ADDR[0] ? 4'h1 : 4'h2) : (ADDR[0] ? 4'h4 : 4'h8);
+        default: wb_sel_o = 4'hf;
+      endcase
+  else
+    wb_sel_o = 4'hf;
+end
    
 // Synchronizing the RegAccess signal to risc_clk_i clock
 dbg_sync_clk1_clk2 syn1 (.clk1(risc_clk_i),   .clk2(tck),           .reset1(wb_rst_i),  .reset2(trst), 
@@ -993,7 +1009,7 @@ dbg_registers dbgregs(.data_in(DataOut[31:0]), .data_out(RegDataIn[31:0]),
                       .LSSStopValid(LSSStopValid), .IStopValid(IStopValid), 
                       `endif
                       .risc_stall(RiscStall_reg), .risc_stall_all(risc_stall_all_o), .risc_sel(risc_sel_o),
-                      .risc_reset(RiscReset_reg), .mon_cntl_o(mon_cntl_o)
+                      .risc_reset(RiscReset_reg), .mon_cntl_o(mon_cntl_o), .wb_cntl_o(wb_cntl_o)
 
                      );
 
