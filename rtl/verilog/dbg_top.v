@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2001/11/27 13:37:43  mohor
+// CRC is returned when chain selection data is transmitted.
+//
 // Revision 1.12  2001/11/26 10:47:09  mohor
 // Crc generation is different for read or write commands. Small synthesys fixes.
 //
@@ -636,9 +639,9 @@ begin
     JTAG_DR_IN[BitCounter]<=#Tp TDI;
 end
 
-wire [72:0] RISC_Data;
-wire [45:0] Register_Data;
-wire [72:0] WISHBONE_Data;
+wire [73:0] RISC_Data;
+wire [46:0] Register_Data;
+wire [73:0] WISHBONE_Data;
 wire [12:0] chain_sel_data;
 wire wb_Access_wbClk;
 
