@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.41  2004/03/28 20:27:40  igorm
+// New release of the debug interface (3rd. release).
+//
 // Revision 1.40  2004/03/22 16:36:06  igorm
 // Temp version before changing dbg interface.
 //
@@ -934,6 +937,12 @@ task module_select;
     tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to exit1_dr
 
+    if (~crc_match_in)
+      begin
+        $display("(%0t) Incoming CRC failed !!!", $time);
+        $stop;
+      end
+
     tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to update_dr
     tms_pad_i<=#1 1'b0;
@@ -941,7 +950,7 @@ task module_select;
 
     if (|status)
       begin
-        $write("(*E) (%0t) Chain select error: ", $time);
+        $write("(*E) (%0t) Module select error: ", $time);
         casex (status)
           4'b1xxx : $display("CRC error !!!\n\n", $time);
           4'bx1xx : $display("Non-existing module selected !!!\n\n", $time);
@@ -1126,6 +1135,12 @@ task debug_wishbone_wr_comm;
     tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to exit1_dr
 
+    if (~crc_match_in)
+      begin
+        $display("(%0t) Incoming CRC failed !!!", $time);
+        $stop;
+      end
+
     tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to update_dr
     tms_pad_i<=#1 1'b0;
@@ -1220,6 +1235,12 @@ task debug_wishbone_rd_comm;
 
     tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to exit1_dr
+
+    if (~crc_match_in)
+      begin
+        $display("(%0t) Incoming CRC failed !!!", $time);
+        $stop;
+      end
 
     tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to update_dr
@@ -1517,6 +1538,12 @@ task debug_cpu_wr_comm;
     tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to exit1_dr
 
+    if (~crc_match_in)
+      begin
+        $display("(%0t) Incoming CRC failed !!!", $time);
+        $stop;
+      end
+
     tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to update_dr
     tms_pad_i<=#1 1'b0;
@@ -1607,6 +1634,12 @@ task debug_cpu_wr_ctrl;
     tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to exit1_dr
 
+    if (~crc_match_in)
+      begin
+        $display("(%0t) Incoming CRC failed !!!", $time);
+        $stop;
+      end
+
     tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to update_dr
     tms_pad_i<=#1 1'b0;
@@ -1692,6 +1725,12 @@ task debug_cpu_rd_ctrl;
 
     tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to exit1_dr
+
+    if (~crc_match_in)
+      begin
+        $display("(%0t) Incoming CRC failed !!!", $time);
+        $stop;
+      end
 
     tms_pad_i<=#1 1'b1;
     gen_clk(1);         // to update_dr
