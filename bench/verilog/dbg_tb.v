@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.31  2004/01/20 09:07:44  mohor
+// CRC generation iand verification in bench changed.
+//
 // Revision 1.30  2004/01/20 08:03:35  mohor
 // IDCODE test improved.
 //
@@ -415,7 +418,8 @@ begin
   // Testing read and write to internal registers
   #10000;
   
-  set_instruction(`IDCODE);
+//  set_instruction(`IDCODE);
+  set_instruction(4'b1100);
   read_id_code(id);
 
   $display("\tRead ID     = 0x%0x", id);
@@ -632,13 +636,28 @@ task goto_run_test_idle;
 endtask
 
 
+
 // sets the instruction to the IR register and goes to the RunTestIdle state
 task set_instruction;
   input [3:0] instr;
   integer i;
   
   begin
-    $display("(%0t) Task set_instruction", $time);
+    case (instr)
+      `EXTEST          : $display("(%0t) Task set_instruction (EXTEST)", $time); 
+      `SAMPLE_PRELOAD  : $display("(%0t) Task set_instruction (SAMPLE_PRELOAD)", $time); 
+      `IDCODE          : $display("(%0t) Task set_instruction (IDCODE)", $time);
+      `DEBUG           : $display("(%0t) Task set_instruction (DEBUG)", $time);
+      `MBIST           : $display("(%0t) Task set_instruction (MBIST)", $time);
+      `BYPASS          : $display("(%0t) Task set_instruction (BYPASS)", $time);
+      default
+                       begin
+                         $display("(%0t) Task set_instruction (Unsupported instruction !!!)", $time);
+                         $display("\tERROR: Unsupported instruction !!!", $time);
+                         $stop;
+                       end
+    endcase
+
     tms_pad_i<=#1 1;
     gen_clk(2);
     tms_pad_i<=#1 0;
