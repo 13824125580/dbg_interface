@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.17  2004/01/06 17:14:59  mohor
+// temp3 version.
+//
 // Revision 1.16  2004/01/05 12:16:50  mohor
 // tmp2 version.
 //
@@ -357,7 +360,7 @@ begin
   debug_wishbone(`WB_READ32, 1'b1, 32'h12347778, 16'hc, 32'hd9ce3bbe, result, "rst_status"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
-  debug_wishbone(`WB_WRITE32, 1'b0, 32'h12346668, 16'h8, 32'hc5a58ff5, result, "write 1"); // {command, ready, addr, length, crc, result, text}
+  debug_wishbone(`WB_WRITE32, 1'b0, 32'h12346668, 16'h8, 32'hc5a58ff5, result, "write 32 bit len8"); // {command, ready, addr, length, crc, result, text}
 
   #10000;
   debug_wishbone(`WB_WRITE16, 1'b0, 32'h12344446, 16'h8, 32'hed029606, result, "write 16 bit len8"); // {command, ready, addr, length, crc, result, text}
@@ -367,6 +370,13 @@ begin
 
   #10000;
   debug_wishbone(`WB_GO, 1'b0, 32'h0, 16'h0, 32'h4c3fb42a, result, "go 1"); // {command, ready, addr, length, crc, result, text}
+
+  #10000;
+  debug_wishbone(`WB_READ32, 1'b1, 32'h12340100, 16'hc, 32'h8bbeb90d, result, "read32 len c"); // {command, ready, addr, length, crc, result, text}
+
+  #10000;
+  debug_wishbone(`WB_GO, 1'b0, 32'h0, 16'h0, 32'hd4b43491, result, "go read32"); // {command, ready, addr, length, crc, result, text}
+
 
 
 

@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2004/01/06 17:15:19  mohor
+// temp3 version.
+//
 // Revision 1.4  2004/01/05 12:16:00  mohor
 // tmp2 version.
 //
@@ -155,21 +158,33 @@ reg [`STATUS_CNT -1:0]      status_cnt;
 reg [2:0]  cmd, cmd_old;
 reg [31:0] adr;
 reg [15:0] len;
-reg start_tck;
-reg start_sync1;
-reg start_wb;
-reg start_wb_q;
+reg start_rd_tck;
+reg start_rd_sync1;
+reg start_wb_rd;
+reg start_wb_rd_q;
+reg start_wr_tck;
+reg start_wr_sync1;
+reg start_wb_wr;
+reg start_wb_wr_q;
 
+reg cmd_write;
+reg cmd_read;
+reg cmd_go;
 
 wire status_cnt_end;
 
+wire byte, half, long;
+reg  byte_q, half_q, long_q;
+//wire previous_cmd_read;
+wire previous_cmd_write;
+
 assign enable = wishbone_ce_i & shift_dr_i;
-assign shift_crc_o = wishbone_ce_i & status_cnt_end & shift_dr_i;  // Signals dbg module to shift out the CRC
+assign crc_en_o = enable & crc_cnt_end & (~status_cnt_end);   // igor !!! Add something so CRC is calculated when data is read from WB
+assign shift_crc_o = enable & status_cnt_end;  // Signals dbg module to shift out the CRC
 
 
 always @ (posedge tck_i)
 begin
-//  if (enable & ((~addr_len_cnt_end) | (~cmd_cnt_end)))
   if (enable & ((~addr_len_cnt_end) | (~cmd_cnt_end) | (~data_cnt_end)))
     dr <= #1 {dr[49:0], tdi_i};
 end
@@ -210,13 +225,11 @@ begin
     data_cnt <= #1 'h0;
   else if (update_dr_i)
     data_cnt <= #1 'h0;
-  else if (enable & cmd_cnt_end & (~data_cnt_end))
+//  else if (enable & cmd_cnt_end & (~data_cnt_end))  // igor !!! add something that will count output data
+  else if (enable & (~data_cnt_end) & cmd_go & ((cmd_cnt_end & previous_cmd_write | crc_cnt_end & cmd_read)))
     data_cnt <= #1 data_cnt + 1'b1;
 end
 
-
-wire byte, half, long;
-reg byte_q, half_q, long_q;
 
 
 assign byte = data_cnt[2:0] == 3'h0;
@@ -233,24 +246,18 @@ end
 
 
 
-reg cmd_write;
-reg cmd_read;
-reg cmd_go;
-
-//wire previous_cmd_read;
-wire previous_cmd_write;
 //assign previous_cmd_read = (cmd == `WB_READ8) | (cmd == `WB_READ16) | (cmd == `WB_READ32);
 assign previous_cmd_write = (cmd == `WB_WRITE8) | (cmd == `WB_WRITE16) | (cmd == `WB_WRITE32);
 
-reg [2:0] cmd_new;
+wire dr_read;
+wire dr_write;
+wire dr_go;
+wire dr_status;
 
-always @ (posedge tck_i or posedge trst_i)
-begin
-  if (trst_i)
-    cmd_new  <= #1 3'h0;
-  else if (cmd_cnt_end & (~cmd_cnt_end_q))
-    cmd_new <= #1 dr[2:0];
-end
+assign dr_read = (dr[2:0] == `WB_READ8) | (dr[2:0] == `WB_READ16) | (dr[2:0] == `WB_READ32);
+assign dr_write = (dr[2:0] == `WB_WRITE8) | (dr[2:0] == `WB_WRITE16) | (dr[2:0] == `WB_WRITE32);
+assign dr_go = dr[2:0] == `WB_GO;
+assign dr_status = dr[2:0] == `WB_STATUS;
 
 
 always @ (posedge tck_i)
@@ -258,7 +265,7 @@ begin
   if (update_dr_i)
     cmd_read  <= #1 1'b0;
   else if (cmd_cnt_end & (~cmd_cnt_end_q))
-    cmd_read <= #1 (dr[2:0] == `WB_READ8) | (dr[2:0] == `WB_READ16) | (dr[2:0] == `WB_READ32);
+    cmd_read <= #1 dr_read;
 end
 
 
@@ -267,7 +274,7 @@ begin
   if (update_dr_i)
     cmd_write  <= #1 1'b0;
   else if (cmd_cnt_end & (~cmd_cnt_end_q))
-    cmd_write <= #1 (dr[2:0] == `WB_WRITE8) | (dr[2:0] == `WB_WRITE16) | (dr[2:0] == `WB_WRITE32);
+    cmd_write <= #1 dr_write;
 end
 
 
@@ -276,7 +283,7 @@ begin
   if (update_dr_i)
     cmd_go  <= #1 1'b0;
   else if (cmd_cnt_end & (~cmd_cnt_end_q))
-    cmd_go <= #1 (dr[2:0] == `WB_GO);
+    cmd_go <= #1 dr_go;
 end
                                                                                                                                                                                     
                                                                                                                                                                                     
@@ -288,7 +295,7 @@ begin
   if (cmd_cnt_end & (~cmd_cnt_end_q))
     begin
       // (current command is WB_STATUS or WB_GO)
-      if ( (dr[2:0] == `WB_STATUS) | (dr[2:0] == `WB_GO) )
+      if (dr_status | dr_go)
         addr_len_cnt_limit = 6'd0;
       // (current command is WB_WRITEx or WB_READx)
       else
@@ -303,26 +310,13 @@ begin
   if (cmd_cnt_end & (~cmd_cnt_end_q))
     begin
       // (current command is WB_GO and previous command is WB_WRITEx)
-      if ( (dr[2:0] == `WB_GO) & previous_cmd_write )
+      if (dr_go & previous_cmd_write)
         data_cnt_limit = (len<<3);
       else
         data_cnt_limit = 19'h0;
     end
 end
     
-
-
-`define WB_STATUS     3'h0
-`define WB_WRITE8     3'h1
-`define WB_WRITE16    3'h2
-`define WB_WRITE32    3'h3
-`define WB_GO         3'h4
-`define WB_READ8      3'h5
-`define WB_READ16     3'h6
-`define WB_READ32     3'h7
-
-
-
 
 
 // crc counter
@@ -341,7 +335,7 @@ assign cmd_cnt_end  = cmd_cnt  == 2'h3;
 //assign addr_len_cnt_end = addr_len_cnt == 6'd48;
 assign addr_len_cnt_end = addr_len_cnt == addr_len_cnt_limit;
 assign crc_cnt_end  = crc_cnt  == 6'd32;
-assign data_cnt_end = data_cnt == data_cnt_limit;
+assign data_cnt_end = (data_cnt == data_cnt_limit);
 
 always @ (posedge tck_i)
 begin
@@ -418,7 +412,6 @@ begin
     end
 end
 
-assign crc_en_o = crc_cnt_end & (~status_cnt_end) & shift_dr_i;
 
 reg set_addr, set_addr_sync, set_addr_wb, set_addr_wb_q;
 
@@ -445,6 +438,18 @@ begin
 end
 
 
+// Start wishbone read cycle
+always @ (posedge tck_i)
+begin
+  if (set_addr & cmd_read)
+    start_rd_tck <= #1 1'b1;
+  else
+    start_rd_tck <= #1 1'b0;
+end
+
+
+
+// Start wishbone write cycle
 always @ (posedge tck_i)
 begin
   if (cmd_go & previous_cmd_write)
@@ -453,51 +458,56 @@ begin
         `WB_WRITE8  : begin
                         if (byte & (~byte_q))
                           begin
-                            start_tck <= #1 1'b1;
+                            start_wr_tck <= #1 1'b1;
                             wb_dat_o <= #1 {4{dr[7:0]}};
                           end
                         else
                           begin
-                            start_tck <= #1 1'b0;
+                            start_wr_tck <= #1 1'b0;
                           end
                       end
         `WB_WRITE16 : begin
                         if (half & (~half_q))
                           begin
-                            start_tck <= #1 1'b1;
+                            start_wr_tck <= #1 1'b1;
                             wb_dat_o <= #1 {2{dr[15:0]}};
                           end
                         else
                           begin
-                            start_tck <= #1 1'b0;
+                            start_wr_tck <= #1 1'b0;
                           end
                       end
         `WB_WRITE32 : begin
                         if (long & (~long_q))
                           begin
-                            start_tck <= #1 1'b1;
+                            start_wr_tck <= #1 1'b1;
                             wb_dat_o <= #1 dr[31:0];
                           end
                         else
                           begin
-                            start_tck <= #1 1'b0;
+                            start_wr_tck <= #1 1'b0;
                           end
                       end
       endcase
     end
   else
-    start_tck <= #1 1'b0;
+    start_wr_tck <= #1 1'b0;
 end
 
 
 always @ (posedge wb_clk_i)
 begin
-  start_sync1 <= #1 start_tck;
-  start_wb <= #1 start_sync1;
-  start_wb_q <= #1 start_wb;
-  set_addr_sync <= #1 set_addr;
-  set_addr_wb <= #1 set_addr_sync;
-  set_addr_wb_q <= #1 set_addr_wb;
+  start_rd_sync1  <= #1 start_rd_tck;
+  start_wb_rd     <= #1 start_rd_sync1;
+  start_wb_rd_q   <= #1 start_wb_rd;
+
+  start_wr_sync1  <= #1 start_wr_tck;
+  start_wb_wr     <= #1 start_wr_sync1;
+  start_wb_wr_q   <= #1 start_wb_wr;
+
+  set_addr_sync   <= #1 set_addr;
+  set_addr_wb     <= #1 set_addr_sync;
+  set_addr_wb_q   <= #1 set_addr_wb;
 end
 
 
@@ -505,7 +515,7 @@ always @ (posedge wb_clk_i or posedge wb_rst_i)
 begin
   if (wb_rst_i)
     wb_cyc_o <= #1 1'b0;
-  else if (start_wb & (~start_wb_q))
+  else if ((start_wb_wr & (~start_wb_wr_q)) | (start_wb_rd & (~start_wb_rd_q)))
     wb_cyc_o <= #1 1'b1;
   else if (wb_ack_i | wb_err_i)
     wb_cyc_o <= #1 1'b0;
@@ -519,14 +529,28 @@ begin
     wb_adr_o <= #1 adr;
   else if (wb_ack_i)
     begin
-      if ((cmd_new == `WB_WRITE8) | (cmd == `WB_READ8))
+      if ((cmd == `WB_WRITE8) | (cmd_old == `WB_READ8))
         wb_adr_o <= #1 wb_adr_o + 1'd1;
-      else if ((cmd_new == `WB_WRITE16) | (cmd == `WB_READ16))
+      else if ((cmd == `WB_WRITE16) | (cmd_old == `WB_READ16))
         wb_adr_o <= #1 wb_adr_o + 2'd2;
       else
         wb_adr_o <= #1 wb_adr_o + 3'd4;
     end
 end
+
+`define WB_STATUS     3'h0  // igor !!! Delete this lines 
+`define WB_WRITE8     3'h1  // igor !!! Delete this lines
+`define WB_WRITE16    3'h2  // igor !!! Delete this lines
+`define WB_WRITE32    3'h3  // igor !!! Delete this lines
+`define WB_GO         3'h4  // igor !!! Delete this lines
+`define WB_READ8      3'h5  // igor !!! Delete this lines
+`define WB_READ16     3'h6  // igor !!! Delete this lines
+`define WB_READ32     3'h7  // igor !!! Delete this lines
+
+
+
+
+
 
 
 //    adr   byte  |  short  |  long
@@ -559,7 +583,7 @@ always @ (posedge wb_clk_i or posedge wb_rst_i)
 begin
   if (wb_rst_i)
     wb_dat_o[31:0] <= #1 32'h0;
-  else if (start_wb & (~start_wb_q))
+  else if (start_wb_wr & (~start_wb_wr_q))
     begin
       if (cmd[1:0] == 2'd1)                       // 8-bit access
         wb_dat_o[31:0] <= #1 {4{8'h0}};
@@ -686,7 +710,7 @@ always @ (posedge wb_clk_i or posedge wb_rst_i)
 begin
   if (wb_rst_i)
     wb_overrun <= #1 1'b0;
-  else if(start_wb & (~start_wb_q) & wb_cyc_o)
+  else if(start_wb_wr & (~start_wb_wr_q) & wb_cyc_o)
     wb_overrun <= #1 1'b1;
   else if((wb_ack_i | wb_err_i) & status_reset_en) // error remains active until STATUS read is performed
     wb_overrun <= #1 1'b0;
