@@ -3,7 +3,7 @@
 ////  timescale.v                                                 ////
 ////                                                              ////
 ////                                                              ////
-////  This file is part of the SoC/OpenRISC Development Interface ////
+////  This file is part of the SoC Debug Interface.               ////
 ////  http://www.opencores.org/projects/DebugInterface/           ////
 ////                                                              ////
 ////  Author(s):                                                  ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2004/01/17 17:01:25  mohor
+// Almost finished.
+//
 // Revision 1.2  2003/12/23 14:26:01  mohor
 // New version of the debug interface. Not finished, yet.
 //

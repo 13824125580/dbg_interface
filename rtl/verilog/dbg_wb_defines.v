@@ -3,7 +3,7 @@
 ////  dbg_wb_defines.v                                            ////
 ////                                                              ////
 ////                                                              ////
-////  This file is part of the SoC/OpenRISC Development Interface ////
+////  This file is part of the SoC Debug Interface.               ////
 ////  http://www.opencores.org/projects/DebugInterface/           ////
 ////                                                              ////
 ////  Author(s):                                                  ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2004/03/22 16:35:46  igorm
+// Temp version before changing dbg interface.
+//
 // Revision 1.4  2004/01/16 14:51:33  mohor
 // cpu registers added.
 //
@@ -59,30 +62,43 @@
 //
 
 // Defining length of the command
-`define DBG_WB_CMD_LEN        3'd3
-`define DBG_WB_CMD_CNT_WIDTH  3
+`define DBG_WB_CMD_LEN          3'd4
+`define DBG_WB_CMD_CNT_WIDTH    3
+
+// Defining length of the access_type field
+`define DBG_WB_ACC_TYPE_LEN     3'd4
 
 // Defining length of the address
-`define DBG_WB_ADR_LEN        6'd32
+`define DBG_WB_ADR_LEN          6'd32
 
 // Defining length of the length register
-`define DBG_WB_LEN_LEN        5'd16
+`define DBG_WB_LEN_LEN          5'd16
+
+// Defining total length of the DR needed
+`define DBG_WB_DR_LEN           (`DBG_WB_ACC_TYPE_LEN + `DBG_WB_ADR_LEN + `DBG_WB_LEN_LEN)
 
 // Defining length of the CRC
-`define DBG_WB_CRC_LEN        6'd32
+`define DBG_WB_CRC_LEN          6'd32
+`define DBG_WB_CRC_CNT_WIDTH    6
 
-// Defining commands for wishbone
-`define WB_STATUS     3'h0
-`define WB_WRITE8     3'h1
-`define WB_WRITE16    3'h2
-`define WB_WRITE32    3'h3
-`define WB_GO         3'h4
-`define WB_READ8      3'h5
-`define WB_READ16     3'h6
-`define WB_READ32     3'h7
+// Defining length of status
+`define DBG_WB_STATUS_LEN       3'd4
+`define DBG_WB_STATUS_CNT_WIDTH 3
 
+// Defining length of the data
+`define DBG_WB_DATA_CNT_WIDTH   (`DBG_WB_LEN_LEN + 3)
 
-// Length of status
-`define DBG_WB_STATUS_LEN     4
+//Defining commands
+`define DBG_WB_GO               4'h0
+`define DBG_WB_RD_COMM          4'h1
+`define DBG_WB_WR_COMM          4'h2
+
+// Defining access types for wishbone
+`define DBG_WB_WRITE8           4'h0
+`define DBG_WB_WRITE16          4'h1
+`define DBG_WB_WRITE32          4'h2
+`define DBG_WB_READ8            4'h4
+`define DBG_WB_READ16           4'h5
+`define DBG_WB_READ32           4'h6
 
 

@@ -3,7 +3,7 @@
 ////  dbg_cpu_defines.v                                           ////
 ////                                                              ////
 ////                                                              ////
-////  This file is part of the SoC/OpenRISC Development Interface ////
+////  This file is part of the SoC Debug Interface.               ////
 ////  http://www.opencores.org/projects/DebugInterface/           ////
 ////                                                              ////
 ////  Author(s):                                                  ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2004/03/22 16:35:46  igorm
+// Temp version before changing dbg interface.
+//
 // Revision 1.2  2004/01/17 17:01:14  mohor
 // Almost finished.
 //
@@ -51,33 +54,48 @@
 //
 //
 //
+                                                                                 
+                                                                                 
 
+// Defining length of the command
+`define DBG_CPU_CMD_LEN          3'd4
+`define DBG_CPU_CMD_CNT_WIDTH    3
 
-// Defining commands for cpu module
-//`define CPU_STATUS     3'h0
-`define CPU_WRITE8     3'h1
-`define CPU_WRITE32    3'h2
-`define CPU_WRITE_REG  3'h3
-`define CPU_GO         3'h4
-`define CPU_READ8      3'h5
-`define CPU_READ32     3'h6
-`define CPU_READ_REG   3'h7
+// Defining length of the access_type field
+`define DBG_CPU_ACC_TYPE_LEN     3'd4
 
+// Defining length of the address
+`define DBG_CPU_ADR_LEN          6'd32
 
+// Defining length of the length register
+`define DBG_CPU_LEN_LEN          5'd16
 
-
-
-// Number of supported cpus
-`define CPU_NUM        2
-
-
-// Registers addresses
-`define CPU_OP_ADR     2'd0
-`define CPU_SEL_ADR    2'd1
+// Defining total length of the DR needed
+`define DBG_CPU_DR_LEN           (`DBG_CPU_ACC_TYPE_LEN + `DBG_CPU_ADR_LEN + `DBG_CPU_LEN_LEN)
 
 // Defining length of the CRC
-`define DBG_CPU_CRC_LEN     32
+`define DBG_CPU_CRC_LEN          6'd32
+`define DBG_CPU_CRC_CNT_WIDTH    6
 
-// Defining length of the status
-`define DBG_CPU_STATUS_LEN  4
+// Defining length of status
+`define DBG_CPU_STATUS_LEN       3'd4
+`define DBG_CPU_STATUS_CNT_WIDTH 3
+
+// Defining length of the data
+`define DBG_CPU_DATA_CNT_WIDTH   (`DBG_CPU_LEN_LEN + 3)
+
+// Defining length of the control register
+`define DBG_CPU_CTRL_LEN         2
+
+//Defining commands
+`define DBG_CPU_GO               4'h0
+`define DBG_CPU_RD_COMM          4'h1
+`define DBG_CPU_WR_COMM          4'h2
+`define DBG_CPU_WR_CTRL          4'h3
+`define DBG_CPU_RD_CTRL          4'h4
+
+// Defining access types for wishbone
+`define DBG_CPU_WRITE            4'h2
+`define DBG_CPU_READ             4'h6
+
 

@@ -3,7 +3,7 @@
 ////  dbg_wb.v                                                    ////
 ////                                                              ////
 ////                                                              ////
-////  This file is part of the SoC/OpenRISC Development Interface ////
+////  This file is part of the SoC Debug Interface.               ////
 ////  http://www.opencores.org/projects/DebugInterface/           ////
 ////                                                              ////
 ////  Author(s):                                                  ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.19  2004/03/22 16:35:46  igorm
+// Temp version before changing dbg interface.
+//
 // Revision 1.18  2004/01/25 14:04:18  mohor
 // All flipflops are reset.
 //
@@ -165,87 +168,75 @@ output  [2:0] wb_cti_o;
 output  [1:0] wb_bte_o;
 
 reg           wb_cyc_o;
-reg    [31:0] wb_adr_o;
-reg    [31:0] wb_dat_o;
-reg     [3:0] wb_sel_o;
 
 reg           tdo_o;
 
-reg    [50:0] dr;
+reg    [31:0] wb_dat_tmp, wb_dat_dsff;
+reg    [31:0] wb_adr_dsff;
+reg     [3:0] wb_sel_dsff;
+reg           wb_we_dsff;
+reg    [`DBG_WB_DR_LEN -1 :0] dr;
 wire          enable;
 wire          cmd_cnt_en;
 reg     [`DBG_WB_CMD_CNT_WIDTH -1:0] cmd_cnt;
 wire          cmd_cnt_end;
 reg           cmd_cnt_end_q;
-wire          addr_len_cnt_en;
+reg           addr_len_cnt_en;
 reg     [5:0] addr_len_cnt;
-reg     [5:0] addr_len_cnt_limit;
 wire          addr_len_cnt_end;
-wire          crc_cnt_en;
-reg     [5:0] crc_cnt;
+reg           addr_len_cnt_end_q;
+reg           crc_cnt_en;
+reg     [`DBG_WB_CRC_CNT_WIDTH -1:0] crc_cnt;
 wire          crc_cnt_end;
 reg           crc_cnt_end_q;
-wire          data_cnt_en;
-reg    [18:0] data_cnt;
-reg    [18:0] data_cnt_limit;
+reg           data_cnt_en;
+reg    [`DBG_WB_DATA_CNT_WIDTH:0] data_cnt;
+reg    [`DBG_WB_DATA_CNT_WIDTH:0] data_cnt_limit;
 wire          data_cnt_end;
 reg           data_cnt_end_q;
-reg           status_reset_en;
 
 reg           crc_match_reg;
 
-reg     [2:0] cmd, cmd_old, dr_cmd_latched;
-reg    [31:0] adr;
-reg    [15:0] len;
+reg    [`DBG_WB_ACC_TYPE_LEN -1:0] acc_type;
+reg    [`DBG_WB_ADR_LEN -1:0] adr;
+reg    [`DBG_WB_LEN_LEN -1:0] len;
+reg    [`DBG_WB_LEN_LEN:0]    len_var;
 reg           start_rd_tck;
 reg           rd_tck_started;
-reg           start_rd_sync1;
+reg           start_rd_csff;
 reg           start_wb_rd;
 reg           start_wb_rd_q;
 reg           start_wr_tck;
-reg           start_wr_sync1;
+reg           start_wr_csff;
 reg           start_wb_wr;
 reg           start_wb_wr_q;
 
-wire          dr_read;
-wire          dr_write;
-wire          dr_go;
-
-reg           dr_write_latched;
-reg           dr_read_latched;
-reg           dr_go_latched;
-
+reg           status_cnt_en;
 wire          status_cnt_end;
 
 wire          byte, half, long;
 reg           byte_q, half_q, long_q;
-reg           byte_q2, half_q2, long_q2;
-reg           cmd_read;
-reg           cmd_write;
-reg           cmd_go;
 
-reg           status_cnt1, status_cnt2, status_cnt3, status_cnt4;
+reg [`DBG_WB_STATUS_CNT_WIDTH -1:0] status_cnt;
 
 reg [`DBG_WB_STATUS_LEN -1:0] status;
 
-reg           wb_error, wb_error_sync, wb_error_tck;
-reg           wb_overrun, wb_overrun_sync, wb_overrun_tck;
+reg           wb_error, wb_error_csff, wb_error_tck;
+reg           wb_overrun, wb_overrun_csff, wb_overrun_tck;
 reg           underrun_tck;
 
 reg           busy_wb;
 reg           busy_tck;
 reg           wb_end;
 reg           wb_end_rst;
-reg           wb_end_rst_sync;
-reg           wb_end_sync;
+reg           wb_end_rst_csff;
+reg           wb_end_csff;
 reg           wb_end_tck, wb_end_tck_q;
-reg           busy_sync;
+reg           busy_csff;
 reg           latch_data;
+reg           update_dr_csff, update_dr_wb;
 
-reg           set_addr, set_addr_sync, set_addr_wb, set_addr_wb_q;
-reg           read_cycle;
-reg           write_cycle;
-reg     [2:0] rw_type;
+reg           set_addr, set_addr_csff, set_addr_wb, set_addr_wb_q;
 wire   [31:0] input_data;
 
 wire          len_eq_0;
@@ -256,49 +247,76 @@ reg     [2:0] fifo_cnt;
 wire          fifo_full;
 wire          fifo_empty;
 reg     [7:0] mem [0:3];
-reg     [2:0] mem_ptr;
-reg           wishbone_ce_sync;
-reg           wishbone_ce_rst;
-wire          go_prelim;
-
+reg     [2:0] mem_ptr_dsff;
+reg           wishbone_ce_csff;
+reg           mem_ptr_init;
+reg [`DBG_WB_CMD_LEN -1: 0] curr_cmd;
+wire          curr_cmd_go;
+reg           curr_cmd_go_q;
+wire          curr_cmd_wr_comm;
+wire          curr_cmd_rd_comm;
+wire          acc_type_read;
+wire          acc_type_write;
+wire          acc_type_8bit;
+wire          acc_type_16bit;
+wire          acc_type_32bit;
 
 
 assign enable = wishbone_ce_i & shift_dr_i;
 assign crc_en_o = enable & crc_cnt_end & (~status_cnt_end);
 assign shift_crc_o = enable & status_cnt_end;  // Signals dbg module to shift out the CRC
 
+assign curr_cmd_go      = (curr_cmd == `DBG_WB_GO) && cmd_cnt_end;
+assign curr_cmd_wr_comm = (curr_cmd == `DBG_WB_WR_COMM) && cmd_cnt_end;
+assign curr_cmd_rd_comm = (curr_cmd == `DBG_WB_RD_COMM) && cmd_cnt_end;
 
-// Selecting where to take the data from 
+assign acc_type_read    = (acc_type == `DBG_WB_READ8  || acc_type == `DBG_WB_READ16  || acc_type == `DBG_WB_READ32);
+assign acc_type_write   = (acc_type == `DBG_WB_WRITE8 || acc_type == `DBG_WB_WRITE16 || acc_type == `DBG_WB_WRITE32);
+
+assign acc_type_8bit    = (acc_type == `DBG_WB_READ8  || acc_type == `DBG_WB_WRITE8);
+assign acc_type_16bit   = (acc_type == `DBG_WB_READ16 || acc_type == `DBG_WB_WRITE16);
+assign acc_type_32bit   = (acc_type == `DBG_WB_READ32 || acc_type == `DBG_WB_WRITE32);
+
+
+// Selecting where to take the data from
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
     ptr <= #1 2'h0;
   else if (update_dr_i)
     ptr <= #1 2'h0;
-  else if (read_cycle & crc_cnt_31) // first latch
+  else if (curr_cmd_go && acc_type_read && crc_cnt_31) // first latch
     ptr <= #1 ptr + 1'b1;
-  else if (read_cycle & byte & (~byte_q))
+  else if (curr_cmd_go && acc_type_read && byte && (!byte_q))
     ptr <= ptr + 1'd1;
 end
+                                                                                           
 
-
+reg [799:0] dr_text;
 // Shift register for shifting in and out the data
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
     begin
-      dr <= #1 51'h0;
       latch_data <= #1 1'b0;
+      dr <= #1 {`DBG_WB_DR_LEN{1'b0}};
+      dr_text = "reset";
     end
-  else if (read_cycle & crc_cnt_31)
+  else if (curr_cmd_rd_comm && crc_cnt_31)  // Latching data (from iternal regs)
+    begin
+      dr[`DBG_WB_ACC_TYPE_LEN + `DBG_WB_ADR_LEN + `DBG_WB_LEN_LEN -1:0] <= #1 {acc_type, adr, len};
+      dr_text = "latch reg data";
+    end
+  else if (acc_type_read && curr_cmd_go && crc_cnt_31)  // Latchind first data (from WB)
     begin
       dr[31:0] <= #1 input_data[31:0];
       latch_data <= #1 1'b1;
+      dr_text = "latch first data";
     end
-  else if (read_cycle & crc_cnt_end)
+  else if (acc_type_read && curr_cmd_go && crc_cnt_end) // Latching data (from WB)
     begin
-      case (rw_type)  // synthesis parallel_case full_case
-        `WB_READ8 : begin
+      case (acc_type)  // synthesis parallel_case full_case
+        `DBG_WB_READ8 : begin
                       if(byte & (~byte_q))
                         begin
                           case (ptr)    // synthesis parallel_case
@@ -308,14 +326,16 @@ begin
                             2'b11 : dr[31:24] <= #1 input_data[7:0];
                           endcase
                           latch_data <= #1 1'b1;
+                          dr_text = "latch_data byte";
                         end
                       else
                         begin
                           dr[31:24] <= #1 {dr[30:24], 1'b0};
                           latch_data <= #1 1'b0;
+                          dr_text = "shift byte";
                         end
                     end
-        `WB_READ16: begin
+        `DBG_WB_READ16: begin
                       if(half & (~half_q))
                         begin
                           if (ptr[1])
@@ -323,33 +343,38 @@ begin
                           else
                             dr[31:16] <= #1 input_data[31:16];
                           latch_data <= #1 1'b1;
+                          dr_text = "latch_data_half";
                         end
                       else
                         begin
                           dr[31:16] <= #1 {dr[30:16], 1'b0};
                           latch_data <= #1 1'b0;
+                          dr_text = "shift half";
                         end
                     end
-        `WB_READ32: begin
+        `DBG_WB_READ32: begin
                       if(long & (~long_q))
                         begin
                           dr[31:0] <= #1 input_data[31:0];
                           latch_data <= #1 1'b1;
+                          dr_text = "latch_data word";
                         end
                       else
                         begin
                           dr[31:0] <= #1 {dr[30:0], 1'b0};
                           latch_data <= #1 1'b0;
+                          dr_text = "shift word";
                         end
                     end
       endcase
     end
-  else if (enable & ((~addr_len_cnt_end) | (~cmd_cnt_end) | ((~data_cnt_end) & write_cycle)))
+  else if (enable && (!addr_len_cnt_end))
     begin
-      dr <= #1 {dr[49:0], tdi_i};
-      latch_data <= #1 1'b0;
+      dr <= #1 {dr[`DBG_WB_DR_LEN -2:0], tdi_i};
+      dr_text = "shift dr";
     end
 end
+
 
 
 assign cmd_cnt_en = enable & (~cmd_cnt_end);
@@ -367,7 +392,42 @@ begin
 end
 
 
-assign addr_len_cnt_en = enable & cmd_cnt_end & (~addr_len_cnt_end);
+// Assigning current command
+always @ (posedge tck_i or posedge rst_i)
+begin
+  if (rst_i)
+    curr_cmd <= #1 {`DBG_WB_CMD_LEN{1'b0}};
+  else if (update_dr_i)
+    curr_cmd <= #1 {`DBG_WB_CMD_LEN{1'b0}};
+  else if (cmd_cnt == (`DBG_WB_CMD_LEN -1))
+    curr_cmd <= #1 {dr[`DBG_WB_CMD_LEN-2 :0], tdi_i};
+end
+
+
+// Assigning current command
+always @ (posedge tck_i or posedge rst_i)
+begin
+  if (rst_i)
+    curr_cmd_go_q <= #1 1'b0;
+  else
+    curr_cmd_go_q <= #1 curr_cmd_go;
+end
+
+
+always @ (enable or cmd_cnt_end or addr_len_cnt_end or curr_cmd_wr_comm or curr_cmd_rd_comm or crc_cnt_end)
+begin
+  if (enable && (!addr_len_cnt_end))
+    begin
+      if (cmd_cnt_end && curr_cmd_wr_comm)
+        addr_len_cnt_en = 1'b1;
+      else if (crc_cnt_end && curr_cmd_rd_comm)
+        addr_len_cnt_en = 1'b1;
+      else
+        addr_len_cnt_en = 1'b0;
+    end
+  else
+    addr_len_cnt_en = 1'b0;
+end
 
 
 // Address/length counter
@@ -382,20 +442,200 @@ begin
 end
 
 
-assign data_cnt_en = enable & (~data_cnt_end) & (cmd_cnt_end & write_cycle | crc_cnt_end & read_cycle);
+always @ (enable or data_cnt_end or cmd_cnt_end or curr_cmd_go or acc_type_write or acc_type_read or crc_cnt_end)
+begin
+  if (enable && (!data_cnt_end))
+    begin
+      if (cmd_cnt_end && curr_cmd_go && acc_type_write)
+        data_cnt_en = 1'b1;
+      else if (crc_cnt_end && curr_cmd_go && acc_type_read)
+        data_cnt_en = 1'b1;
+      else
+        data_cnt_en = 1'b0;
+    end
+  else
+    data_cnt_en = 1'b0;
+end
 
 
 // Data counter
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    data_cnt <= #1 19'h0;
+    data_cnt <= #1 {`DBG_WB_DATA_CNT_WIDTH{1'b0}};
   else if (update_dr_i)
-    data_cnt <= #1 19'h0;
+    data_cnt <= #1 {`DBG_WB_DATA_CNT_WIDTH{1'b0}};
   else if (data_cnt_en)
     data_cnt <= #1 data_cnt + 1'b1;
 end
 
+
+
+// Upper limit. Data counter counts until this value is reached.
+always @ (posedge tck_i or posedge rst_i)
+begin
+  if (rst_i)
+    data_cnt_limit <= #1 {`DBG_WB_DATA_CNT_WIDTH{1'b0}};
+  else if (update_dr_i)
+    data_cnt_limit <= #1 {len + 1'b1, 3'b000};
+end
+
+
+always @ (enable or crc_cnt_end or curr_cmd_rd_comm or curr_cmd_wr_comm or curr_cmd_go or addr_len_cnt_end or data_cnt_end or acc_type_write or acc_type_read or cmd_cnt_end)
+begin
+  if (enable && (!crc_cnt_end) && cmd_cnt_end)
+    begin
+      if (addr_len_cnt_end && curr_cmd_wr_comm)
+        crc_cnt_en = 1'b1;
+      else if (data_cnt_end && curr_cmd_go && acc_type_write)
+        crc_cnt_en = 1'b1;
+      else if (cmd_cnt_end && (curr_cmd_go && acc_type_read || curr_cmd_rd_comm))
+        crc_cnt_en = 1'b1;
+      else
+        crc_cnt_en = 1'b0;
+    end
+  else
+    crc_cnt_en = 1'b0;
+end
+
+
+// crc counter
+always @ (posedge tck_i or posedge rst_i)
+begin
+  if (rst_i)
+    crc_cnt <= #1 {`DBG_WB_CRC_CNT_WIDTH{1'b0}};
+  else if(crc_cnt_en)
+    crc_cnt <= #1 crc_cnt + 1'b1;
+  else if (update_dr_i)
+    crc_cnt <= #1 {`DBG_WB_CRC_CNT_WIDTH{1'b0}};
+end
+
+assign cmd_cnt_end      = cmd_cnt      == `DBG_WB_CMD_LEN;
+assign addr_len_cnt_end = addr_len_cnt == `DBG_WB_DR_LEN;
+assign crc_cnt_end      = crc_cnt      == `DBG_WB_CRC_CNT_WIDTH'd32;
+assign crc_cnt_31       = crc_cnt      == `DBG_WB_CRC_CNT_WIDTH'd31;
+assign data_cnt_end     = (data_cnt    == data_cnt_limit);
+
+always @ (posedge tck_i or posedge rst_i)
+begin
+  if (rst_i)
+    begin
+      crc_cnt_end_q       <= #1 1'b0;
+      cmd_cnt_end_q       <= #1 1'b0;
+      data_cnt_end_q      <= #1 1'b0;
+      addr_len_cnt_end_q  <= #1 1'b0;
+    end
+  else
+    begin
+      crc_cnt_end_q       <= #1 crc_cnt_end;
+      cmd_cnt_end_q       <= #1 cmd_cnt_end;
+      data_cnt_end_q      <= #1 data_cnt_end;
+      addr_len_cnt_end_q  <= #1 addr_len_cnt_end;
+    end
+end
+
+
+// Status counter is made of 4 serialy connected registers
+always @ (posedge tck_i or posedge rst_i)
+begin
+  if (rst_i)
+    status_cnt <= #1 {`DBG_WB_STATUS_CNT_WIDTH{1'b0}};
+  else if (update_dr_i)
+    status_cnt <= #1 {`DBG_WB_STATUS_CNT_WIDTH{1'b0}};
+  else if (status_cnt_en)
+    status_cnt <= #1 status_cnt + 1'b1;
+end
+
+
+always @ (enable or status_cnt_end or crc_cnt_end or curr_cmd_rd_comm or curr_cmd_wr_comm or curr_cmd_go or acc_type_write or data_cnt_end or addr_len_cnt_end)
+begin
+  if (enable && (!status_cnt_end))
+    begin
+      if (crc_cnt_end && curr_cmd_wr_comm)
+        status_cnt_en = 1'b1;
+      else if (crc_cnt_end && curr_cmd_go && acc_type_write)
+        status_cnt_en = 1'b1;
+      else if (data_cnt_end && curr_cmd_go && acc_type_read)
+        status_cnt_en = 1'b1;
+      else if (addr_len_cnt_end && curr_cmd_rd_comm)
+        status_cnt_en = 1'b1;
+      else
+        status_cnt_en = 1'b0;
+    end
+  else
+    status_cnt_en = 1'b0;
+end
+
+
+assign status_cnt_end = status_cnt == `DBG_WB_STATUS_LEN;
+
+
+// Latching acc_type, address and length
+always @ (posedge tck_i or posedge rst_i)
+begin
+  if (rst_i)
+    begin
+      acc_type  <= #1 {`DBG_WB_ACC_TYPE_LEN{1'b0}};
+      adr       <= #1 {`DBG_WB_ADR_LEN{1'b0}};
+      len       <= #1 {`DBG_WB_LEN_LEN{1'b0}};
+      set_addr  <= #1 1'b0;
+    end
+  else if(crc_cnt_end && (!crc_cnt_end_q) && crc_match_i && curr_cmd_wr_comm)
+    begin
+      acc_type  <= #1 dr[`DBG_WB_ACC_TYPE_LEN + `DBG_WB_ADR_LEN + `DBG_WB_LEN_LEN -1 : `DBG_WB_ADR_LEN + `DBG_WB_LEN_LEN];
+      adr       <= #1 dr[`DBG_WB_ADR_LEN + `DBG_WB_LEN_LEN -1 : `DBG_WB_LEN_LEN];
+      len       <= #1 dr[`DBG_WB_LEN_LEN -1:0];
+      set_addr  <= #1 1'b1;
+    end
+  else if(wb_end_tck)               // Writing back the address
+    begin
+      adr  <= #1 wb_adr_dsff;
+    end
+  else
+    set_addr <= #1 1'b0;
+end
+
+
+always @ (posedge tck_i or posedge rst_i)
+begin
+  if (rst_i)
+    crc_match_reg <= #1 1'b0;
+  else if(crc_cnt_end & (~crc_cnt_end_q))
+    crc_match_reg <= #1 crc_match_i;
+end
+
+
+// Length counter
+always @ (posedge tck_i or posedge rst_i)
+begin
+  if (rst_i)
+    len_var <= #1 {1'b0, {`DBG_WB_LEN_LEN{1'b0}}};
+  else if(update_dr_i)
+    len_var <= #1 len + 1'b1;
+  else if (start_rd_tck)
+    begin
+      case (acc_type)  // synthesis parallel_case full_case
+        `DBG_WB_READ8 : 
+                    if (len_var > 'd1)
+                      len_var <= #1 len_var - 1'd1;
+                    else
+                      len_var <= #1 {1'b0, {`DBG_WB_LEN_LEN{1'b0}}};
+        `DBG_WB_READ16: 
+                    if (len_var > 'd2)
+                      len_var <= #1 len_var - 2'd2; 
+                    else
+                      len_var <= #1 {1'b0, {`DBG_WB_LEN_LEN{1'b0}}};
+        `DBG_WB_READ32: 
+                    if (len_var > 'd4)
+                      len_var <= #1 len_var - 3'd4; 
+                    else
+                      len_var <= #1 {1'b0, {`DBG_WB_LEN_LEN{1'b0}}};
+      endcase
+    end
+end
+
+
+assign len_eq_0 = len_var == 'h0;
 
 
 assign byte = data_cnt[2:0] == 3'd7;
@@ -410,347 +650,13 @@ begin
       byte_q <= #1  1'b0;
       half_q <= #1  1'b0;
       long_q <= #1  1'b0;
-      byte_q2 <= #1 1'b0;
-      half_q2 <= #1 1'b0;
-      long_q2 <= #1 1'b0;
     end
   else
     begin
       byte_q <= #1 byte;
       half_q <= #1 half;
       long_q <= #1 long;
-      byte_q2 <= #1 byte_q;
-      half_q2 <= #1 half_q;
-      long_q2 <= #1 long_q;
     end
-end
-
-
-assign dr_read = (dr[2:0] == `WB_READ8) || (dr[2:0] == `WB_READ16) || (dr[2:0] == `WB_READ32);
-assign dr_write = (dr[2:0] == `WB_WRITE8) || (dr[2:0] == `WB_WRITE16) || (dr[2:0] == `WB_WRITE32);
-assign dr_go = dr[2:0] == `WB_GO;
-
-
-// Latching instruction
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    begin
-      dr_cmd_latched <= #1 3'h0;
-      dr_read_latched  <= #1 1'b0;
-      dr_write_latched  <= #1 1'b0;
-      dr_go_latched  <= #1 1'b0;
-    end
-  else if (update_dr_i)
-    begin
-      dr_cmd_latched <= #1 3'h0;
-      dr_read_latched  <= #1 1'b0;
-      dr_write_latched  <= #1 1'b0;
-      dr_go_latched  <= #1 1'b0;
-    end
-  else if (cmd_cnt_end & (~cmd_cnt_end_q))
-    begin
-      dr_cmd_latched <= #1 dr[2:0];
-      dr_read_latched <= #1 dr_read;
-      dr_write_latched <= #1 dr_write;
-      dr_go_latched <= #1 dr_go;
-    end
-end
-
-
-// Upper limit. Address/length counter counts until this value is reached
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    addr_len_cnt_limit <= #1 6'd0;
-  else if (cmd_cnt == `DBG_WB_CMD_CNT_WIDTH'h2)
-    begin
-      if ((~dr[0])  & (~tdi_i))                                   // (current command is WB_STATUS or WB_GO)
-        addr_len_cnt_limit <= #1 6'd0;
-      else                                                        // (current command is WB_WRITEx or WB_READx)
-        addr_len_cnt_limit <= #1 6'd48;
-    end
-end
-    
-
-assign go_prelim = (cmd_cnt == 2'h2) & dr[1] & (~dr[0]) & (~tdi_i); 
-
-
-// Upper limit. Data counter counts until this value is reached.
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    data_cnt_limit <= #1 19'h0;
-  else if (update_dr_i)
-    data_cnt_limit <= #1 {len, 3'b000};
-end
-
-
-assign crc_cnt_en = enable & (~crc_cnt_end) & (cmd_cnt_end & addr_len_cnt_end  & (~write_cycle) | (data_cnt_end & write_cycle));
-
-
-// crc counter
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    crc_cnt <= #1 6'h0;
-  else if(crc_cnt_en)
-    crc_cnt <= #1 crc_cnt + 1'b1;
-  else if (update_dr_i)
-    crc_cnt <= #1 6'h0;
-end
-
-assign cmd_cnt_end  = cmd_cnt  == `DBG_WB_CMD_LEN;
-assign addr_len_cnt_end = addr_len_cnt == addr_len_cnt_limit;
-assign crc_cnt_end  = crc_cnt  == 6'd32;
-assign crc_cnt_31 = crc_cnt  == 6'd31;
-assign data_cnt_end = (data_cnt == data_cnt_limit);
-
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    begin
-      crc_cnt_end_q  <= #1 1'b0;
-      cmd_cnt_end_q  <= #1 1'b0;
-      data_cnt_end_q <= #1 1'b0;
-    end
-  else
-    begin
-      crc_cnt_end_q  <= #1 crc_cnt_end;
-      cmd_cnt_end_q  <= #1 cmd_cnt_end;
-      data_cnt_end_q <= #1 data_cnt_end;
-    end
-end
-
-
-// Status counter is made of 4 serialy connected registers
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    status_cnt1 <= #1 1'b0;
-  else if (update_dr_i)
-    status_cnt1 <= #1 1'b0;
-  else if (data_cnt_end & read_cycle |
-           crc_cnt_end & (~read_cycle)
-          )
-    status_cnt1 <= #1 1'b1;
-end
-
-
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    begin
-      status_cnt2 <= #1 1'b0;
-      status_cnt3 <= #1 1'b0;
-      status_cnt4 <= #1 1'b0;
-    end
-  else if (update_dr_i)
-    begin
-      status_cnt2 <= #1 1'b0;
-      status_cnt3 <= #1 1'b0;
-      status_cnt4 <= #1 1'b0;
-    end
-  else
-    begin
-      status_cnt2 <= #1 status_cnt1;
-      status_cnt3 <= #1 status_cnt2;
-      status_cnt4 <= #1 status_cnt3;
-    end
-end
-
-
-assign status_cnt_end = status_cnt4;
-
-
-// Status register
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    begin
-    status <= #1 {`DBG_WB_STATUS_LEN{1'b0}};
-    end
-  else if(crc_cnt_end & (~crc_cnt_end_q) & (~read_cycle))
-    begin
-    status <= #1 {crc_match_i, wb_error_tck, wb_overrun_tck, busy_tck};
-    end
-  else if (data_cnt_end & (~data_cnt_end_q) & read_cycle)
-    begin
-    status <= #1 {crc_match_reg, wb_error_tck, underrun_tck, busy_tck};
-    end
-  else if (shift_dr_i & (~status_cnt_end))
-    begin
-    status <= #1 {status[0], status[`DBG_WB_STATUS_LEN -1:1]};
-    end
-end
-// Following status is shifted out:
-// 1. bit:          1 if crc is OK, else 0
-// 2. bit:          1 while WB access is in progress (busy_tck), else 0
-// 3. bit:          1 if overrun occured during write (data couldn't be written fast enough)
-//                    or underrun occured during read (data couldn't be read fast enough)
-// 4. bit:          1 if WB error occured, else 0
-
-
-// TDO multiplexer
-always @ (pause_dr_i or busy_tck or crc_cnt_end or crc_cnt_end_q or crc_match_i or 
-          data_cnt_end or data_cnt_end_q or read_cycle or crc_match_reg or status or dr)
-begin
-  if (pause_dr_i)
-    begin
-    tdo_o = busy_tck;
-    end
-  else if (crc_cnt_end & (~crc_cnt_end_q) & (~(read_cycle)))
-    begin
-      tdo_o = crc_match_i;
-    end
-  else if (read_cycle & crc_cnt_end & (~data_cnt_end))
-    begin
-    tdo_o = dr[31];
-    end
-  else if (read_cycle & data_cnt_end & (~data_cnt_end_q))     // cmd is already updated
-    begin
-      tdo_o = crc_match_reg;
-    end
-  else if (crc_cnt_end & data_cnt_end)  // cmd is already updated
-    begin
-      tdo_o = status[0];
-    end
-  else
-    begin
-      tdo_o = 1'b0;
-    end
-end
-
-
-
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    crc_match_reg <= #1 1'b0;
-  else if(crc_cnt_end & (~crc_cnt_end_q))
-    crc_match_reg <= #1 crc_match_i;
-end
-
-
-// Latching instruction
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    begin
-      cmd <= #1 3'h0;
-      cmd_old <= #1 3'h0;
-      cmd_read <= #1 1'b0; 
-      cmd_write <= #1 1'b0; 
-      cmd_go <= #1 1'b0;
-    end
-  else if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i)
-    begin
-      cmd <= #1 dr_cmd_latched;
-      cmd_old <= #1 cmd;
-      cmd_read <= #1 dr_read_latched;
-      cmd_write <= #1 dr_write_latched;
-      cmd_go <= #1 dr_go_latched;
-    end
-end
-
-
-// Latching address
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    begin
-      adr      <= #1 32'h0;
-      set_addr <= #1 1'b0;
-    end
-  else if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i)
-    begin
-      if (dr_write_latched | dr_read_latched)
-        begin
-          adr <= #1 dr[47:16];
-          set_addr <= #1 1'b1;
-        end
-    end
-  else
-    set_addr <= #1 1'b0;
-end
-
-
-// Length counter
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    len <= #1 16'h0;
-  else if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i & (dr_write_latched | dr_read_latched))
-    len <= #1 dr[15:0];
-  else if (start_rd_tck)
-    begin
-      case (rw_type)  // synthesis parallel_case full_case
-        `WB_READ8 : len <= #1 len - 1'd1; 
-        `WB_READ16: len <= #1 len - 2'd2; 
-        `WB_READ32: len <= #1 len - 3'd4; 
-      endcase
-    end
-end
-
-
-assign len_eq_0 = len == 16'h0;
-
-
-// Start wishbone read cycle
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    start_rd_tck <= #1 1'b0;
-  else if (read_cycle & (~dr_go_latched) & (~len_eq_0))              // First read after cmd is entered
-    start_rd_tck <= #1 1'b1;
-  else if ((~start_rd_tck) & read_cycle & (~len_eq_0) & (~fifo_full) & (~rd_tck_started))
-    start_rd_tck <= #1 1'b1;
-  else
-    start_rd_tck <= #1 1'b0;
-end
-
-
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    rd_tck_started <= #1 1'b0;
-  else if (update_dr_i)
-    rd_tck_started <= #1 1'b0;
-  else if (start_rd_tck)
-    rd_tck_started <= #1 1'b1;
-  else if (wb_end_tck & (~wb_end_tck_q))
-    rd_tck_started <= #1 1'b0;
-end
-
-
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    read_cycle <= #1 1'b0;
-  else if (update_dr_i)
-    read_cycle <= #1 1'b0;
-  else if (cmd_read & go_prelim)
-    read_cycle <= #1 1'b1;
-end
-
-
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    rw_type <= #1 3'h0;
-  else if ((cmd_read | cmd_write) & go_prelim)
-    rw_type <= #1 cmd;
-end
-
-
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    write_cycle <= #1 1'b0;
-  else if (update_dr_i)
-    write_cycle <= #1 1'b0;
-  else if (cmd_write & go_prelim)
-    write_cycle <= #1 1'b1;
 end
 
 
@@ -760,38 +666,38 @@ begin
   if (rst_i)
     begin
       start_wr_tck <= #1 1'b0;
-      wb_dat_o <= #1 32'h0;
+      wb_dat_tmp <= #1 32'h0;
     end
-  else if (write_cycle)
+  else if (curr_cmd_go && acc_type_write)
     begin
-      case (rw_type)  // synthesis parallel_case full_case
-        `WB_WRITE8  : begin
-                        if (byte_q & (~byte_q2))
+      case (acc_type)  // synthesis parallel_case full_case
+        `DBG_WB_WRITE8  : begin
+                        if (byte_q)
                           begin
                             start_wr_tck <= #1 1'b1;
-                            wb_dat_o <= #1 {4{dr[7:0]}};
+                            wb_dat_tmp <= #1 {4{dr[7:0]}};
                           end
                         else
                           begin
                             start_wr_tck <= #1 1'b0;
                           end
                       end
-        `WB_WRITE16 : begin
-                        if (half_q & (~half_q2))
+        `DBG_WB_WRITE16 : begin
+                        if (half_q)
                           begin
                             start_wr_tck <= #1 1'b1;
-                            wb_dat_o <= #1 {2{dr[15:0]}};
+                            wb_dat_tmp <= #1 {2{dr[15:0]}};
                           end
                         else
                           begin
                             start_wr_tck <= #1 1'b0;
                           end
                       end
-        `WB_WRITE32 : begin
-                        if (long_q & (~long_q2))
+        `DBG_WB_WRITE32 : begin
+                        if (long_q)
                           begin
                             start_wr_tck <= #1 1'b1;
-                            wb_dat_o <= #1 dr[31:0];
+                            wb_dat_tmp <= #1 dr[31:0];
                           end
                         else
                           begin
@@ -805,34 +711,69 @@ begin
 end
 
 
+// wb_dat_o in WB clk domain
+always @ (posedge wb_clk_i)
+begin
+  wb_dat_dsff <= #1 wb_dat_tmp;
+end
+
+assign wb_dat_o = wb_dat_dsff;
+
+
+// Start wishbone read cycle
+always @ (posedge tck_i or posedge rst_i)
+begin
+  if (rst_i)
+    start_rd_tck <= #1 1'b0;
+  else if (curr_cmd_go && (!curr_cmd_go_q) && acc_type_read)              // First read after cmd is entered
+    start_rd_tck <= #1 1'b1;
+  else if ((!start_rd_tck) && curr_cmd_go && acc_type_read  && (!len_eq_0) && (!fifo_full) && (!rd_tck_started))
+    start_rd_tck <= #1 1'b1;
+  else
+    start_rd_tck <= #1 1'b0;
+end
+
+
+always @ (posedge tck_i or posedge rst_i)
+begin
+  if (rst_i)
+    rd_tck_started <= #1 1'b0;
+  else if (update_dr_i || wb_end_tck && (!wb_end_tck_q))
+    rd_tck_started <= #1 1'b0;
+  else if (start_rd_tck)
+    rd_tck_started <= #1 1'b1;
+end
+
+
+
 always @ (posedge wb_clk_i or posedge rst_i)
 begin
   if (rst_i)
     begin
-      start_rd_sync1  <= #1 1'b0; 
-      start_wb_rd     <= #1 1'b0; 
-      start_wb_rd_q   <= #1 1'b0; 
-    
-      start_wr_sync1  <= #1 1'b0; 
-      start_wb_wr     <= #1 1'b0; 
-      start_wb_wr_q   <= #1 1'b0; 
-    
-      set_addr_sync   <= #1 1'b0; 
-      set_addr_wb     <= #1 1'b0; 
-      set_addr_wb_q   <= #1 1'b0; 
+      start_rd_csff   <= #1 1'b0;
+      start_wb_rd     <= #1 1'b0;
+      start_wb_rd_q   <= #1 1'b0;
+
+      start_wr_csff   <= #1 1'b0;
+      start_wb_wr     <= #1 1'b0;
+      start_wb_wr_q   <= #1 1'b0;
+
+      set_addr_csff   <= #1 1'b0;
+      set_addr_wb     <= #1 1'b0;
+      set_addr_wb_q   <= #1 1'b0;
     end
   else
     begin
-      start_rd_sync1  <= #1 start_rd_tck;
-      start_wb_rd     <= #1 start_rd_sync1;
+      start_rd_csff   <= #1 start_rd_tck;
+      start_wb_rd     <= #1 start_rd_csff;
       start_wb_rd_q   <= #1 start_wb_rd;
-    
-      start_wr_sync1  <= #1 start_wr_tck;
-      start_wb_wr     <= #1 start_wr_sync1;
+
+      start_wr_csff   <= #1 start_wr_tck;
+      start_wb_wr     <= #1 start_wr_csff;
       start_wb_wr_q   <= #1 start_wb_wr;
-    
-      set_addr_sync   <= #1 set_addr;
-      set_addr_wb     <= #1 set_addr_sync;
+
+      set_addr_csff   <= #1 set_addr;
+      set_addr_wb     <= #1 set_addr_csff;
       set_addr_wb_q   <= #1 set_addr_wb;
     end
 end
@@ -843,9 +784,9 @@ always @ (posedge wb_clk_i or posedge rst_i)
 begin
   if (rst_i)
     wb_cyc_o <= #1 1'b0;
-  else if ((start_wb_wr & (~start_wb_wr_q)) | (start_wb_rd & (~start_wb_rd_q)))
+  else if ((start_wb_wr && (!start_wb_wr_q)) || (start_wb_rd && (!start_wb_rd_q)))
     wb_cyc_o <= #1 1'b1;
-  else if (wb_ack_i | wb_err_i)
+  else if (wb_ack_i || wb_err_i)
     wb_cyc_o <= #1 1'b0;
 end
 
@@ -854,20 +795,22 @@ end
 always @ (posedge wb_clk_i or posedge rst_i)
 begin
   if (rst_i)
-    wb_adr_o <= #1 32'h0;
-  else if (set_addr_wb & (~set_addr_wb_q)) // Setting starting address
-    wb_adr_o <= #1 adr;
+    wb_adr_dsff <= #1 32'h0;
+  else if (set_addr_wb && (!set_addr_wb_q)) // Setting starting address
+    wb_adr_dsff <= #1 adr;
   else if (wb_ack_i)
     begin
-      if ((rw_type == `WB_WRITE8) | (rw_type == `WB_READ8))
-        wb_adr_o <= #1 wb_adr_o + 1'd1;
-      else if ((rw_type == `WB_WRITE16) | (rw_type == `WB_READ16))
-        wb_adr_o <= #1 wb_adr_o + 2'd2;
+      if ((acc_type == `DBG_WB_WRITE8) || (acc_type == `DBG_WB_READ8))
+        wb_adr_dsff <= #1 wb_adr_dsff + 1'd1;
+      else if ((acc_type == `DBG_WB_WRITE16) || (acc_type == `DBG_WB_READ16))
+        wb_adr_dsff <= #1 wb_adr_dsff + 2'd2;
       else
-        wb_adr_o <= #1 wb_adr_o + 3'd4;
+        wb_adr_dsff <= #1 wb_adr_dsff + 3'd4;
     end
 end
 
+
+assign wb_adr_o = wb_adr_dsff;
 
 
 //    adr   byte  |  short  |  long
@@ -876,53 +819,83 @@ end
 //     2    0010     0011      err
 //     3    0001     err       err
 // wb_sel_o logic
+
 always @ (posedge wb_clk_i or posedge rst_i)
 begin
   if (rst_i)
-    wb_sel_o[3:0] <= #1 4'h0;
+    wb_sel_dsff[3:0] <= #1 4'h0;
   else
     begin
-      wb_sel_o[0] <= #1 (rw_type[1:0] == 2'b11) & (wb_adr_o[1:0] == 2'b00) | (rw_type[1:0] == 2'b01) & (wb_adr_o[1:0] == 2'b11) | 
-                        (rw_type[1:0] == 2'b10) & (wb_adr_o[1:0] == 2'b10);
-      wb_sel_o[1] <= #1 (rw_type[1:0] == 2'b11) & (wb_adr_o[1:0] == 2'b00) | (rw_type[1] ^ rw_type[0]) & (wb_adr_o[1:0] == 2'b10);
-      wb_sel_o[2] <= #1 (rw_type[1]) & (wb_adr_o[1:0] == 2'b00) | (rw_type[1:0] == 2'b01) & (wb_adr_o[1:0] == 2'b01);
-      wb_sel_o[3] <= #1 (wb_adr_o[1:0] == 2'b00);
+      case ({wb_adr_dsff[1:0], acc_type_8bit, acc_type_16bit, acc_type_32bit}) // synthesis parallel_case full_case
+        {2'd0, 3'b100} : wb_sel_dsff[3:0] <= #1 4'h8;
+        {2'd0, 3'b010} : wb_sel_dsff[3:0] <= #1 4'hC;
+        {2'd0, 3'b001} : wb_sel_dsff[3:0] <= #1 4'hF;
+        {2'd1, 3'b100} : wb_sel_dsff[3:0] <= #1 4'h4;
+        {2'd2, 3'b100} : wb_sel_dsff[3:0] <= #1 4'h2;
+        {2'd2, 3'b010} : wb_sel_dsff[3:0] <= #1 4'h3;
+        {2'd3, 3'b100} : wb_sel_dsff[3:0] <= #1 4'h1;
+      endcase
     end
 end
 
 
-assign wb_we_o = write_cycle;
+assign wb_sel_o = wb_sel_dsff;
+
+
+always @ (posedge wb_clk_i)
+begin
+  wb_we_dsff <= #1 curr_cmd_go && acc_type_write;
+end
+
+
+assign wb_we_o = wb_we_dsff;
 assign wb_cab_o = 1'b0;
 assign wb_stb_o = wb_cyc_o;
 assign wb_cti_o = 3'h0;     // always performing single access
 assign wb_bte_o = 2'h0;     // always performing single access
-
-
+                                                                                               
+                                                                                               
+                                                                                               
 // Logic for detecting end of transaction
 always @ (posedge wb_clk_i or posedge rst_i)
 begin
   if (rst_i)
     wb_end <= #1 1'b0;
-  else if (wb_ack_i | wb_err_i)
+  else if (wb_ack_i || wb_err_i)
     wb_end <= #1 1'b1;
   else if (wb_end_rst)
     wb_end <= #1 1'b0;
 end
-
-
+                                                                                               
+                                                                                               
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
     begin
-      wb_end_sync <= #1 1'b0; 
-      wb_end_tck  <= #1 1'b0;
-      wb_end_tck_q<= #1 1'b0; 
+      wb_end_csff  <= #1 1'b0;
+      wb_end_tck   <= #1 1'b0;
+      wb_end_tck_q <= #1 1'b0;
     end
   else
     begin
-      wb_end_sync <= #1 wb_end;
-      wb_end_tck  <= #1 wb_end_sync;
-      wb_end_tck_q<= #1 wb_end_tck;
+      wb_end_csff  <= #1 wb_end;
+      wb_end_tck   <= #1 wb_end_csff;
+      wb_end_tck_q <= #1 wb_end_tck;
+    end
+end
+
+
+always @ (posedge wb_clk_i or posedge rst_i)
+begin
+  if (rst_i)
+    begin
+      wb_end_rst_csff <= #1 1'b0;
+      wb_end_rst      <= #1 1'b0;
+    end
+  else
+    begin
+      wb_end_rst_csff <= #1 wb_end_tck;
+      wb_end_rst      <= #1 wb_end_rst_csff;
     end
 end
 
@@ -933,7 +906,7 @@ begin
     busy_wb <= #1 1'b0;
   else if (wb_end_rst)
     busy_wb <= #1 1'b0;
-  else if (wb_cyc_o) 
+  else if (wb_cyc_o)
     busy_wb <= #1 1'b1;
 end
 
@@ -942,28 +915,19 @@ always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
     begin
-      busy_sync <= #1 1'b0;
-      busy_tck <= #1 1'b0;
+      busy_csff       <= #1 1'b0;
+      busy_tck        <= #1 1'b0;
+
+      update_dr_csff  <= #1 1'b0;
+      update_dr_wb    <= #1 1'b0;
     end
   else
     begin
-      busy_sync <= #1 busy_wb;
-      busy_tck <= #1 busy_sync;
-    end
-end
+      busy_csff       <= #1 busy_wb;
+      busy_tck        <= #1 busy_csff;
 
-
-always @ (posedge wb_clk_i or posedge rst_i)
-begin
-  if (rst_i)
-    begin
-      wb_end_rst_sync <= #1 1'b0;
-      wb_end_rst      <= #1 1'b0;
-    end
-  else
-    begin
-      wb_end_rst_sync <= #1 wb_end_tck;
-      wb_end_rst  <= #1 wb_end_rst_sync;
+      update_dr_csff  <= #1 update_dr_i;
+      update_dr_wb    <= #1 update_dr_csff;
     end
 end
 
@@ -975,23 +939,8 @@ begin
     wb_error <= #1 1'b0;
   else if(wb_err_i)
     wb_error <= #1 1'b1;
-  else if(wb_ack_i & status_reset_en) // error remains active until STATUS read is performed
+  else if(update_dr_wb) // error remains active until update_dr arrives
     wb_error <= #1 1'b0;
-end
-
-
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    begin
-      wb_error_sync <= #1 1'b0;
-      wb_error_tck  <= #1 1'b0;
-    end
-  else
-    begin
-      wb_error_sync <= #1 wb_error;
-      wb_error_tck  <= #1 wb_error_sync;
-    end
 end
 
 
@@ -1000,24 +949,10 @@ always @ (posedge wb_clk_i or posedge rst_i)
 begin
   if (rst_i)
     wb_overrun <= #1 1'b0;
-  else if(start_wb_wr & (~start_wb_wr_q) & wb_cyc_o)
+  else if(start_wb_wr && (!start_wb_wr_q) && wb_cyc_o)
     wb_overrun <= #1 1'b1;
-  else if((wb_ack_i | wb_err_i) & status_reset_en) // error remains active until STATUS read is performed
+  else if(update_dr_wb) // error remains active until update_dr arrives
     wb_overrun <= #1 1'b0;
-end
- 
-always @ (posedge tck_i or posedge rst_i)
-begin
-  if (rst_i)
-    begin
-      wb_overrun_sync <= #1 1'b0;
-      wb_overrun_tck  <= #1 1'b0;
-    end
-  else
-    begin
-      wb_overrun_sync <= #1 wb_overrun;
-      wb_overrun_tck  <= #1 wb_overrun_sync;
-    end
 end
 
 
@@ -1026,37 +961,46 @@ always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
     underrun_tck <= #1 1'b0;
-  else if(latch_data & fifo_empty & (~data_cnt_end))
+  else if(latch_data && fifo_empty && (!data_cnt_end))
     underrun_tck <= #1 1'b1;
-  else if(read_cycle & status_reset_en) // error remains active until STATUS read is performed
+  else if(update_dr_i) // error remains active until update_dr arrives
     underrun_tck <= #1 1'b0;
 end
- 
 
 
-// wb_error is locked until WB_STATUS is performed
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
-    status_reset_en <= 1'b0;
-  else if((cmd_old == `WB_STATUS) & (cmd !== `WB_STATUS))
-    status_reset_en <= #1 1'b1;
+    begin
+      wb_error_csff   <= #1 1'b0;
+      wb_error_tck    <= #1 1'b0;
+
+      wb_overrun_csff <= #1 1'b0;
+      wb_overrun_tck  <= #1 1'b0;
+    end
   else
-    status_reset_en <= #1 1'b0;
+    begin
+      wb_error_csff   <= #1 wb_error;
+      wb_error_tck    <= #1 wb_error_csff;
+
+      wb_overrun_csff <= #1 wb_overrun;
+      wb_overrun_tck  <= #1 wb_overrun_csff;
+    end
 end
+
 
 
 always @ (posedge wb_clk_i or posedge rst_i)
 begin
   if (rst_i)
     begin
-      wishbone_ce_sync <= #1 1'b0;
-      wishbone_ce_rst  <= #1 1'b0;
+      wishbone_ce_csff  <= #1 1'b0;
+      mem_ptr_init      <= #1 1'b0;
     end
   else
     begin
-      wishbone_ce_sync <= #1  wishbone_ce_i;
-      wishbone_ce_rst  <= #1 ~wishbone_ce_sync;
+      wishbone_ce_csff  <= #1  wishbone_ce_i;
+      mem_ptr_init      <= #1 ~wishbone_ce_csff;
     end
 end
 
@@ -1065,15 +1009,15 @@ end
 always @ (posedge wb_clk_i or posedge rst_i)
 begin
   if (rst_i)
-    mem_ptr <= #1 3'h0; 
-  else if(wishbone_ce_rst)
-    mem_ptr <= #1 3'h0;
+    mem_ptr_dsff <= #1 3'h0;
+  else if(mem_ptr_init)
+    mem_ptr_dsff <= #1 3'h0;
   else if (wb_ack_i)
     begin
-      if (rw_type == `WB_READ8)
-        mem_ptr <= #1 mem_ptr + 1'd1;
-      else if (rw_type == `WB_READ16)
-        mem_ptr <= #1 mem_ptr + 2'd2;
+      if (acc_type == `DBG_WB_READ8)
+        mem_ptr_dsff <= #1 mem_ptr_dsff + 1'd1;
+      else if (acc_type == `DBG_WB_READ16)
+        mem_ptr_dsff <= #1 mem_ptr_dsff + 2'd2;
     end
 end
 
@@ -1083,21 +1027,21 @@ always @ (posedge wb_clk_i)
 begin
   if (wb_ack_i)
     begin
-      case (wb_sel_o)    // synthesis parallel_case full_case 
-        4'b1000  :  mem[mem_ptr[1:0]] <= #1 wb_dat_i[31:24];            // byte 
-        4'b0100  :  mem[mem_ptr[1:0]] <= #1 wb_dat_i[23:16];            // byte
-        4'b0010  :  mem[mem_ptr[1:0]] <= #1 wb_dat_i[15:08];            // byte
-        4'b0001  :  mem[mem_ptr[1:0]] <= #1 wb_dat_i[07:00];            // byte
-
+      case (wb_sel_dsff)    // synthesis parallel_case full_case
+        4'b1000  :  mem[mem_ptr_dsff[1:0]] <= #1 wb_dat_i[31:24];            // byte
+        4'b0100  :  mem[mem_ptr_dsff[1:0]] <= #1 wb_dat_i[23:16];            // byte
+        4'b0010  :  mem[mem_ptr_dsff[1:0]] <= #1 wb_dat_i[15:08];            // byte
+        4'b0001  :  mem[mem_ptr_dsff[1:0]] <= #1 wb_dat_i[07:00];            // byte
+                                                                                               
         4'b1100  :                                                      // half
                     begin
-                      mem[mem_ptr[1:0]]      <= #1 wb_dat_i[31:24];
-                      mem[mem_ptr[1:0]+1'b1] <= #1 wb_dat_i[23:16];
+                      mem[mem_ptr_dsff[1:0]]      <= #1 wb_dat_i[31:24];
+                      mem[mem_ptr_dsff[1:0]+1'b1] <= #1 wb_dat_i[23:16];
                     end
         4'b0011  :                                                      // half
                     begin
-                      mem[mem_ptr[1:0]]      <= #1 wb_dat_i[15:08];
-                      mem[mem_ptr[1:0]+1'b1] <= #1 wb_dat_i[07:00];
+                      mem[mem_ptr_dsff[1:0]]      <= #1 wb_dat_i[15:08];
+                      mem[mem_ptr_dsff[1:0]+1'b1] <= #1 wb_dat_i[07:00];
                     end
         4'b1111  :                                                      // long
                     begin
@@ -1121,29 +1065,111 @@ begin
     fifo_cnt <= #1 3'h0;
   else if (update_dr_i)
     fifo_cnt <= #1 3'h0;
-  else if (wb_end_tck & (~wb_end_tck_q) & (~latch_data))  // incrementing
+  else if (wb_end_tck && (!wb_end_tck_q) && (!latch_data) && (!fifo_full))  // incrementing
     begin
-      case (rw_type)  // synthesis parallel_case full_case
-        `WB_READ8 : fifo_cnt <= #1 fifo_cnt + 1'd1;
-        `WB_READ16: fifo_cnt <= #1 fifo_cnt + 2'd2;      
-        `WB_READ32: fifo_cnt <= #1 fifo_cnt + 3'd4;
+      case (acc_type)  // synthesis parallel_case full_case
+        `DBG_WB_READ8 : fifo_cnt <= #1 fifo_cnt + 1'd1;
+        `DBG_WB_READ16: fifo_cnt <= #1 fifo_cnt + 2'd2;
+        `DBG_WB_READ32: fifo_cnt <= #1 fifo_cnt + 3'd4;
       endcase
     end
-  else if (~(wb_end_tck & (~wb_end_tck_q)) & latch_data)  // decrementing
+  else if (!(wb_end_tck && (!wb_end_tck_q)) && latch_data && (!fifo_empty))  // decrementing
     begin
-      case (rw_type)  // synthesis parallel_case full_case
-        `WB_READ8 : fifo_cnt <= #1 fifo_cnt - 1'd1;
-        `WB_READ16: fifo_cnt <= #1 fifo_cnt - 2'd2;      
-        `WB_READ32: fifo_cnt <= #1 fifo_cnt - 3'd4;
+      case (acc_type)  // synthesis parallel_case full_case
+        `DBG_WB_READ8 : fifo_cnt <= #1 fifo_cnt - 1'd1;
+        `DBG_WB_READ16: fifo_cnt <= #1 fifo_cnt - 2'd2;
+        `DBG_WB_READ32: fifo_cnt <= #1 fifo_cnt - 3'd4;
       endcase
     end
 end
 
 
-assign fifo_full = fifo_cnt == 3'h4;
+assign fifo_full  = fifo_cnt == 3'h4;
 assign fifo_empty = fifo_cnt == 3'h0;
 
+reg [799:0] tdo_text;
 
+// TDO multiplexer
+always @ (pause_dr_i or busy_tck or crc_cnt_end or crc_cnt_end_q or curr_cmd_wr_comm or curr_cmd_go or acc_type_write or acc_type_read or crc_match_i or data_cnt_end or dr or data_cnt_end_q or crc_match_reg or status_cnt_en or status or addr_len_cnt_end or addr_len_cnt_end_q)
+begin
+  if (pause_dr_i)
+    begin
+    tdo_o = busy_tck;
+    tdo_text = "busy_tck";
+    end
+  else if (crc_cnt_end && (!crc_cnt_end_q) && (curr_cmd_wr_comm || curr_cmd_go && acc_type_write ))
+    begin
+      tdo_o = ~crc_match_i;
+      tdo_text = "crc_match_i";
+    end
+  else if (curr_cmd_go && acc_type_read && crc_cnt_end && (!data_cnt_end))
+    begin
+      tdo_o = dr[31];
+      tdo_text = "dr[31]";
+    end
+  else if (curr_cmd_go && acc_type_read && data_cnt_end && (!data_cnt_end_q))
+    begin
+      tdo_o = ~crc_match_reg;
+      tdo_text = "crc_match_reg";
+    end
+  else if (curr_cmd_rd_comm && addr_len_cnt_end && (!addr_len_cnt_end_q))
+    begin
+      tdo_o = ~crc_match_reg;
+      tdo_text = "crc_match_reg_rd_comm";
+    end
+  else if (curr_cmd_rd_comm && crc_cnt_end && (!addr_len_cnt_end))
+    begin
+      tdo_o = dr[`DBG_WB_ACC_TYPE_LEN + `DBG_WB_ADR_LEN + `DBG_WB_LEN_LEN -1];
+      tdo_text = "rd_comm data";
+    end
+  else if (status_cnt_en)
+    begin
+      tdo_o = status[3];
+      tdo_text = "status";
+    end
+  else
+    begin
+      tdo_o = 1'b0;
+      tdo_text = "zero";
+    end
+end
+
+reg [799:0] status_text;
+// Status register
+always @ (posedge tck_i or posedge rst_i)
+begin
+  if (rst_i)
+    begin
+    status <= #1 {`DBG_WB_STATUS_LEN{1'b0}};
+    status_text = "reset";
+    end
+  else if(crc_cnt_end && (!crc_cnt_end_q) && (!(curr_cmd_go && acc_type_read)))
+    begin
+    status <= #1 {1'b0, wb_error_tck, wb_overrun_tck, crc_match_i};
+    status_text = "latch ni read";
+    end
+  else if (data_cnt_end && (!data_cnt_end_q) && curr_cmd_go && acc_type_read)
+    begin
+    status <= #1 {1'b0, wb_error_tck, underrun_tck, crc_match_reg};
+    status_text = "latch read";
+    end
+  else if (addr_len_cnt_end && (!addr_len_cnt_end) && curr_cmd_rd_comm)
+    begin
+    status <= #1 {1'b0, 1'b0, 1'b0, crc_match_reg};
+    status_text = "rd_comm";
+    end
+  else if (shift_dr_i && (!status_cnt_end))
+    begin
+    status <= #1 {status[`DBG_WB_STATUS_LEN -2:0], status[`DBG_WB_STATUS_LEN -1]};
+    status_text = "shifting";
+    end
+end
+// Following status is shifted out (MSB first):
+// 3. bit:          1 if crc is OK, else 0
+// 2. bit:          1'b0
+// 1. bit:          1 if WB error occured, else 0
+// 0. bit:          1 if overrun occured during write (data couldn't be written fast enough)
+//                    or underrun occured during read (data couldn't be read fast enough)
 
 
 endmodule

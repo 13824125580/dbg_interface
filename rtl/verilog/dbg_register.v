@@ -3,7 +3,7 @@
 ////  dbg_register.v                                              ////
 ////                                                              ////
 ////                                                              ////
-////  This file is part of the SoC/OpenRISC Development Interface ////
+////  This file is part of the SoC Debug Interface.               ////
 ////  http://www.opencores.org/projects/DebugInterface/           ////
 ////                                                              ////
 ////  Author(s):                                                  ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2004/01/25 14:04:18  mohor
+// All flipflops are reset.
+//
 // Revision 1.8  2004/01/16 14:53:33  mohor
 // *** empty log message ***
 //

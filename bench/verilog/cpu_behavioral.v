@@ -3,7 +3,7 @@
 //// cpu_behavioral.v                                             ////
 ////                                                              ////
 ////                                                              ////
-////  This file is part of the SoC/OpenRISC Development Interface ////
+////  This file is part of the SoC Debug Interface.               ////
 ////  http://www.opencores.org/projects/DebugInterface/           ////
 ////                                                              ////
 ////  Author(s):                                                  ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2004/01/22 11:07:28  mohor
+// test stall_test added.
+//
 // Revision 1.2  2004/01/17 18:01:31  mohor
 // New version.
 //
@@ -68,9 +71,7 @@ module cpu_behavioral
                     cpu_data_i,
                     cpu_bp_o,
                     cpu_stall_i,
-                    cpu_stall_all_i,
                     cpu_stb_i,
-                    cpu_sel_i,
                     cpu_we_i,
                     cpu_ack_o,
                     cpu_rst_o
@@ -85,9 +86,7 @@ output [31:0] cpu_data_o;
 input  [31:0] cpu_data_i;
 output        cpu_bp_o;
 input         cpu_stall_i;
-input         cpu_stall_all_i;
 input         cpu_stb_i;
-input [`CPU_NUM -1:0]  cpu_sel_i;
 input         cpu_we_i;
 output        cpu_ack_o;
 output        cpu_rst_o;
@@ -95,7 +94,9 @@ output        cpu_rst_o;
 reg           cpu_clk_o;
 reg    [31:0] cpu_data_o;
 reg           cpu_bp_o;
-
+reg           cpu_ack_o;
+reg           cpu_ack_q;
+wire          cpu_ack;
 initial
 begin
   cpu_clk_o = 1'b0;
@@ -108,18 +109,30 @@ begin
   cpu_bp_o = 1'b0;
 end
 
-assign #200 cpu_ack_o = cpu_stall_i & cpu_stb_i;
+assign #200 cpu_ack = cpu_stall_i & cpu_stb_i;
 
 
 
 always @ (posedge cpu_clk_o or posedge cpu_rst_i)
 begin
   if (cpu_rst_i)
-    cpu_data_o <= #1 32'h11111111;
-  else if ((cpu_addr_i == 32'h32323232) & cpu_we_i & cpu_ack_o)
-    cpu_data_o <= #1 cpu_data_i + 1'd1;
-  else if ((cpu_addr_i == 32'h08080808) & cpu_we_i & cpu_ack_o)
-    cpu_data_o <= #1 cpu_data_i + 2'd2;
+    begin
+      cpu_ack_o <= #1 1'b0;
+      cpu_ack_q <= #1 1'b0;
+    end
+  else
+    begin
+      cpu_ack_o <= #1 cpu_ack;
+      cpu_ack_q <= #1 cpu_ack_o;
+    end
+end
+
+always @ (posedge cpu_clk_o or posedge cpu_rst_i)
+begin
+  if (cpu_rst_i)
+    cpu_data_o <= #1 32'h12345678;
+  else if (cpu_ack_o && (!cpu_ack_q))
+    cpu_data_o <= #1 cpu_data_o + 32'h11111111;
 end
 
 

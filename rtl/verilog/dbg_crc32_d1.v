@@ -3,7 +3,7 @@
 ////  dbg_crc32_d1.v                                              ////
 ////                                                              ////
 ////                                                              ////
-////  This file is part of the SoC/OpenRISC Development Interface ////
+////  This file is part of the SoC Debug Interface.               ////
 ////  http://www.opencores.org/projects/DebugInterface/           ////
 ////                                                              ////
 ////  Author(s):                                                  ////
@@ -15,7 +15,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2000 - 2003 Authors                            ////
+//// Copyright (C) 2000 - 2004 Authors                            ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -63,6 +63,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2003/12/23 15:26:26  mohor
+// Small fix.
+//
 // Revision 1.1  2003/12/23 15:09:04  mohor
 // New directory structure. New version of the debug interface.
 //

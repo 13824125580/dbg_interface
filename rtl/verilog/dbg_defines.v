@@ -3,7 +3,7 @@
 ////  dbg_defines.v                                               ////
 ////                                                              ////
 ////                                                              ////
-////  This file is part of the SoC/OpenRISC Development Interface ////
+////  This file is part of the SoC Debug Interface.               ////
 ////  http://www.opencores.org/projects/DebugInterface/           ////
 ////                                                              ////
 ////  Author(s):                                                  ////
@@ -15,7 +15,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2000 - 2003 Authors                            ////
+//// Copyright (C) 2000 - 2004 Authors                            ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.18  2004/03/22 16:35:46  igorm
+// Temp version before changing dbg interface.
+//
 // Revision 1.17  2004/01/30 10:24:30  mohor
 // Defines WISHBONE_SUPPORTED and CPU_SUPPORTED added. By default both are
 // turned on.
@@ -111,30 +114,30 @@
 
 
 // Length of the MODULE ID register
-`define	MODULE_ID_LENGTH	4
+`define	DBG_TOP_MODULE_ID_LENGTH	4
 
 // Length of data
-`define MODULE_DATA_LEN  `MODULE_ID_LENGTH + 1
-`define DATA_CNT        3
+`define DBG_TOP_MODULE_DATA_LEN  `DBG_TOP_MODULE_ID_LENGTH + 1
+`define DBG_TOP_DATA_CNT          3
 
 // Length of status
-`define DBG_TOP_STATUS_LEN          3'd4
-`define DBG_TOP_STATUS_CNT_WIDTH    3
+`define DBG_TOP_STATUS_LEN        3'd4
+`define DBG_TOP_STATUS_CNT_WIDTH  3
 
 // Length of the CRC
-`define	DBG_TOP_CRC_LEN             32
-`define CRC_CNT         6
+`define	DBG_TOP_CRC_LEN           32
+`define DBG_TOP_CRC_CNT           6
 
 // Chains
-`define CPU_DEBUG_MODULE      4'b0000
-`define WISHBONE_DEBUG_MODULE 4'b0001
+`define DBG_TOP_CPU_DEBUG_MODULE      4'b0000
+`define DBG_TOP_WISHBONE_DEBUG_MODULE 4'b0001
 
 // If WISHBONE debugging is supported uncomment the folowing line
-`define WISHBONE_SUPPORTED
+`define DBG_WISHBONE_SUPPORTED
 
 // If CPU_DEBUG is supported uncomment the folowing line
-`define CPU_SUPPORTED
+`define DBG_CPU_SUPPORTED
 
 // If more debug info is needed, uncomment the follofing line
-//`define MORE_DBG_INFO
+//`define DBG_MORE_INFO
 
