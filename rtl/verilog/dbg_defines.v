@@ -45,6 +45,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2002/01/25 07:58:34  mohor
+// IDCODE bug fixed, chains reused to decreas size of core. Data is shifted-in
+// not filled-in. Tested in hw.
+//
 // Revision 1.7  2001/12/06 10:08:06  mohor
 // Warnings from synthesys tools fixed.
 //
@@ -150,6 +154,7 @@
 `define SSEL_ADR            5'h03
 `define RISCOP_ADR          5'h04
 `define RECSEL_ADR          5'h10
+`define MON_CNTL_ADR        5'h11
 
 
 // Registers default values (after reset)
@@ -159,3 +164,4 @@
 `define SSEL_DEF            32'h00000000
 `define RISCOP_DEF          2'h0
 `define RECSEL_DEF          7'h0
+`define MON_CNTL_DEF        4'h0

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2002/03/12 14:32:26  mohor
+// Few outputs for boundary scan chain added.
+//
 // Revision 1.10  2002/03/08 15:27:08  mohor
 // Structure changed. Hooks for jtag chain added.
 //
@@ -141,11 +144,12 @@ wire DEBUGSelected;
 wire TDOData_dbg;
 wire BypassRegister;
 wire EXTESTSelected;
+wire [3:0] mon_cntl_o;
 
 // Connecting TAP module
 tap_top i_tap_top
                (.tms_pad_i(P_TMS), .tck_pad_i(P_TCK), .trst_pad_i(P_TRST), .tdi_pad_i(P_TDI), 
-                .tdo_pad_o(P_TDO), .tdo_padoen_o(tdo_padoen_o), 
+                .tdo_pad_o(P_TDO), .tdo_padoe_o(tdo_padoe_o), 
                 
                 // TAP states
                 .ShiftDR(ShiftDR), .Exit1DR(Exit1DR), .UpdateDR(UpdateDR), .UpdateDR_q(UpdateDR_q), 
@@ -186,7 +190,10 @@ dbg_top i_dbg_top
                 // TAP signals
                 .trst_in(P_TRST), .tck(P_TCK), .tdi(P_TDI), .TDOData(TDOData_dbg), 
                 
-                .BypassRegister(BypassRegister)
+                .BypassRegister(BypassRegister), 
+                
+                
+                .mon_cntl_o(mon_cntl_o)
 
                );
  
@@ -293,6 +300,7 @@ begin
     ReadRegister(`QSEL_ADR, 8'h32);            // {addr, crc}
     ReadRegister(`SSEL_ADR, 8'h56);            // {addr, crc}
     ReadRegister(`RECSEL_ADR, 8'hc4);          // {addr, crc}
+    ReadRegister(`MON_CNTL_ADR, 8'ha0);          // {addr, crc}
     ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
     ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
 
@@ -301,12 +309,14 @@ begin
     WriteRegister(32'h00000300, `QSEL_ADR,    8'hdd); // {data, addr, crc}
     WriteRegister(32'h00004000, `SSEL_ADR,    8'he2); // {data, addr, crc}
     WriteRegister(32'h0000dead, `RECSEL_ADR,  8'hfb); // {data, addr, crc}
+    WriteRegister(32'h0000000d, `MON_CNTL_ADR,  8'h5a); // {data, addr, crc}
 
     ReadRegister(`MODER_ADR, 8'h00);           // {addr, crc}
     ReadRegister(`TSEL_ADR, 8'h64);            // {addr, crc}
     ReadRegister(`QSEL_ADR, 8'h32);            // {addr, crc}
     ReadRegister(`SSEL_ADR, 8'h56);            // {addr, crc}
     ReadRegister(`RECSEL_ADR, 8'hc4);          // {addr, crc}
+    ReadRegister(`MON_CNTL_ADR, 8'ha0);          // {addr, crc}
     ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
     ReadRegister(5'h1f, 8'h04);                // {addr, crc}       // Register address don't exist. Read should return high-Z.
 //

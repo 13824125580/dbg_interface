@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2002/04/22 12:54:11  mohor
+// Signal names changed to lower case.
+//
 // Revision 1.5  2001/11/26 10:47:09  mohor
 // Crc generation is different for read or write commands. Small synthesys fixes.
 //
@@ -90,7 +93,7 @@ module dbg_registers(data_in, data_out, address, rw, access, clk, bp, reset,
                      WpStop, BpStop, LSSStop, IStop, StopOper, WpStopValid, BpStopValid, 
                      LSSStopValid, IStopValid, 
                      `endif
-                     risc_stall, risc_reset
+                     risc_stall, risc_reset, mon_cntl_o
                     );
 
 parameter Tp = 1;
@@ -155,40 +158,45 @@ reg    [31:0] data_out;
 
   output risc_stall;
   output risc_reset;
+  output [3:0] mon_cntl_o;
 
-  wire MODER_Acc =   (address == `MODER_ADR)   & access;
-  wire RISCOP_Acc =  (address == `RISCOP_ADR)  & access;
+  wire MODER_Acc     = (address == `MODER_ADR)    & access;
+  wire RISCOP_Acc    = (address == `RISCOP_ADR)   & access;
+  wire MON_CNTL_Acc  = (address == `MON_CNTL_ADR) & access;
 `ifdef TRACE_ENABLED
-  wire TSEL_Acc =    (address == `TSEL_ADR)    & access;
-  wire QSEL_Acc =    (address == `QSEL_ADR)    & access;
-  wire SSEL_Acc =    (address == `SSEL_ADR)    & access;
-  wire RECSEL_Acc =  (address == `RECSEL_ADR)  & access;
+  wire TSEL_Acc      = (address == `TSEL_ADR)     & access;
+  wire QSEL_Acc      = (address == `QSEL_ADR)     & access;
+  wire SSEL_Acc      = (address == `SSEL_ADR)     & access;
+  wire RECSEL_Acc    = (address == `RECSEL_ADR)   & access;
 `endif
 
   
-  wire MODER_Wr =   MODER_Acc   &  rw;
-  wire RISCOP_Wr =  RISCOP_Acc  &  rw;
+  wire MODER_Wr      = MODER_Acc    &  rw;
+  wire RISCOP_Wr     = RISCOP_Acc   &  rw;
+  wire MON_CNTL_Wr   = MON_CNTL_Acc &  rw;
 `ifdef TRACE_ENABLED
-  wire TSEL_Wr =    TSEL_Acc    &  rw;
-  wire QSEL_Wr =    QSEL_Acc    &  rw;
-  wire SSEL_Wr =    SSEL_Acc    &  rw;
-  wire RECSEL_Wr =  RECSEL_Acc  &  rw;
+  wire TSEL_Wr       = TSEL_Acc     &  rw;
+  wire QSEL_Wr       = QSEL_Acc     &  rw;
+  wire SSEL_Wr       = SSEL_Acc     &  rw;
+  wire RECSEL_Wr     = RECSEL_Acc   &  rw;
 `endif
 
 
   
-  wire MODER_Rd =   MODER_Acc   &  ~rw;
-  wire RISCOP_Rd =  RISCOP_Acc  &  ~rw;
+  wire MODER_Rd      = MODER_Acc    & ~rw;
+  wire RISCOP_Rd     = RISCOP_Acc   & ~rw;
+  wire MON_CNTL_Rd   = MON_CNTL_Acc & ~rw;
 `ifdef TRACE_ENABLED
-  wire TSEL_Rd =    TSEL_Acc    &  ~rw;
-  wire QSEL_Rd =    QSEL_Acc    &  ~rw;
-  wire SSEL_Rd =    SSEL_Acc    &  ~rw;
-  wire RECSEL_Rd =  RECSEL_Acc  &  ~rw;
+  wire TSEL_Rd       = TSEL_Acc     & ~rw;
+  wire QSEL_Rd       = QSEL_Acc     & ~rw;
+  wire SSEL_Rd       = SSEL_Acc     & ~rw;
+  wire RECSEL_Rd     = RECSEL_Acc   & ~rw;
 `endif
 
 
   wire [31:0] MODEROut;
   wire [1:1]  RISCOPOut;
+  wire [3:0]  MONCNTLOut;
 
 `ifdef TRACE_ENABLED
   wire [31:0] TSELOut;
@@ -219,7 +227,8 @@ reg    [31:0] data_out;
       RiscStallBp <= data_in[0];
   end
 
-  dbg_register #(1)  RISCOP (.data_in(data_in[1]), .data_out(RISCOPOut[1]), .write(RISCOP_Wr),   .clk(clk), .reset(reset), .defaulty(1'b0));
+  dbg_register #(1)  RISCOP  (.data_in(data_in[1]),   .data_out(RISCOPOut[1]),    .write(RISCOP_Wr),   .clk(clk), .reset(reset), .defaulty(1'b0));
+  dbg_register #(4)  MONCNTL (.data_in(data_in[3:0]), .data_out(MONCNTLOut[3:0]), .write(MON_CNTL_Wr), .clk(clk), .reset(reset), .defaulty(`MON_CNTL_DEF));
 
 
 `ifdef TRACE_ENABLED
@@ -237,6 +246,8 @@ begin
   if(MODER_Rd)    data_out<= #Tp MODEROut;
   else
   if(RISCOP_Rd)   data_out<= #Tp {30'h0, RISCOPOut[1], risc_stall};
+  else
+  if(MON_CNTL_Rd) data_out<= #Tp {28'h0, MONCNTLOut};
 `ifdef TRACE_ENABLED
   else
   if(TSEL_Rd)     data_out<= #Tp TSELOut;
@@ -296,5 +307,6 @@ end
 
   assign risc_stall          = bp | RiscStallBp;   // bp asynchronously sets the risc_stall, then RiscStallBp (from register) holds it active
   assign risc_reset          = RISCOPOut[1];
+  assign mon_cntl_o          = MONCNTLOut;
 
 endmodule

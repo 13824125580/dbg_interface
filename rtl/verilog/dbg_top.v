@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.25  2002/04/22 12:54:11  mohor
+// Signal names changed to lower case.
+//
 // Revision 1.24  2002/04/17 13:17:01  mohor
 // Intentional error removed.
 //
@@ -162,7 +165,10 @@ module dbg_top(
                 // TAP signals
                 trst_in, tck, tdi, TDOData, 
                 
-                BypassRegister
+                BypassRegister,
+                
+                // Monitor mux control
+                mon_cntl_o
 
               );
 
@@ -212,7 +218,7 @@ input tdi;
 input BypassRegister;
 
 output TDOData;
-
+output [3:0] mon_cntl_o;
 
 // Defining which instruction is selected
 input         IDCODESelected;
@@ -835,7 +841,7 @@ dbg_registers dbgregs(.data_in(DataOut[31:0]), .data_out(RegDataIn[31:0]),
                       .StopOper(StopOper), .WpStopValid(WpStopValid), .BpStopValid(BpStopValid), 
                       .LSSStopValid(LSSStopValid), .IStopValid(IStopValid), 
                       `endif
-                      .risc_stall(RiscStall_reg), .risc_reset(RiscReset_reg)
+                      .risc_stall(RiscStall_reg), .risc_reset(RiscReset_reg), .mon_cntl_o(mon_cntl_o)
 
                      );
 
