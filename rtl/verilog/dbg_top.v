@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2001/12/20 11:17:26  mohor
+// TDO and TDO Enable signal are separated into two signals.
+//
 // Revision 1.15  2001/12/05 13:28:21  mohor
 // trst signal is synchronized to wb_clk_i.
 //
@@ -220,9 +223,7 @@ reg [31:0]  DataOut;
 reg [`OPSELECTWIDTH-1:0] opselect_o;      // Operation selection (selecting what kind of data is set to the risc_data_i)
 
 reg [`CHAIN_ID_LENGTH-1:0] Chain;         // Selected chain
-reg [31:0]  RISC_DATAINLatch;             // Data from DataIn is latched one risc_clk_i clock cycle after RISC register is
-                                          // accessed for reading
-reg [31:0]  RegisterReadLatch;            // Data when reading register is latched one TCK clock after the register is read.
+reg [31:0]  DataReadLatch;                // Data when reading register or RISC is latched one risc_clk_i clock after the data is read.
 reg         RegAccessTck;                 // Indicates access to the registers (read or write)
 reg         RISCAccessTck;                // Indicates access to the RISC (read or write)
 reg [7:0]   BitCounter;                   // Counting bits in the ShiftDR and Exit1DR stages
@@ -238,6 +239,9 @@ reg         wb_AccessTck;                 // Indicates access to the WISHBONE
 reg [31:0]  WBReadLatch;                  // Data latched during WISHBONE read
 reg         WBErrorLatch;                 // Error latched during WISHBONE read
 reg         trst;                         // trst is active high while trst_pad_i is active low
+
+reg         BypassRegister;               // Bypass register
+
 
 wire TCK = tck_pad_i;
 wire TMS = tms_pad_i;
@@ -259,7 +263,12 @@ wire RiscStall_read_access;               // Stalling RISC because of the read a
 wire RiscStall_write_access;              // Stalling RISC because of the write access (SPR write)
 wire RiscStall_access;                    // Stalling RISC because of the read or write access
 
-           
+wire BitCounter_Lt4;
+wire BitCounter_Eq5;
+wire BitCounter_Eq32;
+wire BitCounter_Lt38;
+wire BitCounter_Lt65;
+
 assign capture_dr_o       = CaptureDR;
 assign shift_dr_o         = ShiftDR;
 assign update_dr_o        = UpdateDR;
@@ -328,6 +337,7 @@ assign bs_chain_o         = tdi_pad_i;
 
   wire [`OPSELECTWIDTH-1:0]opselect_trace;// Operation selection (trace selecting what kind of
                                           // data is set to the risc_data_i)
+  wire BitCounter_Lt40;
 
 `endif
 
@@ -642,8 +652,6 @@ end
 *   JTAG_DR:  JTAG Data Register                                                  *
 *                                                                                 *
 **********************************************************************************/
-wire [31:0] IDCodeValue = `IDCODE_VALUE;  // IDCODE value is 32-bit long.
-
 reg [`DR_LENGTH-1:0]JTAG_DR_IN;    // Data register
 reg TDOData;
 
@@ -653,33 +661,59 @@ begin
   if(trst)
     JTAG_DR_IN[`DR_LENGTH-1:0]<=#Tp 0;
   else
-  if(ShiftDR)
-    JTAG_DR_IN[BitCounter]<=#Tp TDI;
+  if(IDCODESelected)                          // To save space JTAG_DR_IN is also used for shifting out IDCODE
+    begin
+      if(ShiftDR)
+        JTAG_DR_IN[31:0] <= #Tp {TDI, JTAG_DR_IN[31:1]};
+      else
+        JTAG_DR_IN[31:0] <= #Tp `IDCODE_VALUE;
+    end
+  else
+  if(CHAIN_SELECTSelected & ShiftDR)
+    JTAG_DR_IN[12:0] <= #Tp {TDI, JTAG_DR_IN[12:1]};
+  else
+  if(DEBUGSelected & ShiftDR)
+    begin
+      if(RiscDebugScanChain | WishboneScanChain)
+        JTAG_DR_IN[73:0] <= #Tp {TDI, JTAG_DR_IN[73:1]};
+      else
+      if(RegisterScanChain)
+        JTAG_DR_IN[46:0] <= #Tp {TDI, JTAG_DR_IN[46:1]};
+    end
 end
-
+ 
 wire [73:0] RISC_Data;
 wire [46:0] Register_Data;
 wire [73:0] WISHBONE_Data;
 wire [12:0] chain_sel_data;
 wire wb_Access_wbClk;
 
-// assign RISC_Data      = {CalculatedCrcOut, RISC_DATAINLatch, 33'h0};
-// assign Register_Data  = {CalculatedCrcOut, RegisterReadLatch, 6'h0};
-// assign WISHBONE_Data  = {CalculatedCrcOut, WBReadLatch, 32'h0, WBErrorLatch};
 
-wire select_crc_out;
-assign select_crc_out = RegisterScanChain     & JTAG_DR_IN[5]   |     // Calculated CRC is returned when read operation is
-                        RiscDebugScanChain    & JTAG_DR_IN[32]  |     // performed, else received crc is returned (loopback).
-                        WishboneScanChain     & JTAG_DR_IN[32]  |
-                        CHAIN_SELECTSelected;                         // When chain is selected, received crc is returned
+reg select_crc_out;
+always @ (posedge TCK or posedge trst)
+begin
+  if(trst)
+    select_crc_out <= 0;
+  else
+  if( RegisterScanChain  & BitCounter_Eq5  |
+      RiscDebugScanChain & BitCounter_Eq32 |
+      WishboneScanChain  & BitCounter_Eq32 )
+    select_crc_out <=#Tp TDI;
+  else
+  if(CHAIN_SELECTSelected)
+    select_crc_out <=#Tp 1;
+  else
+  if(UpdateDR)
+    select_crc_out <=#Tp 0;
+end
 
 wire [8:0] send_crc;
 
-assign send_crc = select_crc_out? {9{JTAG_DR_IN[BitCounter-1]}}   : // Calculated CRC is returned when read operation is
-                                  {1'b0, CalculatedCrcOut}        ; // performed, else received crc is returned (loopback).
+assign send_crc = select_crc_out? {9{BypassRegister}}    :    // Calculated CRC is returned when read operation is
+                                  {CalculatedCrcOut, 1'b0} ;  // performed, else received crc is returned (loopback).
 
-assign RISC_Data      = {send_crc, RISC_DATAINLatch, 33'h0};
-assign Register_Data  = {send_crc, RegisterReadLatch, 6'h0};
+assign RISC_Data      = {send_crc, DataReadLatch, 33'h0};
+assign Register_Data  = {send_crc, DataReadLatch, 6'h0};
 assign WISHBONE_Data  = {send_crc, WBReadLatch, 32'h0, WBErrorLatch};
 assign chain_sel_data = {send_crc, 4'h0};
                                                   
@@ -712,7 +746,7 @@ begin
       if(ShiftDR)
         begin
           if(IDCODESelected)
-            TDOData <= #Tp IDCodeValue[BitCounter];           // IDCODE is shifted out
+            TDOData <= #Tp JTAG_DR_IN[0]; // IDCODE is shifted out 32-bits, then TDI is bypassed
           else
           if(CHAIN_SELECTSelected)
             TDOData <= #Tp chain_sel_data[BitCounter];        // Received crc is sent back
@@ -834,13 +868,13 @@ dbg_sync_clk1_clk2 syn1 (.clk1(risc_clk_i),   .clk2(TCK),           .reset1(wb_r
                         );
 
 // Synchronizing the RISCAccess signal to risc_clk_i clock
-dbg_sync_clk1_clk2 syn2 (.clk1(risc_clk_i),    .clk2(TCK),           .reset1(wb_rst_i),  .reset2(trst), 
+dbg_sync_clk1_clk2 syn2 (.clk1(risc_clk_i),    .clk2(TCK),          .reset1(wb_rst_i),  .reset2(trst), 
                          .set2(RISCAccessTck), .sync_out(RISCAccess)
                         );
 
 
 // Synchronizing the wb_Access signal to wishbone clock
-dbg_sync_clk1_clk2 syn3 (.clk1(wb_clk_i),      .clk2(TCK),          .reset1(wb_rst_i),  .reset2(trst), 
+dbg_sync_clk1_clk2 syn3 (.clk1(wb_clk_i),     .clk2(TCK),           .reset1(wb_rst_i),  .reset2(trst), 
                          .set2(wb_AccessTck), .sync_out(wb_Access_wbClk)
                         );
 
@@ -866,18 +900,6 @@ begin
       RISCAccess_q2 <=#Tp RISCAccess_q;
     end
 end
-
-
-// Latching data read from registers
-always @ (posedge risc_clk_i or posedge wb_rst_i)
-begin
-  if(wb_rst_i)
-    RegisterReadLatch[31:0]<=#Tp 0;
-  else
-  if(RegAccess_q & ~RegAccess_q2)
-    RegisterReadLatch[31:0]<=#Tp RegDataIn[31:0];
-end
-
 
 // Chip select and read/write signals for accessing RISC
 assign RiscStall_write_access = RISCAccess & ~RISCAccess_q  &  RW;
@@ -964,15 +986,17 @@ begin
 end
 
 
-
-// Latching data read from RISC
+// Latching data read from RISC or registers
 always @ (posedge risc_clk_i or posedge wb_rst_i)
 begin
   if(wb_rst_i)
-    RISC_DATAINLatch[31:0]<=#Tp 0;
+    DataReadLatch[31:0]<=#Tp 0;
   else
   if(RISCAccess_q & ~RISCAccess_q2)
-    RISC_DATAINLatch[31:0]<=#Tp risc_data_i[31:0];
+    DataReadLatch[31:0]<=#Tp risc_data_i[31:0];
+  else
+  if(RegAccess_q & ~RegAccess_q2)
+    DataReadLatch[31:0]<=#Tp RegDataIn[31:0];
 end
 
 assign risc_addr_o = ADDR;
@@ -1019,7 +1043,6 @@ dbg_sync_clk1_clk2 syn4 (.clk1(risc_clk_i),     .clk2(TCK),           .reset1(wb
 *   Bypass logic                                                                  *
 *                                                                                 *
 **********************************************************************************/
-reg BypassRegister;
 reg TDOBypassed;
 
 always @ (posedge TCK)
@@ -1223,21 +1246,32 @@ wire AsyncResetCrc = trst;
 wire SyncResetCrc = UpdateDR_q;
 wire [7:0] CalculatedCrcIn;     // crc calculated from the input data (shifted in)
 
+assign BitCounter_Lt4   = BitCounter<4;
+assign BitCounter_Eq5   = BitCounter==5;
+assign BitCounter_Eq32  = BitCounter==32;
+assign BitCounter_Lt38  = BitCounter<38;
+assign BitCounter_Lt65  = BitCounter<65;
+
+`ifdef TRACE_ENABLED
+  assign BitCounter_Lt40 = BitCounter<40;
+`endif
+
+
 wire EnableCrcIn = ShiftDR & 
-                  ( (CHAIN_SELECTSelected                 & (BitCounter<4))  |
-                    ((DEBUGSelected & RegisterScanChain)  & (BitCounter<38)) | 
-                    ((DEBUGSelected & RiscDebugScanChain) & (BitCounter<65)) |
-                    ((DEBUGSelected & WishboneScanChain)  & (BitCounter<65))
+                  ( (CHAIN_SELECTSelected                 & BitCounter_Lt4) |
+                    ((DEBUGSelected & RegisterScanChain)  & BitCounter_Lt38)| 
+                    ((DEBUGSelected & RiscDebugScanChain) & BitCounter_Lt65)|
+                    ((DEBUGSelected & WishboneScanChain)  & BitCounter_Lt65)  
                   );
 
 wire EnableCrcOut= ShiftDR & 
                    (
-                    ((DEBUGSelected & RegisterScanChain)  & (BitCounter<38)) | 
-                    ((DEBUGSelected & RiscDebugScanChain) & (BitCounter<65)) |
-                    ((DEBUGSelected & WishboneScanChain)  & (BitCounter<65))
+                    ((DEBUGSelected & RegisterScanChain)  & BitCounter_Lt38)| 
+                    ((DEBUGSelected & RiscDebugScanChain) & BitCounter_Lt65)|
+                    ((DEBUGSelected & WishboneScanChain)  & BitCounter_Lt65)  
                     `ifdef TRACE_ENABLED
-                                                                             |
-                    ((DEBUGSelected & TraceTestScanChain) & (BitCounter<40)) 
+                                                                            |
+                    ((DEBUGSelected & TraceTestScanChain) & BitCounter_Lt40) 
                     `endif
                    );
 
@@ -1261,14 +1295,16 @@ begin
       if(CHAIN_SELECTSelected)
         CrcMatch <=#Tp CalculatedCrcIn == JTAG_DR_IN[11:4];
       else
-      if(RegisterScanChain & ~CHAIN_SELECTSelected)
-        CrcMatch <=#Tp CalculatedCrcIn == JTAG_DR_IN[45:38];
-      else
-      if(RiscDebugScanChain & ~CHAIN_SELECTSelected)
-        CrcMatch <=#Tp CalculatedCrcIn == JTAG_DR_IN[72:65];
-      else
-      if(WishboneScanChain & ~CHAIN_SELECTSelected)
-        CrcMatch <=#Tp CalculatedCrcIn == JTAG_DR_IN[72:65];
+        begin
+          if(RegisterScanChain)
+            CrcMatch <=#Tp CalculatedCrcIn == JTAG_DR_IN[45:38];
+          else
+          if(RiscDebugScanChain)
+            CrcMatch <=#Tp CalculatedCrcIn == JTAG_DR_IN[72:65];
+          else
+          if(WishboneScanChain)
+            CrcMatch <=#Tp CalculatedCrcIn == JTAG_DR_IN[72:65];
+        end
     end
 end
 

@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2001/12/06 10:08:06  mohor
+// Warnings from synthesys tools fixed.
+//
 // Revision 1.6  2001/11/28 09:38:30  mohor
 // Trace disabled by default.
 //
@@ -91,7 +94,7 @@
 // Length of the Instruction register
 `define	IR_LENGTH	4
 
-// Length of the Data register (must be equal to the longest scan chain)
+// Length of the Data register (must be equal to the longest scan chain for shifting the data in)
 `define	DR_LENGTH	74
 
 // Length of the CHAIN ID register
@@ -121,16 +124,16 @@
 //`define Reserved                 7
 
 // Supported Instructions
-`define EXTEST          5'b00000
-`define SAMPLE_PRELOAD  5'b00001
-`define IDCODE          5'b00010
-`define CHAIN_SELECT    5'b00011
-`define INTEST          5'b00100
-`define CLAMP           5'b00101
-`define CLAMPZ          5'b00110
-`define HIGHZ           5'b00111
-`define DEBUG           5'b01000
-`define BYPASS          5'b01111
+`define EXTEST          4'b0000
+`define SAMPLE_PRELOAD  4'b0001
+`define IDCODE          4'b0010
+`define CHAIN_SELECT    4'b0011
+`define INTEST          4'b0100
+`define CLAMP           4'b0101
+`define CLAMPZ          4'b0110
+`define HIGHZ           4'b0111
+`define DEBUG           4'b1000
+`define BYPASS          4'b1111
 
 // Chains
 `define GLOBAL_BS_CHAIN     4'b0000
