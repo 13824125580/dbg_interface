@@ -45,6 +45,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/03/26 14:23:38  mohor
+// Signal tdo_padoe_o changed back to tdo_padoen_o.
+//
 // Revision 1.4  2002/03/25 13:16:15  mohor
 // tdo_padoen_o changed to tdo_padoe_o. Signal was always active high, just
 // not named correctly.
@@ -72,7 +75,7 @@
 // Top module
 module tap_top(
                 // JTAG pins
-                tms_pad_i, tck_pad_i, trst_pad_i, tdi_pad_i, tdo_pad_o, tdo_padoen_o,
+                tms_pad_i, tck_pad_i, trst_pad_i, tdi_pad_i, tdo_pad_o, tdo_padoe_o,
 
                 // TAP states
                 ShiftDR, Exit1DR, UpdateDR, UpdateDR_q, CaptureDR, 
@@ -96,7 +99,7 @@ input   tck_pad_i;                  // JTAG test clock pad
 input   trst_pad_i;                 // JTAG test reset pad
 input   tdi_pad_i;                  // JTAG test data input pad
 output  tdo_pad_o;                  // JTAG test data output pad
-output  tdo_padoen_o;               // Output enable for JTAG test data output pad 
+output  tdo_padoe_o;                // Output enable for JTAG test data output pad 
 
 // TAP states
 output  ShiftDR;
@@ -579,7 +582,7 @@ begin
 end
 
 // Tristate control for tdo_pad_o pin
-assign tdo_padoen_o = ShiftIR | ShiftDR | Exit1IR | Exit1DR | UpdateDR;
+assign tdo_padoe_o = ShiftIR | ShiftDR | Exit1IR | Exit1DR | UpdateDR;
 
 /**********************************************************************************
 *                                                                                 *
