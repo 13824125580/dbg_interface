@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2003/12/23 15:09:04  mohor
+// New directory structure. New version of the debug interface.
+//
 //
 //
 
@@ -461,7 +464,6 @@ begin
   wb_timeout_tck  <= #1 wb_timeout_sync;
 end
 
-assign status
 
 endmodule
 

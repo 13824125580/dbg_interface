@@ -63,9 +63,16 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2003/12/23 15:09:04  mohor
+// New directory structure. New version of the debug interface.
 //
 //
 //
+//
+
+// synopsys translate_off
+`include "timescale.v"
+// synopsys translate_on
 
 module dbg_crc32_d1 (data, enable, shift, rst, sync_rst, crc_out, clk, crc_match);
 
