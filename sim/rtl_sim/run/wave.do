@@ -116,8 +116,8 @@ define variable nofilenames
 define variable nofullpathfilenames
 include bookmark with filenames
 include scope history without filenames
-define waveform window listpane 10.93
-define waveform window namepane 18.99
+define waveform window listpane 5.97
+define waveform window namepane 13.47
 define multivalueindication
 define pattern curpos dot
 define pattern cursor1 dot
@@ -149,9 +149,11 @@ define web browser command netscape
 define zoom outfull on initial add off
 add group \
     tap_top \
+      dbg_tb.debug_wishbone_set_addr.i's \
       dbg_tb.i_tap_top.tck_pad_i \
       dbg_tb.i_tap_top.tms_pad_i \
       dbg_tb.i_tap_top.tdi_pad_i \
+      dbg_tb.i_tap_top.tms_reset \
       dbg_tb.i_tap_top.tdo_pad_o \
       dbg_tb.i_tap_top.tdo_padoe_o \
       dbg_tb.i_tap_top.idcode_tdo \
@@ -209,7 +211,6 @@ add group \
       dbg_tb.i_dbg_top.tck_i \
       dbg_tb.i_dbg_top.tdi_i \
       dbg_tb.i_dbg_top.tdo_o \
-      dbg_tb.i_dbg_top.trst_i \
       dbg_tb.i_dbg_top.update_dr_i \
       dbg_tb.i_dbg_top.wishbone_scan_chain \
       dbg_tb.i_dbg_top.wishbone_ce \
@@ -243,50 +244,160 @@ add group \
       dbg_tb.i_dbg_top.i_dbg_crc32_d1_in.crc[31:0]'h \
 
 add group \
-    wishbone \
-      dbg_tb.i_dbg_top.i_dbg_wb.TDO_WISHBONE[799:0]'a \
-      dbg_tb.i_dbg_top.i_dbg_wb.acc_cnt[7:0]'h \
-      dbg_tb.i_dbg_top.i_dbg_wb.acc_cnt_limit \
-      dbg_tb.i_dbg_top.i_dbg_wb.adr[31:0]'h \
-      dbg_tb.i_dbg_top.i_dbg_wb.cmd[2:0]'h \
-      dbg_tb.i_dbg_top.i_dbg_wb.cnt[5:0]'d \
-      dbg_tb.i_dbg_top.i_dbg_wb.cnt_end \
+    tttmp \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd_cnt[1:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.data_cnt[5:0]'d \
+      dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_end \
       dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt[5:0]'d \
       dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end \
-      dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end_q \
+
+add group \
+    wishbone \
+      dbg_tb.i_dbg_top.tdi_i \
+      dbg_tb.test_text[99:0]'a \
+      dbg_tb.i_dbg_top.i_dbg_wb.TDO_WISHBONE[799:0]'a \
+      dbg_tb.i_dbg_top.i_dbg_wb.latching_data[399:0]'a \
+      dbg_tb.i_dbg_top.i_dbg_wb.len[15:0]'d \
+      dbg_tb.i_dbg_top.i_dbg_wb.adr[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd[2:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd_old[2:0]'h \
       dbg_tb.i_dbg_top.i_dbg_wb.enable \
-      dbg_tb.i_dbg_top.i_dbg_wb.input_storage[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd_cnt[1:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.addr_len_cnt[5:0]'d \
+      dbg_tb.i_dbg_top.i_dbg_wb.addr_len_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.data_cnt[18:0]'d \
+      dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt[5:0]'d \
+      dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.write_cycle \
+      dbg_tb.i_dbg_top.i_dbg_wb.read_cycle \
       dbg_tb.i_dbg_top.i_dbg_wb.len[15:0]'h \
       dbg_tb.i_dbg_top.i_dbg_wb.pause_dr_i \
-      dbg_tb.i_dbg_top.i_dbg_wb.wb_cyc_o \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.addr_len_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_end \
       dbg_tb.i_dbg_top.i_dbg_wb.shift_dr_i \
-      dbg_tb.i_dbg_top.i_dbg_wb.start_tck \
-      dbg_tb.i_dbg_top.i_dbg_wb.start_wb \
-      dbg_tb.i_dbg_top.i_dbg_wb.start_wb_q \
-      dbg_tb.i_dbg_top.i_dbg_wb.wb_timeout_tck \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_error_tck \
       dbg_tb.i_dbg_top.i_dbg_wb.status[3:0]'h \
-      dbg_tb.i_dbg_top.i_dbg_wb.status_cnt[2:0]'h \
       dbg_tb.i_dbg_top.i_dbg_wb.status_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.status_reset_en \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd[2:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd[2:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.len[15:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.adr[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.dr[50:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.addr_len_cnt_limit[5:0]'d \
+      dbg_tb.i_dbg_top.i_dbg_wb.byte \
+      dbg_tb.i_dbg_top.i_dbg_wb.half \
+      dbg_tb.i_dbg_top.i_dbg_wb.long \
+      dbg_tb.i_dbg_top.i_dbg_wb.start_wr_tck \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd[2:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_limit[18:0]'d \
+      dbg_tb.i_dbg_top.i_dbg_wb.dr[50:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_error \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_error_sync \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_error_tck \
+      dbg_tb.i_dbg_top.i_dbg_wb.status_reset_en \
       dbg_tb.i_dbg_top.i_dbg_wb.tck_i \
       dbg_tb.i_dbg_top.i_dbg_wb.tdo_o \
-      dbg_tb.i_dbg_top.i_dbg_wb.trst_i \
       dbg_tb.i_dbg_top.i_dbg_wb.update_dr_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.set_addr \
+      dbg_tb.i_dbg_top.i_dbg_wb.set_addr_sync \
+      dbg_tb.i_dbg_top.i_dbg_wb.len[15:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_limit[18:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.set_addr_wb \
+      dbg_tb.i_dbg_top.i_dbg_wb.set_addr_wb_q \
+      dbg_tb.i_dbg_top.i_dbg_wb.adr[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd_write \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd_read \
+      dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end_q \
+      dbg_tb.i_dbg_top.i_dbg_wb.crc_match_i \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_ack_i \
-      dbg_tb.i_dbg_top.i_dbg_wb.wb_adr_o[31:0]'h \
-      dbg_tb.i_dbg_top.i_dbg_wb.wb_bte_o[1:0]'h \
-      dbg_tb.i_dbg_top.i_dbg_wb.wb_cab_o \
-      dbg_tb.i_dbg_top.i_dbg_wb.wb_clk_i \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_cti_o[2:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.ptr[1:0]'h \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_cyc_o \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_adr_o[31:0]'h \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_dat_i[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.input_data[31:0]'h \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_dat_o[31:0]'h \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_err_i \
-      dbg_tb.i_dbg_top.i_dbg_wb.wb_rst_i \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_sel_o[3:0]'h \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_stb_o \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_we_o \
       dbg_tb.i_dbg_top.i_dbg_wb.wishbone_ce_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_overrun \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_overrun_sync \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_overrun_tck \
+      dbg_tb.i_dbg_top.i_dbg_wb.status_reset_en \
+      dbg_tb.i_dbg_top.i_dbg_wb.read_cycle \
+      dbg_tb.i_dbg_top.i_dbg_wb.write_cycle \
+      dbg_tb.i_dbg_top.i_dbg_wb.crc_en_o \
+      dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.status_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.status_cnt1 \
+      dbg_tb.i_dbg_top.tdi_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.tdo_o \
+      dbg_tb.i_dbg_top.i_dbg_wb.crc_cnt[5:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.data_cnt[18:0]'d \
+      dbg_tb.i_dbg_top.i_dbg_wb.data_cnt_end \
+      dbg_tb.i_dbg_top.i_dbg_wb.crc_en_o \
+      dbg_tb.i_dbg_top.i_dbg_wb.TDO_WISHBONE[799:0]'a \
+      dbg_tb.i_dbg_top.i_dbg_wb.latching_data[399:0]'a \
+      { \
+        dr[31:0] descendingorder \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[31] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[30] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[29] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[28] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[27] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[26] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[25] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[24] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[23] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[22] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[21] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[20] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[19] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[18] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[17] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[16] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[15] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[14] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[13] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[12] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[11] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[10] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[9] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[8] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[7] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[6] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[5] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[4] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[3] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[2] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[1] \
+          dbg_tb.i_dbg_top.i_dbg_wb.dr[0] \
+      }'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.cmd_write \
+      dbg_tb.i_dbg_top.i_dbg_wb.dr_go_latched \
+      dbg_tb.i_dbg_top.i_dbg_wb.read_cycle \
+      dbg_tb.i_dbg_top.i_dbg_wb.len[15:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.write_cycle \
+      dbg_tb.i_dbg_top.i_dbg_wb.byte \
+      dbg_tb.i_dbg_top.i_dbg_wb.byte \
+      dbg_tb.i_dbg_top.i_dbg_wb.byte_q \
+      dbg_tb.i_dbg_top.i_dbg_wb.input_data[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.ptr[1:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_ack_i \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_sel_o[3:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.wb_dat_i[31:0]'h \
+      dbg_tb.i_dbg_top.i_dbg_wb.start_rd_tck \
+      dbg_tb.i_dbg_top.i_dbg_wb.rw_type[2:0]'h \
 
 add group \
     tmp \
@@ -294,11 +405,6 @@ add group \
       dbg_tb.i_dbg_top.i_dbg_wb.tck_i \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_cyc_o \
       dbg_tb.i_dbg_top.i_dbg_wb.wb_ack_i \
-      dbg_tb.i_dbg_top.i_dbg_wb.wb_ack_latched \
-      dbg_tb.i_dbg_top.i_dbg_wb.wb_ack_latched_rst \
-      dbg_tb.i_dbg_top.i_dbg_wb.wb_ack_latched_rst_sync \
-      dbg_tb.i_dbg_top.i_dbg_wb.tck_ack_sync \
-      dbg_tb.i_dbg_top.i_dbg_wb.tck_ack \
       dbg_tb.i_dbg_top.i_dbg_wb.busy_wb \
       dbg_tb.i_dbg_top.i_dbg_wb.busy_sync \
       dbg_tb.i_dbg_top.i_dbg_wb.busy_tck \
@@ -310,7 +416,6 @@ add group \
       dbg_tb.tdo \
       dbg_tb.i_dbg_top.shift_crc_wb \
       dbg_tb.i_dbg_top.wishbone_ce \
-      dbg_tb.i_dbg_top.i_dbg_wb.acc_cnt_limit \
 
 add group \
     tdo_tap_top \
@@ -350,5 +455,5 @@ add group \
 
 
 deselect all
-open window waveform 1 geometry 14 67 1024 662
-zoom at 123419.02(0)ns 0.00323299 0.00000000
+open window waveform 1 geometry 10 60 1592 1139
+zoom at 357036.34ns 0.00199090 0.00000000

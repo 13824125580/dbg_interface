@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2004/01/14 22:59:18  mohor
+// Temp version.
+//
 // Revision 1.11  2004/01/14 12:29:40  mohor
 // temp version. Resets will be changed in next version.
 //
@@ -112,22 +115,22 @@ module dbg_wb(
               );
 
 // JTAG signals
-input   tck_i;
-input   tdi_i;
-output  tdo_o;
+input         tck_i;
+input         tdi_i;
+output        tdo_o;
 
 // TAP states
-input   shift_dr_i;
-input   pause_dr_i;
-input   update_dr_i;
+input         shift_dr_i;
+input         pause_dr_i;
+input         update_dr_i;
 
-input   wishbone_ce_i;
-input   crc_match_i;
-output  crc_en_o;
-output  shift_crc_o;
-input   rst_i;
+input         wishbone_ce_i;
+input         crc_match_i;
+output        crc_en_o;
+output        shift_crc_o;
+input         rst_i;
 // WISHBONE common signals
-input         wb_clk_i;                   // WISHBONE clock
+input         wb_clk_i;
                                                                                 
 // WISHBONE master interface
 output [31:0] wb_adr_o;
@@ -177,6 +180,7 @@ reg     [2:0] cmd, cmd_old, dr_cmd_latched;
 reg    [31:0] adr;
 reg    [15:0] len;
 reg           start_rd_tck;
+reg           rd_tck_started;
 reg           start_rd_sync1;
 reg           start_wb_rd;
 reg           start_wb_rd_q;
@@ -206,36 +210,50 @@ reg           status_cnt1, status_cnt2, status_cnt3, status_cnt4;
 
 reg [`STATUS_LEN -1:0] status;
 
-reg wb_error, wb_error_sync, wb_error_tck;
-reg wb_overrun, wb_overrun_sync, wb_overrun_tck;
+reg           wb_error, wb_error_sync, wb_error_tck;
+reg           wb_overrun, wb_overrun_sync, wb_overrun_tck;
+reg           underrun_tck;
 
-reg busy_wb;
-reg busy_tck;
-reg wb_end;
-reg wb_end_rst;
-reg wb_end_rst_sync;
-reg wb_end_sync;
-reg wb_end_tck, wb_end_tck_q;
-reg busy_sync;
-reg [799:0] TDO_WISHBONE;
-reg [399:0] latching_data;
+reg           busy_wb;
+reg           busy_tck;
+reg           wb_end;
+reg           wb_end_rst;
+reg           wb_end_rst_sync;
+reg           wb_end_sync;
+reg           wb_end_tck, wb_end_tck_q;
+reg           busy_sync;
+reg   [799:0] tdo_text;
+reg   [399:0] latching_data_text;
+reg           latch_data;
+reg   [199:0] status_text;
 
-reg set_addr, set_addr_sync, set_addr_wb, set_addr_wb_q;
-reg read_cycle;
-reg write_cycle;
-reg [2:0] rw_type;
-wire [31:0] input_data;
+reg           set_addr, set_addr_sync, set_addr_wb, set_addr_wb_q;
+reg           read_cycle;
+reg           write_cycle;
+reg     [2:0] rw_type;
+wire   [31:0] input_data;
 
-wire len_eq_0;
-wire crc_cnt_31;
+wire          len_eq_0;
+wire          crc_cnt_31;
+
+reg     [1:0] ptr;
+reg     [2:0] fifo_cnt;
+wire          fifo_full;
+wire          fifo_empty;
+reg     [7:0] mem [0:3];
+reg     [2:0] mem_ptr;
+reg           wishbone_ce_sync;
+reg           wishbone_ce_rst;
+wire          go_prelim;
+
+
 
 assign enable = wishbone_ce_i & shift_dr_i;
 assign crc_en_o = enable & crc_cnt_end & (~status_cnt_end);
 assign shift_crc_o = enable & status_cnt_end;  // Signals dbg module to shift out the CRC
 
-reg [1:0] ptr;
 
-
+// Selecting where to take the data from 
 always @ (posedge tck_i)
 begin
   if (update_dr_i)
@@ -247,13 +265,14 @@ begin
 end
 
 
-
+// Shift register for shifting in and out the data
 always @ (posedge tck_i)
 begin
   if (read_cycle & crc_cnt_31)
     begin
       dr[31:0] <= #1 input_data[31:0];
-      latching_data = "First latch";
+      latch_data <= #1 1'b1;
+      latching_data_text = "First latch";
     end
   else if (read_cycle & crc_cnt_end)
     begin
@@ -267,39 +286,45 @@ begin
                             2'b10 : dr[31:24] <= #1 input_data[15:8];
                             2'b11 : dr[31:24] <= #1 input_data[7:0];
                           endcase
-                          latching_data = "8 bit latched";
+                          latch_data <= #1 1'b1;
+                          latching_data_text = "8 bit latched";
                         end
                       else
                         begin
                           dr[31:24] <= #1 {dr[30:24], 1'b0};
-                          latching_data = "8 bit shifted";
+                          latch_data <= #1 1'b0;
+                          latching_data_text = "8 bit shifted";
                         end
                     end
         `WB_READ16: begin
                       if(half & (~half_q))
                         begin
                           if (ptr[1])
-                            dr[31:16] <= #1 input_data[31:16];
-                          else
                             dr[31:16] <= #1 input_data[15:0];
-                          latching_data = "16 bit latched";
+                          else
+                            dr[31:16] <= #1 input_data[31:16];
+                          latching_data_text = "16 bit latched";
+                          latch_data <= #1 1'b1;
                         end
                       else
                         begin
                           dr[31:16] <= #1 {dr[30:16], 1'b0};
-                          latching_data = "16 bit shifted";
+                          latch_data <= #1 1'b0;
+                          latching_data_text = "16 bit shifted";
                         end
                     end
         `WB_READ32: begin
                       if(long & (~long_q))
                         begin
                           dr[31:0] <= #1 input_data[31:0];
-                          latching_data = "32 bit latched";
+                          latch_data <= #1 1'b1;
+                          latching_data_text = "32 bit latched";
                         end
                       else
                         begin
                           dr[31:0] <= #1 {dr[30:0], 1'b0};
-                          latching_data = "32 bit shifted";
+                          latch_data <= #1 1'b0;
+                          latching_data_text = "32 bit shifted";
                         end
                     end
       endcase
@@ -307,15 +332,18 @@ begin
   else if (enable & ((~addr_len_cnt_end) | (~cmd_cnt_end) | ((~data_cnt_end) & write_cycle)))
     begin
     dr <= #1 {dr[49:0], tdi_i};
-    latching_data = "tdi shifted in";
+    latch_data <= #1 1'b0;
+    latching_data_text = "tdi shifted in";
     end
   else
-    latching_data = "nothing";
+    latching_data_text = "nothing";
 end
 
 
 assign cmd_cnt_en = enable & (~cmd_cnt_end);
 
+
+// Command counter
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
@@ -329,6 +357,8 @@ end
 
 assign addr_len_cnt_en = enable & cmd_cnt_end & (~addr_len_cnt_end);
 
+
+// Address/length counter
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
@@ -342,6 +372,8 @@ end
 
 assign data_cnt_en = enable & (~data_cnt_end) & (cmd_cnt_end & write_cycle | crc_cnt_end & read_cycle);
 
+
+// Data counter
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
@@ -375,6 +407,7 @@ assign dr_write = (dr[2:0] == `WB_WRITE8) | (dr[2:0] == `WB_WRITE16) | (dr[2:0] 
 assign dr_go = dr[2:0] == `WB_GO;
 
 
+// Latching instruction
 always @ (posedge tck_i)
 begin
   if (update_dr_i)
@@ -394,6 +427,7 @@ begin
 end
 
 
+// Upper limit. Address/length counter counts until this value is reached
 always @ (posedge tck_i)
 begin
   if (cmd_cnt == 2'h2)
@@ -406,11 +440,10 @@ begin
 end
     
 
-wire go_prelim;
-
 assign go_prelim = (cmd_cnt == 2'h2) & dr[1] & (~dr[0]) & (~tdi_i); 
 
 
+// Upper limit. Data counter counts until this value is reached.
 always @ (posedge tck_i)
 begin
   if (update_dr_i)
@@ -419,6 +452,7 @@ end
 
 
 assign crc_cnt_en = enable & (~crc_cnt_end) & (cmd_cnt_end & addr_len_cnt_end  & (~write_cycle) | (data_cnt_end & write_cycle));
+
 
 // crc counter
 always @ (posedge tck_i or posedge rst_i)
@@ -445,7 +479,7 @@ begin
 end
 
 
-
+// Status counter is made of 4 serialy connected registers
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
@@ -484,7 +518,8 @@ end
 
 assign status_cnt_end = status_cnt4;
 
-reg [199:0] status_text;
+
+// Status register
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
@@ -494,12 +529,12 @@ begin
     end
   else if(crc_cnt_end & (~crc_cnt_end_q) & (~read_cycle))
     begin
-    status <= #1 {crc_match_i, wb_error_tck, wb_overrun_tck, busy_tck}; // igor !!! wb_overrun_tck bo uporabljen skupaj z wb_underrun_tck,
+    status <= #1 {crc_match_i, wb_error_tck, wb_overrun_tck, busy_tck};
     status_text <= #1 "!!!READ";
     end
   else if (data_cnt_end & (~data_cnt_end_q) & read_cycle)
     begin
-    status <= #1 {crc_match_reg, wb_error_tck, wb_overrun_tck, busy_tck}; // igor !!! wb_overrun_tck bo uporabljen skupaj z wb_underrun_tck,
+    status <= #1 {crc_match_reg, wb_error_tck, underrun_tck, busy_tck};
     status_text <= #1 "READ";
     end
   else if (shift_dr_i & (~status_cnt_end))
@@ -512,41 +547,43 @@ end
 // 1. bit:          1 if crc is OK, else 0
 // 2. bit:          1 while WB access is in progress (busy_tck), else 0
 // 3. bit:          1 if overrun occured during write (data couldn't be written fast enough)
+//                    or underrun occured during read (data couldn't be read fast enough)
 // 4. bit:          1 if WB error occured, else 0
 
 
+// TDO multiplexer
 always @ (pause_dr_i or busy_tck or crc_cnt_end or crc_cnt_end_q or cmd_read or crc_match_i or 
           data_cnt_end or data_cnt_end_q or read_cycle or crc_match_reg or status or dr or cmd_go)
 begin
   if (pause_dr_i)
     begin
     tdo_o = busy_tck;
-    TDO_WISHBONE = "busy_tck";
+    tdo_text = "busy_tck";
     end
   else if (crc_cnt_end & (~crc_cnt_end_q) & (~(read_cycle)))
     begin
       tdo_o = crc_match_i;
-      TDO_WISHBONE = "crc_match_i";
+      tdo_text = "crc_match_i";
     end
   else if (read_cycle & crc_cnt_end & (~data_cnt_end))
     begin
     tdo_o = dr[31];
-    TDO_WISHBONE = "read data";
+    tdo_text = "read data";
     end
   else if (read_cycle & data_cnt_end & (~data_cnt_end_q))     // cmd is already updated
     begin
       tdo_o = crc_match_reg;
-      TDO_WISHBONE = "crc_match_reg";
+      tdo_text = "crc_match_reg";
     end
   else if (crc_cnt_end & data_cnt_end)  // cmd is already updated
     begin
       tdo_o = status[0];
-      TDO_WISHBONE = "status";
+      tdo_text = "status";
     end
   else
     begin
       tdo_o = 1'b0;
-      TDO_WISHBONE = "zero while CRC is shifted in";
+      tdo_text = "zero while CRC is shifted in";
     end
 end
 
@@ -559,6 +596,7 @@ begin
 end
 
 
+// Latching instruction
 always @ (posedge tck_i or posedge rst_i)
 begin
   if (rst_i)
@@ -580,6 +618,7 @@ begin
 end
 
 
+// Latching address
 always @ (posedge tck_i)
 begin
   if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i)
@@ -595,11 +634,11 @@ begin
 end
 
 
+// Length counter
 always @ (posedge tck_i)
 begin
   if(crc_cnt_end & (~crc_cnt_end_q) & crc_match_i & (dr_write_latched | dr_read_latched))
     len <= #1 dr[15:0];
-//  else if (wb_end_tck & (~wb_end_tck_q))
   else if (start_rd_tck)
     begin
       case (rw_type)  // synthesis parallel_case full_case
@@ -619,33 +658,21 @@ always @ (posedge tck_i)
 begin
   if (read_cycle & (~dr_go_latched) & (~len_eq_0))              // First read after cmd is entered
     start_rd_tck <= #1 1'b1;
-  else if (read_cycle & crc_cnt_31 & (~len_eq_0))               // Second read after first data is latched
+  else if ((~start_rd_tck) & read_cycle & (~len_eq_0) & (~fifo_full) & (~rd_tck_started))
     start_rd_tck <= #1 1'b1;
-  else if (read_cycle & (~len_eq_0))
-    begin
-      case (rw_type)  // synthesis parallel_case full_case
-        `WB_READ8 : begin
-                      if(byte & (~byte_q))
-                        start_rd_tck <= #1 1'b1;
-                      else
-                        start_rd_tck <= #1 1'b0;
-                    end
-        `WB_READ16: begin
-                      if(half & (~half_q))
-                        start_rd_tck <= #1 1'b1;
-                      else
-                        start_rd_tck <= #1 1'b0;
-                    end
-        `WB_READ32: begin
-                      if(long & (~long_q))
-                        start_rd_tck <= #1 1'b1;
-                      else
-                        start_rd_tck <= #1 1'b0;
-                    end
-      endcase
-    end
   else
     start_rd_tck <= #1 1'b0;
+end
+
+
+always @ (posedge tck_i)
+begin
+  if (update_dr_i)
+    rd_tck_started <= #1 1'b0;
+  else if (start_rd_tck)
+    rd_tck_started <= #1 1'b1;
+  else if (wb_end_tck & (~wb_end_tck_q))
+    rd_tck_started <= #1 1'b0;
 end
 
 
@@ -736,6 +763,7 @@ begin
 end
 
 
+// wb_cyc_o
 always @ (posedge wb_clk_i or posedge rst_i)
 begin
   if (rst_i)
@@ -747,7 +775,7 @@ begin
 end
 
 
-
+// wb_adr_o logic
 always @ (posedge wb_clk_i)
 begin
   if (set_addr_wb & (~set_addr_wb_q)) // Setting starting address
@@ -770,7 +798,7 @@ end
 //     1    0100     err       err
 //     2    0010     0011      err
 //     3    0001     err       err
-
+// wb_sel_o logic
 always @ (posedge wb_clk_i or posedge rst_i)
 begin
   if (rst_i)
@@ -793,6 +821,7 @@ assign wb_cti_o = 3'h0;     // always performing single access
 assign wb_bte_o = 2'h0;     // always performing single access
 
 
+// Logic for detecting end of transaction
 always @ (posedge wb_clk_i or posedge rst_i)
 begin
   if (rst_i)
@@ -854,6 +883,7 @@ begin
 end
 
 
+// Detecting WB error
 always @ (posedge wb_clk_i or posedge rst_i)
 begin
   if (rst_i)
@@ -863,7 +893,8 @@ begin
   else if(wb_ack_i & status_reset_en) // error remains active until STATUS read is performed
     wb_error <= #1 1'b0;
 end
- 
+
+
 always @ (posedge tck_i)
 begin
   wb_error_sync <= #1 wb_error;
@@ -871,7 +902,7 @@ begin
 end
 
 
-
+// Detecting overrun when write operation.
 always @ (posedge wb_clk_i or posedge rst_i)
 begin
   if (rst_i)
@@ -889,8 +920,17 @@ begin
 end
 
 
-
-
+// Detecting underrun when read operation
+always @ (posedge tck_i or posedge rst_i)
+begin
+  if (rst_i)
+    underrun_tck <= #1 1'b0;
+  else if(latch_data & fifo_empty & (~data_cnt_end))
+    underrun_tck <= #1 1'b1;
+  else if(read_cycle & status_reset_en) // error remains active until STATUS read is performed
+    underrun_tck <= #1 1'b0;
+end
+ 
 
 
 // wb_error is locked until WB_STATUS is performed
@@ -905,11 +945,6 @@ begin
 end
 
 
-reg [7:0] mem [0:3];
-reg [2:0] mem_ptr;
-reg wishbone_ce_sync;
-reg wishbone_ce_rst;
-
 always @ (posedge wb_clk_i)
 begin
   wishbone_ce_sync <= #1  wishbone_ce_i;
@@ -917,6 +952,7 @@ begin
 end
 
 
+// Logic for latching data that is read from wishbone
 always @ (posedge wb_clk_i)
 begin
   if(wishbone_ce_rst)
@@ -931,6 +967,7 @@ begin
 end
 
 
+// Logic for latching data that is read from wishbone
 always @ (posedge wb_clk_i)
 begin
   if (wb_ack_i)
@@ -962,10 +999,36 @@ begin
     end
 end
 
+
 assign input_data = {mem[0], mem[1], mem[2], mem[3]};
 
 
+// Fifo counter and empty/full detection
+always @ (posedge tck_i)
+begin
+  if (update_dr_i)
+    fifo_cnt <= #1 'h0;
+  else if (wb_end_tck & (~wb_end_tck_q) & (~latch_data))  // incrementing
+    begin
+      case (rw_type)  // synthesis parallel_case full_case
+        `WB_READ8 : fifo_cnt <= #1 fifo_cnt + 1'd1;
+        `WB_READ16: fifo_cnt <= #1 fifo_cnt + 2'd2;      
+        `WB_READ32: fifo_cnt <= #1 fifo_cnt + 3'd4;
+      endcase
+    end
+  else if (~(wb_end_tck & (~wb_end_tck_q)) & latch_data)  // decrementing
+    begin
+      case (rw_type)  // synthesis parallel_case full_case
+        `WB_READ8 : fifo_cnt <= #1 fifo_cnt - 1'd1;
+        `WB_READ16: fifo_cnt <= #1 fifo_cnt - 2'd2;      
+        `WB_READ32: fifo_cnt <= #1 fifo_cnt - 3'd4;
+      endcase
+    end
+end
 
+
+assign fifo_full = fifo_cnt == 3'h4;
+assign fifo_empty = fifo_cnt == 3'h0;
 
 
 
