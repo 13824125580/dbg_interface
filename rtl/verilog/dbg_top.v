@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.39  2004/01/19 07:32:41  simons
+// Reset values width added because of FV, a good sentence changed because some tools can not handle it.
+//
 // Revision 1.38  2004/01/18 09:22:47  simons
 // Sensitivity list updated.
 //
@@ -390,7 +393,7 @@ begin
   
   case (chain)                /* synthesis parallel_case */
     `CPU_DEBUG_CHAIN      :   cpu_debug_scan_chain  <= #1 1'b1;
-    `WISHBONE_SCAN_CHAIN  :   wishbone_scan_chain   <= #1 1'b1;
+    `WISHBONE_DEBUG_CHAIN :   wishbone_scan_chain   <= #1 1'b1;
     default               :   chain_select_error    <= #1 1'b1; 
   endcase
 end

@@ -43,6 +43,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2003/12/23 15:07:34  mohor
+// New directory structure. New version of the debug interface.
+// Files that are not needed removed.
+//
 // Revision 1.14  2003/10/23 16:17:00  mohor
 // CRC logic changed.
 //
@@ -115,6 +119,6 @@
 `define CRC_CNT         6
 
 // Chains
-`define CPU_DEBUG_CHAIN     3'b000
-`define WISHBONE_SCAN_CHAIN 3'b001
+`define CPU_DEBUG_CHAIN      3'b000
+`define WISHBONE_DEBUG_CHAIN 3'b001
 

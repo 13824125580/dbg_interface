@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.33  2004/01/20 14:05:26  mohor
+// Data latching changed when testing WB.
+//
 // Revision 1.32  2004/01/20 10:23:21  mohor
 // More debug data added.
 //
@@ -430,7 +433,7 @@ begin
   set_instruction(`DEBUG);
   #10000;
 
-  chain_select(`WISHBONE_SCAN_CHAIN, 1'b0);   // {chain, gen_crc_err}
+  chain_select(`WISHBONE_DEBUG_CHAIN, 1'b0);   // {chain, gen_crc_err}
 
 //  #10000;
 //  xxx(4'b1001, 32'he579b242);
@@ -703,7 +706,7 @@ task chain_select;
   begin
     case (data)
       `CPU_DEBUG_CHAIN      : $display("(%0t) Task chain_select (CPU_DEBUG_CHAIN, gen_crc_err=%0d)", $time, gen_crc_err);
-      `WISHBONE_SCAN_CHAIN  : $display("(%0t) Task chain_select (WISHBONE_SCAN_CHAIN gen_crc_err=%0d)", $time, gen_crc_err);
+      `WISHBONE_DEBUG_CHAIN : $display("(%0t) Task chain_select (WISHBONE_DEBUG_CHAIN, gen_crc_err=%0d)", $time, gen_crc_err);
       default               : $display("(%0t) Task chain_select (ERROR!!! Unknown chain selected)", $time);
     endcase
 
